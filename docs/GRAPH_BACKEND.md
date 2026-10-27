@@ -101,3 +101,58 @@ python3 -m expediente.cli query --pattern red_oculta --store mdb
 Without `EXPEDIENTE_MDB_URL` the suite still passes: the seven integration tests skip
 and the deterministic core runs against the in-memory adapter. That is deliberate —
 the project must be verifiable by someone who only has Python.
+
+## Bulk load: what a 4.95 M order graph actually costs
+
+Measured on the full national dataset (12 semesters, 129 members, 43 archives), with the
+factory on an arm64 host and the graph on the production x86_64 host.
+
+| Stage | Result |
+|---|---|
+| Aggregate 13,368,668 item rows → orders | **601 s** → 4,950,443 orders, 4.2 GB JSONL |
+| Export orders → NTriples (streamed, zstd) | **285 s** → 64,792,071 triples, 8.57 GB raw / 0.45 GB compressed (19.1×) |
+| Transfer (arm64 factory → x86_64 graph host) | **56 s** for 416 MB at 7.4 MB/s, direct SSH |
+| `mdb import` of the whole graph | **144 s** → 3.1 GB on disk |
+| Query: total amount + count over 65 M triples | **< 1 s** |
+| Query: top-5 buyers by amount (GROUP BY + ORDER BY) | **4 s** |
+
+### Finding 6 — `mdb import` refuses a non-empty database folder
+
+```
+Database folder "/data/db" already exists and it's not empty
+```
+
+There is no append mode. A 65 M triple load therefore has to be **one file**, which means
+the chunking in `scripts/export_ntriples.py` is a *transfer* device, not a load device:
+chunks are concatenated on the target before importing. Worth knowing before designing a
+resumable loader, because the resumability has to live outside the engine.
+
+### Finding 7 — the source data contains NUL bytes, and Python version decides the outcome
+
+The ChileCompra exports encode some empty fields as `;\x00;`. The same archive, byte for
+byte identical on both hosts, produced:
+
+| Host | Python | Behaviour |
+|---|---|---|
+| x86_64 | 3.14.8 | tolerates the NUL, ingests |
+| arm64 | 3.10.12 | `_csv.Error: line contains NUL`, aborts |
+
+**5,071,739 NUL bytes** across the corpus. They are now removed before decoding — turning
+`;\x00;` into an empty field, preserving column alignment — and counted in
+`aggregate_stats.json` as `nul_bytes_removed`. Removing them from the reader rather than
+from the output is what makes the ingestion independent of the interpreter, and the count
+is what makes the repair auditable instead of silent.
+
+The decompressor is configurable for the same reason: `EXPEDIENTE_7Z` defaults to `7z`, and
+the arm64 host needed the upstream 7-Zip 26.04 build rather than Ubuntu's p7zip 16.02.
+
+### Identity: 3 order codes repeat across archives
+
+The graph holds 4,950,440 distinct `:OrdenCompra` nodes for 4,950,443 aggregated records:
+`584146-6-SE23`, `584146-13-SE23` and `584146-14-SE23` appear in more than one archive.
+The URI rule (one node per `codigo`) consolidates them, which is the right answer for a
+graph keyed by a natural identifier — and the reason the order count must be quoted as
+*records* or *nodes*, never as if the two were the same number.
+
+Graph totals after the load: **64,792,053 triples** (18 fewer than exported, deduplicated
+by the engine), 1,400 organismos and 103,220 proveedores.

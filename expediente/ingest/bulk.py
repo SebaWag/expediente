@@ -19,6 +19,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import os
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -97,6 +98,7 @@ class AggregateStats:
     rows: int = 0
     orders: int = 0
     inconsistent: int = 0
+    nul_bytes: int = 0
     by_member: dict[str, int] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
@@ -105,13 +107,21 @@ class AggregateStats:
             "rows": self.rows,
             "orders": self.orders,
             "inconsistent_amounts": self.inconsistent,
+            "nul_bytes_removed": self.nul_bytes,
             "by_member": dict(sorted(self.by_member.items())),
         }
 
 
+#: The decompressor is configurable because it is not interchangeable. p7zip 16.02
+#: (Ubuntu 22.04) emits NUL bytes on some of these archives on arm64 and Python's
+#: csv module then aborts with ``line contains NUL``; 7-Zip 26.04 decodes the same
+#: file cleanly. Pinning the binary in the environment makes the ingestion
+#: reproducible across machines instead of silently depending on the host.
+SEVEN_ZIP = os.environ.get("EXPEDIENTE_7Z", "7z")
+
 def members(archive: Path) -> list[str]:
     """List the CSV members of an archive without extracting anything."""
-    result = subprocess.run(["7z", "l", "-ba", str(archive)], capture_output=True, text=True)
+    result = subprocess.run([SEVEN_ZIP, "l", "-ba", str(archive)], capture_output=True, text=True)
     found = []
     for line in result.stdout.splitlines():
         name = line.split()[-1] if line.split() else ""
@@ -120,7 +130,28 @@ def members(archive: Path) -> list[str]:
     return found
 
 
-def iter_rows(archive: Path, member: str) -> Iterator[dict[str, str]]:
+def _text_lines(raw, stats: "AggregateStats | None" = None) -> Iterator[str]:
+    """Decode one line at a time, dropping the NUL bytes the source actually contains.
+
+    The ChileCompra exports carry empty fields encoded as ``;\x00;`` — 1,977 of them in
+    a single 12 MB member. What to do with them is not a style question: Python 3.12+
+    lets them through and Python 3.10 raises ``line contains NUL``, so leaving them in
+    makes the ingestion depend on the interpreter version rather than on the data.
+    They are removed before decoding, which turns ``;\x00;`` into an empty field and
+    preserves the column alignment. The count goes into the stats, so the removal is
+    visible in the output instead of being a silent repair.
+    """
+    for line in raw:
+        if b"\x00" in line:
+            if stats is not None:
+                stats.nul_bytes += line.count(b"\x00")
+            line = line.replace(b"\x00", b"")
+        yield line.decode("latin-1")
+
+
+def iter_rows(
+    archive: Path, member: str, stats: "AggregateStats | None" = None
+) -> Iterator[dict[str, str]]:
     """Yield aggregated columns for every row of one CSV inside an archive.
 
     ``7z e -so`` writes the decompressed member to stdout; nothing touches disk.
@@ -128,18 +159,23 @@ def iter_rows(archive: Path, member: str) -> Iterator[dict[str, str]]:
     as UTF-8 raises on the first accented municipality name.
     """
     process = subprocess.Popen(
-        ["7z", "e", "-so", str(archive), member],
+        [SEVEN_ZIP, "e", "-so", str(archive), member],
         stdout=subprocess.PIPE,
         stderr=subprocess.DEVNULL,
     )
     assert process.stdout is not None
-    stream = io.TextIOWrapper(process.stdout, encoding="latin-1", newline="")
     try:
-        reader = csv.DictReader(stream, delimiter=";")
-        for row in reader:
-            yield _canonical(row)
+        reader = csv.DictReader(_text_lines(process.stdout, stats), delimiter=";")
+        try:
+            for row in reader:
+                yield _canonical(row)
+        except csv.Error as exc:
+            raise ValueError(
+                f"unreadable CSV in {archive.name} :: {member} ({exc}). "
+                f"Decompressor in use: {SEVEN_ZIP}."
+            ) from exc
     finally:
-        stream.close()
+        process.stdout.close()
         process.wait()
 
 
@@ -157,7 +193,7 @@ def aggregate(archive: Path, member: str, stats: AggregateStats) -> dict[str, Or
     """Aggregate one member into order-level records, keyed by order code."""
     orders: dict[str, OrderAggregate] = {}
 
-    for row in iter_rows(archive, member):
+    for row in iter_rows(archive, member, stats):
         stats.rows += 1
         code = row.get("codigo", "")
         if not code:
