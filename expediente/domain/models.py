@@ -62,6 +62,11 @@ class OrdenCompra:
     licitacion_codigo: str | None = None
     fecha_ultima_modificacion: date | None = None
     fecha_cancelacion: date | None = None
+    #: How the order was awarded. Not decoration: the splitting rule is about avoiding
+    #: a tender, and a Convenio Marco purchase is not subject to one. Detecting on the
+    #: wrong population produced 1,508 "findings" of which the top one was an airline's
+    #: reservations.
+    procedencia: str | None = None
     items: tuple[dict, ...] = field(default=())
 
 

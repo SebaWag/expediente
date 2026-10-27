@@ -57,3 +57,92 @@ def test_the_same_edge_gets_the_same_predicate_everywhere():
         assert exporter.relation_uri(relation) == millenniumdb.relation_uri(relation)
         assert exporter.relation_uri(relation) == schema.relation_uri(relation)
         assert millenniumdb.relation_uri(relation).startswith(schema.REL_PREFIX)
+
+
+def test_the_splitting_rule_ignores_framework_purchases():
+    """A Convenio Marco order is not avoiding a tender, so it cannot be splitting one.
+
+    Measured on the real corpus, including framework purchases produced 1,508 groups in
+    200,000 orders whose top finding was an airline's ticket reservations. Restricting to
+    direct awards left 13, and they were medical supplies bought repeatedly just under
+    the ceiling.
+    """
+    from datetime import date
+
+    from expediente.detectors.fraccionamiento import detect_fraccionamiento
+    from expediente.domain.models import OrdenCompra, Organismo, Proveedor
+
+    organismo = Organismo(codigo="org-1", nombre="Hospital")
+    proveedor = Proveedor(rut_norm="11111111-1", razon_social="Insumos")
+
+    def orders(procedencia: str | None) -> list[OrdenCompra]:
+        return [
+            OrdenCompra(
+                codigo=f"oc-{index}",
+                organismo=organismo,
+                proveedor=proveedor,
+                monto_clp=900_000,
+                fecha=date(2024, 5, 10 + index),
+                procedencia=procedencia,
+            )
+            for index in range(4)
+        ]
+
+    assert len(detect_fraccionamiento(orders("Trato Directo"))) == 1
+    assert detect_fraccionamiento(orders("Convenio Marco")) == []
+    # unknown procedencia is kept: an unproven exemption is not an exemption
+    assert len(detect_fraccionamiento(orders(None))) == 1
+    # and the old behaviour is still reachable deliberately
+    assert len(detect_fraccionamiento(orders("Convenio Marco"), procedencias=None)) == 1
+
+
+def test_the_shape_of_a_group_separates_splitting_from_a_programme():
+    """Identical amounts with different descriptions are a queue, not a split.
+
+    This is the distinction the 59× case forced: 85 orders of exactly CLP 833,000 to a
+    hospital, each citing a different patient. Real, structured, and not one object
+    bought repeatedly.
+    """
+    from datetime import date
+
+    from expediente.detectors.fraccionamiento import detect_fraccionamiento
+    from expediente.domain.models import OrdenCompra, Organismo, Proveedor
+
+    organismo = Organismo(codigo="org-1", nombre="Hospital")
+    proveedor = Proveedor(rut_norm="11111111-1", razon_social="Insumos")
+
+    def order(code: str, amount: int, description: str) -> OrdenCompra:
+        return OrdenCompra(
+            codigo=code,
+            organismo=organismo,
+            proveedor=proveedor,
+            monto_clp=amount,
+            fecha=date(2024, 5, 12),
+            descripcion=description,
+            procedencia="Trato Directo",
+        )
+
+    # one object, bought four times, descriptions agree
+    same_object = detect_fraccionamiento(
+        [
+            order("a", 900_000, "GUANTES DE NITRILO CAJA 100 UNIDADES"),
+            order("b", 905_000, "GUANTES DE NITRILO CAJA 100 UNIDADES"),
+            order("c", 898_000, "GUANTES NITRILO CAJA 100 UNIDADES"),
+            order("d", 901_000, "GUANTES DE NITRILO CAJA 100 UNIDADES"),
+        ]
+    )
+    assert same_object[0].pattern_kind() == "mismo_objeto"
+    assert same_object[0].desc_similarity >= 0.8
+
+    # one order per patient, identical amount, descriptions differ
+    por_caso = detect_fraccionamiento(
+        [
+            order("p1", 833_000, "RESOLUCION EXENTA PACIENTE JESSICA PEREZ"),
+            order("p2", 833_000, "RESOLUCION EXENTA PACIENTE ALEJANDRA SOTO"),
+            order("p3", 833_000, "RESOLUCION EXENTA PACIENTE YENIFER DIAZ"),
+            order("p4", 833_000, "RESOLUCION EXENTA PACIENTE MARIA ROJAS"),
+        ]
+    )
+    assert por_caso[0].pattern_kind() == "por_caso"
+    assert por_caso[0].share_identical_amount == 1.0
+    assert por_caso[0].desc_similarity < 0.8
