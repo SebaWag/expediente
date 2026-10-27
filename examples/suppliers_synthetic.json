@@ -1,0 +1,30 @@
+[
+  {
+    "rut": "11.111.111-1",
+    "razon_social": "Proveedor Sintético A SpA",
+    "direccion": "Av. Bernardo O'Higgins 1234",
+    "comuna": "Renca",
+    "representante_rut": "99.999.999-9",
+    "representante_nombre": "Ana Pérez Sintética",
+    "documento_id": "sha256:registro",
+    "pagina": 12
+  },
+  {
+    "rut": "22.222.222-2",
+    "razon_social": "Proveedor Sintético B Ltda",
+    "direccion": "AV BERNARDO O HIGGINS 1234",
+    "comuna": "RENCA",
+    "representante_rut": "99999999-9",
+    "representante_nombre": "Ana Pérez Sintética",
+    "documento_id": "sha256:registro",
+    "pagina": 27
+  },
+  {
+    "rut": "33.333.333-3",
+    "razon_social": "Proveedor Sintético C EIRL",
+    "direccion": "Pasaje Los Aromos 88",
+    "comuna": "Maipú",
+    "documento_id": "sha256:registro",
+    "pagina": 41
+  }
+]

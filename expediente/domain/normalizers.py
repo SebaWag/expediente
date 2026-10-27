@@ -21,6 +21,9 @@ _ALNUM = re.compile(r"[^a-z0-9]+")
 
 #: Tokens that carry no identifying weight in a Chilean legal name. Dropping
 #: them is what lets "Comercial Spa" and "COMERCIAL S.P.A." collapse together.
+#: Tokens that appear in Chilean addresses without locating anything.
+ADDRESS_NOISE_TOKENS = frozenset({"de", "del", "la", "las", "el", "los", "y", "n", "of", "piso"})
+
 LEGAL_NAME_TOKENS = frozenset(
     {
         "spa", "ltda", "limitada", "sa", "eirl", "cia", "sociedad", "anonima",
@@ -158,3 +161,21 @@ def geo_bucket(latitude: float, longitude: float, decimals: int = 3) -> str:
     across cells.
     """
     return f"{round(latitude, decimals):.{decimals}f},{round(longitude, decimals):.{decimals}f}"
+
+
+def address_key(raw: str | None) -> str:
+    """Normalise an address into a blocking key.
+
+    Addresses arrive as "Av. Bernardo O'Higgins 1234, Of. 51" and "AV BERNARDO
+    O HIGGINS 1234 OF 51". Same block: strip accents, unify punctuation, drop the
+    noise tokens that carry no locating power.
+
+    This is a *blocking* key, never an equality decision: two suppliers sharing a
+    block are a candidate for review, not a confirmed shared address.
+    """
+    if not raw:
+        return ""
+    decomposed = unicodedata.normalize("NFD", str(raw))
+    plain = "".join(char for char in decomposed if unicodedata.category(char) != "Mn")
+    tokens = _ALNUM.sub(" ", plain.lower().replace(".", "")).split()
+    return " ".join(token for token in tokens if token not in ADDRESS_NOISE_TOKENS)

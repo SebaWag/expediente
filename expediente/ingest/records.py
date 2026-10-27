@@ -13,6 +13,7 @@ from typing import Any
 
 from ..domain.models import OrdenCompra, Organismo, Proveedor
 from ..evidence.models import Claim, Document, Evidence
+from ..resolution.models import SupplierRecord
 from ..domain.normalizers import name_key, normalize_rut, parse_clp, parse_date
 
 
@@ -117,3 +118,25 @@ def load_dossier(path: str | Path) -> tuple[list[Claim], list[Evidence], list[Do
         for item in raw.get("documents", ())
     ]
     return claims, evidence, documents
+
+
+def load_suppliers(path: str | Path) -> list[SupplierRecord]:
+    """Read supplier records: RUT, name, address and legal representative."""
+    raw = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(raw, list):
+        raise RecordError(f"{path}: expected a JSON array of supplier records")
+    return [
+        SupplierRecord(
+            rut=str(item.get("rut", "")),
+            razon_social=str(item.get("razon_social", "")),
+            direccion=item.get("direccion"),
+            comuna=item.get("comuna"),
+            latitud=item.get("latitud"),
+            longitud=item.get("longitud"),
+            representante_rut=item.get("representante_rut"),
+            representante_nombre=item.get("representante_nombre"),
+            documento_id=item.get("documento_id"),
+            pagina=item.get("pagina"),
+        )
+        for item in raw
+    ]
