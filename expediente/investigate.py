@@ -21,16 +21,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable, Sequence
 
+from .detectors import DetectedPattern, run_all
 from .detectors.fraccionamiento import (
     DEFAULT_CEILING_CLP,
     DEFAULT_FLOOR_CLP,
     DEFAULT_MIN_ORDERS,
-    Finding,
-    detect_fraccionamiento,
 )
 from .dossier.build import build_dossier
 from .dossier.models import Dossier
-from .domain.models import OrdenCompra
+from .domain.models import CompraAgil, OrdenCompra
 from .evidence.gate import GateReport, evaluate
 from .evidence.models import Claim, Document, Evidence
 from .graph.store import GraphStore, NodeKey
@@ -42,7 +41,7 @@ from .navigate.rpq import match
 class Investigation:
     """Everything one investigation produced, in the order a reader needs it."""
 
-    findings: tuple[Finding, ...]
+    findings: tuple[DetectedPattern, ...]
     routes: tuple[Path, ...]
     report: GateReport
     dossier: Dossier
@@ -66,15 +65,12 @@ def investigate(
     ceiling_clp: int = DEFAULT_CEILING_CLP,
     floor_clp: int = DEFAULT_FLOOR_CLP,
     min_orders: int = DEFAULT_MIN_ORDERS,
+    compras: Sequence[CompraAgil] = (),
     route_pattern: str = "red_oculta",
     route_from: NodeKey | None = None,
 ) -> Investigation:
     """Run the whole chain: detect, cite, gate, assemble."""
-    findings = tuple(
-        detect_fraccionamiento(
-            orders, ceiling_clp=ceiling_clp, floor_clp=floor_clp, min_orders=min_orders
-        )
-    )
+    findings = tuple(run_all(orders, compras))
 
     claims, evidence, documents = _claims_from_findings(store, findings)
     report = evaluate(claims, evidence, documents)
@@ -94,13 +90,13 @@ def investigate(
             "piso_clp": floor_clp,
             "min_ordenes": min_orders,
         },
-        detectors=("fraccionamiento",),
+        detectors=tuple(sorted({finding.detector for finding in findings})),
     )
     return Investigation(findings=findings, routes=routes, report=report, dossier=dossier)
 
 
 def _claims_from_findings(
-    store: GraphStore, findings: Iterable[Finding]
+    store: GraphStore, findings: Iterable[DetectedPattern]
 ) -> tuple[list[Claim], list[Evidence], list[Document]]:
     """One claim per finding, one evidence entry per order that has a document."""
     claims: list[Claim] = []

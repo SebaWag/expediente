@@ -175,7 +175,9 @@ This is a hackathon build in progress. What is honest as of **day 2**:
 | Mercado Público v2 (Compra Ágil) client | ✅ working against the live API |
 | Mercado Público v1 (purchase orders) client | 🟡 list endpoint only returns 3 fields — full record needs one call per order, so historical series come from the open-data bulk downloads |
 | Detector 1 — purchase splitting | ✅ working, tested |
-| Detectors 2–5 | ⬜ not started |
+| Detector 2 — spend concentration (HHI) | ✅ working, tested |
+| Detector 3 — suppliers that always quote together | ✅ working, tested |
+| Detector 4/5 — late modification and cancellation | ✅ working, tested |
 | Evidence gate (claims without a document and page are deleted) | ✅ working, tested |
 | Route expressions (RPQ) with inverse, concatenation and alternation | ✅ working, and evaluated natively by the engine |
 | Dossier export — markdown + JSON, content-derived id | ✅ working, tested |

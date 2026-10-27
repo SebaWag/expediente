@@ -42,19 +42,28 @@ def run(**overrides):
     return investigate(store, orders, **payload)
 
 
-def test_the_pipeline_finds_both_patterns():
+def test_every_detector_contributes():
     result = run()
-    assert len(result.findings) == 2
-    assert result.kept + result.dropped == 2
+    assert {finding.detector for finding in result.findings} == {
+        "fraccionamiento",
+        "concentracion",
+    }
+    assert len(result.findings) == 3
+    assert result.kept + result.dropped == 3
 
 
 def test_a_pattern_without_documents_is_dropped_not_asserted():
-    """Supplier D has three orders under the ceiling — and no accrediting document."""
-    result = run()
+    """Supplier D has three orders under the ceiling — and no accrediting document.
 
-    assert result.kept == 1
-    assert result.dropped == 1
-    assert result.report.dropped[0].reason.value == "NO_EVIDENCE"
+    The concentration finding survives (it cites supplier A's orders); the splitting
+    pattern for D does not, because nothing accredits those three orders.
+    """
+    result = run()
+    dropped = list(result.report.dropped)
+
+    assert len(dropped) == 1
+    assert dropped[0].reason.value == "NO_EVIDENCE"
+    assert "D Ltda" in dropped[0].claim.texto
 
 
 def test_the_surviving_claim_cites_the_page_from_the_edge():
@@ -68,7 +77,8 @@ def test_the_surviving_claim_cites_the_page_from_the_edge():
 
 def test_citation_rate_reflects_reality_not_optimism():
     result = run()
-    assert result.dossier.citation_rate == 0.5
+    assert round(result.dossier.citation_rate, 4) == round(result.kept / len(result.findings), 4)
+    assert result.kept < len(result.findings), "at least one claim must be refused"
     assert result.dossier.signable is True
 
 
