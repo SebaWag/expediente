@@ -21,6 +21,7 @@ from .detectors.fraccionamiento import (
     DEFAULT_MIN_ORDERS,
     detect_fraccionamiento,
 )
+from .dossier.build import build_dossier
 from .evidence.gate import evaluate
 from .graph.store import InMemoryGraphStore
 from .ingest.records import load_dossier, load_orders, load_suppliers
@@ -84,6 +85,17 @@ def build_parser() -> argparse.ArgumentParser:
     query_cmd.add_argument("--suppliers", default="examples/suppliers_synthetic.json")
     query_cmd.add_argument("--list", action="store_true", help="list the named patterns and exit")
     query_cmd.set_defaults(handler=_cmd_query)
+
+    dossier_cmd = subparsers.add_parser(
+        "dossier", help="gate a dossier and export the signable artifact"
+    )
+    dossier_cmd.add_argument("--input", required=True, help="path to a dossier JSON file")
+    dossier_cmd.add_argument("--out", required=True, help="where to write the export")
+    dossier_cmd.add_argument("--format", choices=("markdown", "json"), default="markdown")
+    dossier_cmd.add_argument("--titulo", default="Expediente de compras públicas")
+    dossier_cmd.add_argument("--sujeto", default="Organismo y período bajo análisis")
+    dossier_cmd.add_argument("--generado", default="", help="ISO date; defaults to today")
+    dossier_cmd.set_defaults(handler=_cmd_dossier)
 
     fetch_cmd = subparsers.add_parser("fetch-agil", help="download agile purchases from the live API")
     fetch_cmd.add_argument("--desde", required=True, help="change date, YYYY-MM-DD")
@@ -263,6 +275,42 @@ def _build_demo_graph(orders_path: str, suppliers_path: str):
     suppliers = load_suppliers(suppliers_path)
     apply_to_store(store, resolve_suppliers(suppliers), suppliers)
     return store
+
+
+def _cmd_dossier(args: argparse.Namespace) -> int:
+    from datetime import date
+
+    from .dossier.build import DossierError
+
+    claims, evidence, documents = load_dossier(args.input)
+    report = evaluate(claims, evidence, documents)
+
+    try:
+        dossier = build_dossier(
+            report,
+            documents,
+            titulo=args.titulo,
+            sujeto=args.sujeto,
+            generado_en=args.generado or date.today().isoformat(),
+            thresholds={"umbral_clp": 1_000_000},
+            detectors=("fraccionamiento",),
+        )
+    except DossierError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
+
+    body = dossier.to_json() if args.format == "json" else dossier.to_markdown()
+    out_path = Path(args.out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(body, encoding="utf-8")
+
+    print(f"expediente {dossier.id}")
+    print(f"  firmable:      {'sí' if dossier.signable else 'no'}")
+    print(f"  tasa de citas: {dossier.citation_rate:.0%} "
+          f"({len(dossier.claims)} de {len(dossier.claims) + len(dossier.rejected)})")
+    print(f"  eliminadas:    {len(dossier.rejected)}")
+    print(f"  escrito en:    {out_path} ({args.format})")
+    return 0
 
 
 def _cmd_fetch_agil(args: argparse.Namespace) -> int:

@@ -107,8 +107,11 @@ the identifier should be derived from its participants rather than generated. Th
 tracked as an open item: it is the difference between a dossier that can be re-created
 byte for byte and one that merely looks reproducible.
 
-**Status:** not yet implemented for derived relations. Deliberately deferred, not
-forgotten.
+**Status:** implemented for the artifact that matters. The dossier id is
+`sha256` over a canonical serialisation of its claims, citations and rejections —
+so the same evidence produces `exp-c7d06fc7b850a12c` today and next month, whatever
+file name it is saved under. Relation and signal identifiers are still incidental;
+the dossier is the document that gets signed, so it was the one that could not wait.
 
 ---
 

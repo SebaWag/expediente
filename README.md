@@ -119,6 +119,7 @@ expediente/
   graph/        graph schema and store interface
   detectors/    deterministic, explainable rules
   evidence/     the gate: what a dossier is allowed to say
+  dossier/      the signed artifact: citations, rejections, limitations
   cli.py        command line entry point
 scripts/        isolated MillenniumDB instance (start/stop/reset)
 docs/           architecture, graph schema, scope, backend notes
@@ -138,7 +139,12 @@ cd expediente
 python3 -m pytest tests/ -q            # or: python3 -m unittest discover -s tests
 python3 -m expediente.cli detect --input examples/oc_synthetic.json --ceiling 1000000
 python3 -m expediente.cli gate   --input examples/dossier_synthetic.json
+python3 -m expediente.cli dossier --input examples/dossier_synthetic.json \
+        --out out/caso.md --generado 2026-10-27
 ```
+
+The export in [`examples/dossier_export_sample.md`](examples/dossier_export_sample.md) is
+what comes out of that command.
 
 Talking to Mercado Público needs a free ticket (requested at
 `api.mercadopublico.cl`, arrives by email):
@@ -164,7 +170,7 @@ This is a hackathon build in progress. What is honest as of **day 2**:
 | Detectors 2–5 | ⬜ not started |
 | Evidence gate (claims without a document and page are deleted) | ✅ working, tested |
 | Route expressions (RPQ) with inverse, concatenation and alternation | ✅ working, and evaluated natively by the engine |
-| Dossier export | ⬜ not started |
+| Dossier export — markdown + JSON, content-derived id | ✅ working, tested |
 | Entity resolution (shared address / legal representative) | ⬜ not started |
 | Contraloría benchmark | ⬜ not started |
 
