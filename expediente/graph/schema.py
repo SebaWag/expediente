@@ -38,6 +38,7 @@ EDGES: dict[str, tuple[str, str]] = {
     "CONVOCADA_POR": ("Licitacion", "Organismo"),
     "OFERTA_EN": ("Proveedor", "Licitacion"),
     "GENERA": ("CompraAgil", "OrdenCompra"),
+    "PUBLICA": ("Organismo", "CompraAgil"),
     "EJECUTA": ("Contrato", "Licitacion"),
     # Corporate structure
     "SOCIO_DE": ("Persona", "Proveedor"),
@@ -47,6 +48,7 @@ EDGES: dict[str, tuple[str, str]] = {
     "SOPORTADA_POR": ("Afirmacion", "Evidencia"),
     "EN": ("Evidencia", "Documento"),
     "ACREDITA": ("Documento", "OrdenCompra"),
+    "RESPALDA": ("Documento", "CompraAgil"),
     # Detection
     "SE_OBSERVA_EN": ("Senal", "OrdenCompra"),
     "PRODUCE": ("Detector", "Senal"),

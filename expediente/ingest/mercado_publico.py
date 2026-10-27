@@ -158,7 +158,9 @@ def compra_agil_from_api(record: dict) -> CompraAgil:
     """Map a v2 agile-purchase detail payload onto the domain model."""
     buyer = record.get("institucion") or {}
     dates = record.get("fechas") or {}
-    amounts = record.get("montos") or {}
+    # the list endpoint nests amounts under "montos", the detail under
+    # "presupuesto" — verified against the live API, not guessed.
+    amounts = record.get("presupuesto") or record.get("montos") or {}
     quoting = record.get("proveedores_cotizando") or []
 
     quoted_ruts = []
