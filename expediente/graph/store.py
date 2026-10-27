@@ -31,6 +31,14 @@ class GraphStore(Protocol):
 
     def edges(self, rel: str, src: NodeKey | None = None) -> list[Triple]: ...
 
+    def adjacent(
+        self, node: NodeKey, direction: str = "out"
+    ) -> list[tuple[str, NodeKey, dict[str, Any]]]: ...
+
+    def adjacent_directed(
+        self, node: NodeKey, direction: str = "out"
+    ) -> list[tuple[str, NodeKey, dict[str, Any], bool]]: ...
+
 
 class InMemoryGraphStore:
     """Reference implementation: enough to run detectors and to prove the schema.
@@ -74,6 +82,42 @@ class InMemoryGraphStore:
     def edges(self, rel: str, src: NodeKey | None = None) -> list[Triple]:
         triples = self._out.get(rel, [])
         return [t for t in triples if src is None or t[0] == src]
+
+    def adjacent(
+        self, node: NodeKey, direction: str = "out"
+    ) -> list[tuple[str, NodeKey, dict[str, Any]]]:
+        """Every edge touching a node, as (relation, the other node, props)."""
+        return [
+            (relation, other, props)
+            for relation, other, props, _reversed in self.adjacent_directed(node, direction)
+        ]
+
+    def adjacent_directed(
+        self, node: NodeKey, direction: str = "out"
+    ) -> list[tuple[str, NodeKey, dict[str, Any], bool]]:
+        """Same as ``adjacent`` but says whether the step runs against the arrow.
+
+        That flag is not cosmetic: in this domain the interesting relations are
+        inbound (a person represents a supplier, a supplier does not represent a
+        person), so a route that hides which way each hop ran reads as if the graph
+        said something it did not.
+
+        Sorted by (relation, label, key) so a traversal is reproducible: the same
+        graph always yields the same sequence of paths, which is what makes a
+        dossier replayable and a bug testable.
+        """
+        found: list[tuple[str, NodeKey, dict[str, Any], bool]] = []
+        if direction in ("out", "both"):
+            for relation, triples in self._out.items():
+                for src, dst, props in triples:
+                    if src == node:
+                        found.append((relation, dst, props, False))
+        if direction in ("in", "both"):
+            for relation, triples in self._in.items():
+                for src, dst, props in triples:
+                    if dst == node:
+                        found.append((relation, src, props, True))
+        return sorted(found, key=lambda item: (item[0], item[1][0], item[1][1], item[3]))
 
     def incoming(self, rel: str, dst: NodeKey) -> list[Triple]:
         """Reverse traversal — required by evidence tracing."""
