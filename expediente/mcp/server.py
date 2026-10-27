@@ -327,6 +327,15 @@ def find_paths(store, args: dict[str, Any]) -> dict[str, Any]:
 
 
 def search(store, args: dict[str, Any]) -> dict[str, Any]:
+    """Find nodes of a label by name, expanding acronyms first.
+
+    Two variants are searched: the literal text, and — if it is a known acronym — the
+    official name. Results are merged and each keeps how it was found, so a caller can
+    tell a literal match from an expanded one instead of guessing why "FONASA" returned
+    something.
+    """
+    from expediente.aliases import expand
+
     label = args.get("label")
     if not isinstance(label, str) or not label:
         raise ValueError("label is required (e.g. 'Organismo', 'Proveedor')")
@@ -339,20 +348,63 @@ def search(store, args: dict[str, Any]) -> dict[str, Any]:
     # back to "any literal" keeps the tool usable before a label has a name property.
     prop = {"Organismo": "nombre", "Proveedor": "razon_social"}.get(label)
     target = f"<urn:expediente:onto/{prop}>" if prop else "?p"
-    query = f"""
-        SELECT DISTINCT ?s ?value WHERE {{
-            ?s <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <urn:expediente:onto/{label}> .
-            ?s {target} ?value .
-            FILTER(isLiteral(?value) && CONTAINS(LCASE(STR(?value)), LCASE("{text}")))
-        }} LIMIT {limit}
-    """
-    rows = store.client.select(query)
-    results = []
-    for row in rows:
-        uri = str(row["s"])
-        node = uri.split("urn:expediente:node/", 1)[-1]
-        results.append({"node": node, "match": str(row.get("value", ""))})
-    return {"label": label, "text": text, "count": len(results), "results": results}
+
+    def _escape(value: str) -> str:
+        return value.replace("\\", "\\\\").replace('"', '\\"')
+
+    # A three-letter needle inside a Spanish word is a substring, not a name: "EFE"
+    # matched "CENTRO DE REFERENCIA" and "SAG" matched "SAGRADA FAMILIA". Short,
+    # space-free terms therefore have to be a whole word; longer ones may stay partial
+    # so that "AGROSUP" still finds "AGROSUPER COMERCIALIZADORA".
+    whole_word = len(text) <= 4 and " " not in text
+
+    # An acronym is searched *only* through its expansion. Searching the literal too is
+    # how "EFE" matched "CENTRO DE REFERENCIA" and "SAG" matched "SAGRADA FAMILIA": a
+    # three-letter needle inside a Spanish word is a substring, not a name.
+    variants: list[tuple[str, str]] = expand(text) or [(text, "texto")]
+
+    merged: dict[str, dict[str, Any]] = {}
+    if getattr(store, "client", None) is None:
+        # Same contract without an engine: walk the nodes of this label. Correct for the
+        # in-memory store and for tests, never the path used against the database.
+        for node_key in store.nodes(label):
+            props = store.node(*node_key) or {}
+            value = str(props.get(prop or "nombre") or props.get("razon_social") or "")
+            for variant, reason in variants:
+                haystack = f" {value.lower()} " if whole_word else value.lower()
+                needle = f" {variant.lower()} " if whole_word else variant.lower()
+                if needle in haystack:
+                    key = f"{node_key[0]}/{node_key[1]}"
+                    merged.setdefault(key, {"node": key, "match": value, "matched_via": reason})
+                    break
+    else:
+        for variant, reason in variants:
+            left = 'CONCAT(" ", STR(?value), " ")' if whole_word else "STR(?value)"
+            needle = f" {_escape(variant)} " if whole_word else _escape(variant)
+            query = f"""
+                SELECT DISTINCT ?s ?value WHERE {{
+                    ?s <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <urn:expediente:onto/{label}> .
+                    ?s {target} ?value .
+                    FILTER(isLiteral(?value) && CONTAINS(LCASE({left}), LCASE("{needle}")))
+                }} LIMIT {limit}
+            """
+            for row in store.client.select(query):
+                uri = str(row["s"])
+                node = uri.split("urn:expediente:node/", 1)[-1]
+                if node not in merged:
+                    merged[node] = {
+                        "node": node,
+                        "match": str(row.get("value", "")),
+                        "matched_via": reason,
+                    }
+
+    return {
+        "label": label,
+        "text": text,
+        "expanded_to": [v for v, r in variants if r != "texto"] or None,
+        "count": len(merged),
+        "results": list(merged.values())[:limit],
+    }
 
 
 def citation_trail(store, args: dict[str, Any]) -> dict[str, Any]:

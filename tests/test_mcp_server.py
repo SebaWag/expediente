@@ -113,3 +113,27 @@ def test_citation_trail_is_empty_and_says_why(store):
 def test_limits_are_clamped_not_trusted(store):
     result = neighbours(store, {"node": "Organismo/61.603.000-0", "limit": 10_000})
     assert len(result["neighbours"]) <= 200
+
+
+def test_search_expands_a_known_acronym(store):
+    result = search(store, {"label": "Organismo", "text": "FONASA"})
+    assert result["count"] == 1
+    assert result["results"][0]["matched_via"] == "sigla:FONASA"
+    assert result["expanded_to"] == ["FONDO NACIONAL DE SALUD"]
+
+
+def test_a_short_acronym_does_not_match_inside_a_word(store):
+    """EFE matched "CENTRO DE REFERENCIA" before this rule existed."""
+    graph = InMemoryGraphStore()
+    graph.upsert_node("Organismo", "x-1", nombre="CENTRO DE REFERENCIA DE SALUD DE MAIPU")
+    graph.upsert_node("Organismo", "x-2", nombre="ILUSTRE MUNICIPALIDAD DE SAGRADA FAMILIA")
+    assert search(graph, {"label": "Organismo", "text": "EFE"})["count"] == 0
+    assert search(graph, {"label": "Organismo", "text": "SAG"})["count"] == 0
+
+
+def test_a_long_partial_still_matches(store):
+    """The whole-word rule is for short needles only; partial names must keep working."""
+    assert search(store, {"label": "Proveedor", "text": "AGROSU"})["count"] == 0
+    graph = InMemoryGraphStore()
+    graph.upsert_node("Proveedor", "p-1", razon_social="AGROSUPER COMERCIALIZADORA DE ALIMENTOS")
+    assert search(graph, {"label": "Proveedor", "text": "AGROSU"})["count"] == 1
