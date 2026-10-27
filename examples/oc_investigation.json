@@ -1,0 +1,122 @@
+[
+  {
+    "codigo": "OC-3101",
+    "organismo": {
+      "codigo": "69.260.000-1",
+      "nombre": "Municipalidad Sintética de Ejemplo",
+      "comuna": "Renca",
+      "region": "Metropolitana"
+    },
+    "proveedor": {
+      "rut": "11.111.111-1",
+      "razon_social": "Proveedor Sintético A SpA"
+    },
+    "monto_clp": 912400,
+    "fecha": "2026-10-03"
+  },
+  {
+    "codigo": "OC-3102",
+    "organismo": {
+      "codigo": "69.260.000-1",
+      "nombre": "Municipalidad Sintética de Ejemplo",
+      "comuna": "Renca",
+      "region": "Metropolitana"
+    },
+    "proveedor": {
+      "rut": "11.111.111-1",
+      "razon_social": "Proveedor Sintético A SpA"
+    },
+    "monto_clp": 878900,
+    "fecha": "2026-10-09"
+  },
+  {
+    "codigo": "OC-3103",
+    "organismo": {
+      "codigo": "69.260.000-1",
+      "nombre": "Municipalidad Sintética de Ejemplo",
+      "comuna": "Renca",
+      "region": "Metropolitana"
+    },
+    "proveedor": {
+      "rut": "11.111.111-1",
+      "razon_social": "Proveedor Sintético A SpA"
+    },
+    "monto_clp": 995000,
+    "fecha": "2026-10-17"
+  },
+  {
+    "codigo": "OC-3104",
+    "organismo": {
+      "codigo": "69.260.000-1",
+      "nombre": "Municipalidad Sintética de Ejemplo",
+      "comuna": "Renca",
+      "region": "Metropolitana"
+    },
+    "proveedor": {
+      "rut": "11.111.111-1",
+      "razon_social": "Proveedor Sintético A SpA"
+    },
+    "monto_clp": 940000,
+    "fecha": "2026-10-22"
+  },
+  {
+    "codigo": "OC-3201",
+    "organismo": {
+      "codigo": "69.260.000-1",
+      "nombre": "Municipalidad Sintética de Ejemplo",
+      "comuna": "Renca",
+      "region": "Metropolitana"
+    },
+    "proveedor": {
+      "rut": "44.444.444-4",
+      "razon_social": "Proveedor Sintético D Ltda"
+    },
+    "monto_clp": 880000,
+    "fecha": "2026-10-04"
+  },
+  {
+    "codigo": "OC-3202",
+    "organismo": {
+      "codigo": "69.260.000-1",
+      "nombre": "Municipalidad Sintética de Ejemplo",
+      "comuna": "Renca",
+      "region": "Metropolitana"
+    },
+    "proveedor": {
+      "rut": "44.444.444-4",
+      "razon_social": "Proveedor Sintético D Ltda"
+    },
+    "monto_clp": 910000,
+    "fecha": "2026-10-12"
+  },
+  {
+    "codigo": "OC-3203",
+    "organismo": {
+      "codigo": "69.260.000-1",
+      "nombre": "Municipalidad Sintética de Ejemplo",
+      "comuna": "Renca",
+      "region": "Metropolitana"
+    },
+    "proveedor": {
+      "rut": "44.444.444-4",
+      "razon_social": "Proveedor Sintético D Ltda"
+    },
+    "monto_clp": 930000,
+    "fecha": "2026-10-20"
+  },
+  {
+    "codigo": "OC-3301",
+    "organismo": {
+      "codigo": "69.260.000-1",
+      "nombre": "Municipalidad Sintética de Ejemplo",
+      "comuna": "Renca",
+      "region": "Metropolitana"
+    },
+    "proveedor": {
+      "rut": "22.222.222-2",
+      "razon_social": "Proveedor Sintético B Ltda"
+    },
+    "monto_clp": 1450000,
+    "fecha": "2026-10-14"
+  }
+]

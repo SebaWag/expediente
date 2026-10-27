@@ -22,6 +22,7 @@ from .detectors.fraccionamiento import (
     detect_fraccionamiento,
 )
 from .dossier.build import build_dossier
+from .investigate import investigate
 from .evidence.gate import evaluate
 from .graph.store import InMemoryGraphStore
 from .ingest.records import load_dossier, load_orders, load_suppliers
@@ -96,6 +97,22 @@ def build_parser() -> argparse.ArgumentParser:
     dossier_cmd.add_argument("--sujeto", default="Organismo y período bajo análisis")
     dossier_cmd.add_argument("--generado", default="", help="ISO date; defaults to today")
     dossier_cmd.set_defaults(handler=_cmd_dossier)
+
+    investigate_cmd = subparsers.add_parser(
+        "investigate", help="detect, cite from the graph, gate, and export a dossier"
+    )
+    investigate_cmd.add_argument("--orders", default="examples/oc_investigation.json")
+    investigate_cmd.add_argument("--evidence", default="examples/evidence_investigation.json")
+    investigate_cmd.add_argument("--suppliers", default="examples/suppliers_synthetic.json",
+                                 help="supplier records, to resolve shared representatives")
+    investigate_cmd.add_argument("--out", default="out/expediente.md")
+    investigate_cmd.add_argument("--format", choices=("markdown", "json"), default="markdown")
+    investigate_cmd.add_argument("--key", default="", help="supplier RUT to start the route from")
+    investigate_cmd.add_argument("--pattern", default="red_oculta")
+    investigate_cmd.add_argument("--titulo", default="Expediente de compras públicas")
+    investigate_cmd.add_argument("--sujeto", default="Municipalidad bajo análisis, octubre 2026")
+    investigate_cmd.add_argument("--generado", default="")
+    investigate_cmd.set_defaults(handler=_cmd_investigate)
 
     fetch_cmd = subparsers.add_parser("fetch-agil", help="download agile purchases from the live API")
     fetch_cmd.add_argument("--desde", required=True, help="change date, YYYY-MM-DD")
@@ -311,6 +328,76 @@ def _cmd_dossier(args: argparse.Namespace) -> int:
     print(f"  eliminadas:    {len(dossier.rejected)}")
     print(f"  escrito en:    {out_path} ({args.format})")
     return 0
+
+
+def _cmd_investigate(args: argparse.Namespace) -> int:
+    from datetime import date
+
+    orders = load_orders(args.orders)
+    store = _graph_with_evidence(orders, args.evidence)
+
+    if args.suppliers and Path(args.suppliers).exists():
+        suppliers = load_suppliers(args.suppliers)
+        apply_to_store(store, resolve_suppliers(suppliers), suppliers)
+
+    result = investigate(
+        store,
+        orders,
+        titulo=args.titulo,
+        sujeto=args.sujeto,
+        generado_en=args.generado or date.today().isoformat(),
+        route_pattern=args.pattern,
+        route_from=("Proveedor", args.key) if args.key else None,
+    )
+
+    body = result.dossier.to_json() if args.format == "json" else result.dossier.to_markdown()
+    out_path = Path(args.out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(body, encoding="utf-8")
+
+    for route in result.routes:
+        print(f"ruta ({route.length} saltos): " + " -> ".join(f"{label} {key}" for label, key in route.nodes))
+    print()
+    for index, finding in enumerate(result.findings, start=1):
+        print(f"[{index}] {finding.explanation()}")
+
+    print()
+    print(f"expediente {result.dossier.id}")
+    print(f"  afirmaciones:  {result.kept} conservadas · {result.dropped} eliminadas")
+    print(f"  tasa de citas: {result.dossier.citation_rate:.0%}")
+    print(f"  firmable:      {'sí' if result.dossier.signable else 'no'}")
+    print(f"  escrito en:    {out_path} ({args.format})")
+    return 0
+
+
+def _graph_with_evidence(orders, evidence_path: str):
+    """Load orders into a graph, then attach the documents that accredit them."""
+    store = InMemoryGraphStore()
+    for order in orders:
+        organismo = store.upsert_node(
+            "Organismo", order.organismo.codigo, nombre=order.organismo.nombre
+        )
+        proveedor = store.upsert_node(
+            "Proveedor", order.proveedor.rut_norm, razon_social=order.proveedor.razon_social
+        )
+        orden = store.upsert_node(
+            "OrdenCompra", order.codigo, monto_clp=order.monto_clp, fecha=str(order.fecha)
+        )
+        store.upsert_edge(organismo, "EMITE", orden)
+        store.upsert_edge(orden, "ADJUDICADA_A", proveedor)
+
+    for item in json.loads(Path(evidence_path).read_text(encoding="utf-8")):
+        document = store.upsert_node(
+            "Documento",
+            item["documento_id"],
+            url=item.get("url", ""),
+            tipo=item.get("tipo", "pdf"),
+            paginas=item.get("paginas"),
+        )
+        orden = store.upsert_node("OrdenCompra", item["orden"])
+        # the page lives on the edge: it is the citation for that specific order
+        store.upsert_edge(document, "ACREDITA", orden, pagina=item.get("pagina"))
+    return store
 
 
 def _cmd_fetch_agil(args: argparse.Namespace) -> int:

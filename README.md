@@ -146,6 +146,14 @@ python3 -m expediente.cli dossier --input examples/dossier_synthetic.json \
 The export in [`examples/dossier_export_sample.md`](examples/dossier_export_sample.md) is
 what comes out of that command.
 
+The whole chain, from records to a signable document, is one command:
+
+```bash
+python3 -m expediente.cli investigate --key 11111111-1 \
+        --out examples/investigation_sample.md --generado 2026-10-27
+```
+
+
 Talking to Mercado Público needs a free ticket (requested at
 `api.mercadopublico.cl`, arrives by email):
 
@@ -171,6 +179,7 @@ This is a hackathon build in progress. What is honest as of **day 2**:
 | Evidence gate (claims without a document and page are deleted) | ✅ working, tested |
 | Route expressions (RPQ) with inverse, concatenation and alternation | ✅ working, and evaluated natively by the engine |
 | Dossier export — markdown + JSON, content-derived id | ✅ working, tested |
+| **End-to-end pipeline** — detect → cite from the graph → gate → dossier | ✅ working, tested |
 | Entity resolution (shared address / legal representative) | ⬜ not started |
 | Contraloría benchmark | ⬜ not started |
 
