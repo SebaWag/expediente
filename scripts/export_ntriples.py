@@ -38,13 +38,7 @@ from typing import IO, Iterator
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from expediente.graph.schema import EDGES, NODES
-
-ONTO = "urn:expediente:onto/"
-NODE_PREFIX = "urn:expediente:node/"
-REL_PREFIX = f"{ONTO}rel/"
-XSD = "http://www.w3.org/2001/XMLSchema#"
-RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
+from expediente.graph.schema import EDGES, NODES, ONTO, NODE_PREFIX, RDF_TYPE, REL_PREFIX, XSD
 
 #: Everything below 0x20 is illegal in an NTriples literal except tab, and the source
 #: uses them for padding. They are dropped, not escaped, because there is no escape.

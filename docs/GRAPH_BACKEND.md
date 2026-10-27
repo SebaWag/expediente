@@ -156,3 +156,50 @@ graph keyed by a natural identifier — and the reason the order count must be q
 
 Graph totals after the load: **64,792,053 triples** (18 fewer than exported, deduplicated
 by the engine), 1,400 organismos and 103,220 proveedores.
+
+## Serving the graph to an agent: three query patterns that matter
+
+The MCP server (`python3 -m expediente.mcp.server`) exposes `neighbours`, `find_paths`,
+`search` and `citation_trail`. Writing them against the full national graph produced
+three findings about the engine, each one a bug before it was a pattern.
+
+### 1. A predicate-free incoming scan cannot use the index
+
+```sparql
+SELECT ?p ?s WHERE { ?s ?p <urn:expediente:node/Proveedor/89.862.200-2> . }   -- 8.0 s
+SELECT ?s WHERE { ?s <urn:expediente:onto/rel/ADJUDICADA_A> <...> } LIMIT 5    -- 0.001 s
+```
+
+That supplier has **44,913** awards. The first form scans; the second binds the
+predicate and answers immediately. So `neighbours` counts with a `GROUP BY` (one query,
+bounded by the number of *relations*, not edges) and then samples **per relation**, with
+the predicate bound. Counts stay exact, the payload stays bounded, and a high-degree
+node is no longer a timeout.
+
+### 2. Counting and sampling are different questions
+
+Asking for the edges and then truncating in Python drags the whole neighbourhood across
+the wire *and* triggers one provenance lookup per edge — the annotation layer builds a
+`VALUES` clause with one URI per edge. Measured on a buyer with 4,015 orders: **over a
+minute**. Counting with `GROUP BY` and sampling with `LIMIT` returns the same answer in
+about **6 ms** of engine time.
+
+### 3. Paths belong to the engine, not to a Python walk
+
+A breadth-first walk issues one request per visited node: from that same buyer, a
+two-hop question is 4,015 round trips. Written as a join over variables (`?s ?p1 ?n1 .
+?n1 ?p2 ?dst`, with the relation filters and the simple-path constraints), the whole
+answer is one query and comes back in **2.3 s through a Chile→Germany tunnel**.
+
+### And the number that looks bad but is not
+
+Every query measured from the development machine appeared to cost about one second.
+The same queries on the host cost **1–6 ms**:
+
+| Where | Trivial query | `GROUP BY` over 4,015 edges |
+|---|---|---|
+| Host (localhost) | **0.001 s** | **0.006 s** |
+| Through the SSH tunnel | 0.896–1.116 s | ~1.1 s |
+
+The engine was never slow; the observer was 12,000 km away. Worth writing down because
+"the database is slow" is the conclusion a tunnel will happily sell you.

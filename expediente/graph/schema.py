@@ -8,7 +8,21 @@ The invariant at the bottom is the product: a claim without a document and a
 page is not exported.
 """
 
+
 from __future__ import annotations
+
+import urllib.parse
+
+#: The one namespace. Every URI the system writes is derived from these five lines,
+#: which is why they live in the vocabulary module and not in the storage adapter:
+#: an adapter and an exporter that disagree about a prefix produce a graph with two
+#: vocabularies, and the symptom is a query that returns zero rows without error.
+ONTO = "urn:expediente:onto/"
+NODE_PREFIX = "urn:expediente:node/"
+EDGE_PREFIX = "urn:expediente:edge/"
+REL_PREFIX = f"{ONTO}rel/"
+RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
+XSD = "http://www.w3.org/2001/XMLSchema#"
 
 NODES: dict[str, dict[str, object]] = {
     "Organismo": {"key": "codigo", "required": ("codigo", "nombre")},
@@ -79,3 +93,14 @@ def describe() -> str:
     for rel, (src, dst) in EDGES.items():
         lines.append(f"  (:{src})-[:{rel}]->(:{dst})")
     return "\n".join(lines)
+
+def node_uri(label: str, key: str) -> str:
+    """Canonical node URI. Same label and key always give the same URI.
+
+    The key is quoted, so an address with spaces or a pipe cannot break the IRI.
+    """
+    return f"{NODE_PREFIX}{label}/{urllib.parse.quote(str(key), safe='')}"
+
+
+def relation_uri(relation: str) -> str:
+    return f"{REL_PREFIX}{relation}"

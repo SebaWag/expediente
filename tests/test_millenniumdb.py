@@ -14,7 +14,13 @@ import os
 
 import pytest
 
-from expediente.graph.millenniumdb import edge_uri, node_uri, relation_uri, _object_term
+from expediente.graph.millenniumdb import (
+    REL_PREFIX,
+    _object_term,
+    edge_uri,
+    node_uri,
+    relation_uri,
+)
 from expediente.graph.sparql import SparqlClient, SparqlError
 from expediente.navigate.rpq import PATTERNS, endpoints, match, parse, to_property_path
 
@@ -45,7 +51,10 @@ def test_edge_uri_is_derived_not_generated():
 
 
 def test_relation_uri_uses_its_own_namespace():
-    assert relation_uri("REPRESENTA_A").endswith("/onto#rel/REPRESENTA_A")
+    # Asserted against the constant, not against a literal: a literal here is what let
+    # the adapter and the bulk exporter drift into two vocabularies.
+    assert relation_uri("REPRESENTA_A") == f"{REL_PREFIX}REPRESENTA_A"
+    assert REL_PREFIX.endswith("rel/")
 
 
 def test_object_term_serialises_types():

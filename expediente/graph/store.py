@@ -36,8 +36,11 @@ class GraphStore(Protocol):
     ) -> list[tuple[str, NodeKey, dict[str, Any]]]: ...
 
     def adjacent_directed(
-        self, node: NodeKey, direction: str = "out"
-    ) -> list[tuple[str, NodeKey, dict[str, Any], bool]]: ...
+        self, node: NodeKey, direction: str = "out", limit: int | None = None
+    ) -> list[tuple[str, NodeKey, dict[str, Any], bool]]:
+        """Neighbours of a node. ``limit`` is not cosmetic: a buyer with 4,000 orders
+        must be answerable without materialising 4,000 annotated edges."""
+        ...
 
 
 class InMemoryGraphStore:
@@ -93,9 +96,9 @@ class InMemoryGraphStore:
         ]
 
     def adjacent_directed(
-        self, node: NodeKey, direction: str = "out"
+        self, node: NodeKey, direction: str = "out", limit: int | None = None
     ) -> list[tuple[str, NodeKey, dict[str, Any], bool]]:
-        """Same as ``adjacent`` but says whether the step runs against the arrow.
+        """Every edge touching a node, as (relation, the other node, props, reversed).
 
         That flag is not cosmetic: in this domain the interesting relations are
         inbound (a person represents a supplier, a supplier does not represent a
@@ -117,7 +120,8 @@ class InMemoryGraphStore:
                 for src, dst, props in triples:
                     if dst == node:
                         found.append((relation, src, props, True))
-        return sorted(found, key=lambda item: (item[0], item[1][0], item[1][1], item[3]))
+        ordered = sorted(found, key=lambda item: (item[0], item[1][0], item[1][1], item[3]))
+        return ordered[:limit] if limit is not None else ordered
 
     def incoming(self, rel: str, dst: NodeKey) -> list[Triple]:
         """Reverse traversal — required by evidence tracing."""

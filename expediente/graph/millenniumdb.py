@@ -30,23 +30,16 @@ from ..navigate.rpq import PATTERNS, parse, to_property_path
 from .sparql import SparqlClient
 from .store import NodeKey, Triple
 
-ONTO = "http://expediente.local/onto#"
-NODE_PREFIX = "urn:expediente:node/"
-EDGE_PREFIX = "urn:expediente:edge/"
-REL_PREFIX = f"{ONTO}rel/"
-RDF_TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
+# Imported, never redefined: the adapter and the exporter must agree on one namespace.
+from .schema import EDGE_PREFIX, NODE_PREFIX, ONTO, RDF_TYPE, REL_PREFIX, XSD
+from .schema import node_uri, relation_uri
 
-XSD_INTEGER = "http://www.w3.org/2001/XMLSchema#integer"
-XSD_DECIMAL = "http://www.w3.org/2001/XMLSchema#decimal"
-XSD_BOOLEAN = "http://www.w3.org/2001/XMLSchema#boolean"
+XSD_INTEGER = f"{XSD}integer"
+XSD_DECIMAL = f"{XSD}decimal"
+XSD_BOOLEAN = f"{XSD}boolean"
 
 #: Properties that describe the edge itself, not the world.
 _RESERVED_EDGE_PROPS = {"rel", "source", "target"}
-
-
-def node_uri(label: str, key: str) -> str:
-    """Canonical node URI. Same label and key always give the same URI."""
-    return f"{NODE_PREFIX}{label}/{urllib.parse.quote(str(key), safe='')}"
 
 
 def edge_uri(relation: str, source: NodeKey, target: NodeKey) -> str:
@@ -57,10 +50,6 @@ def edge_uri(relation: str, source: NodeKey, target: NodeKey) -> str:
     """
     digest = hashlib.sha1(f"{relation}|{source[0]}:{source[1]}|{target[0]}:{target[1]}".encode()).hexdigest()
     return f"{EDGE_PREFIX}{relation}/{digest[:16]}"
-
-
-def relation_uri(relation: str) -> str:
-    return f"{REL_PREFIX}{relation}"
 
 
 class MillenniumDBStore:
@@ -116,7 +105,13 @@ class MillenniumDBStore:
     # -- reads -------------------------------------------------------------
     def node(self, label: str, key: str) -> dict[str, Any] | None:
         uri = node_uri(label, key)
-        rows = self.client.select(f"SELECT ?p ?o WHERE {{ <{uri}> ?p ?o }}")
+        # Edges are not properties. Without the filter, a buyer with 4,000 orders answers
+        # this with 4,000 rows it then has to discard — measured at 24 s against the full
+        # national graph, for four useful values.
+        rows = self.client.select(
+            f'SELECT ?p ?o WHERE {{ <{uri}> ?p ?o . '
+            f'FILTER(!STRSTARTS(STR(?p), "{REL_PREFIX}")) }}'
+        )
         if not rows:
             return None
         return _props_from_rows(rows)
@@ -153,14 +148,18 @@ class MillenniumDBStore:
         ]
 
     def adjacent_directed(
-        self, node: NodeKey, direction: str = "out"
+        self, node: NodeKey, direction: str = "out", limit: int | None = None
     ) -> list[tuple[str, NodeKey, dict[str, Any], bool]]:
         found: list[tuple[str, NodeKey, bool]] = []
+        # The cap belongs in the query, not after it: provenance is fetched per edge,
+        # and a buyer with 4,000 orders turned one neighbour lookup into a 4,000-value
+        # VALUES clause. Bounded at the engine, the same call answers in a second.
+        cap = f" LIMIT {int(limit)}" if limit else ""
 
         if direction in ("out", "both"):
             rows = self.client.select(
                 f"SELECT ?p ?o WHERE {{ <{node_uri(*node)}> ?p ?o . "
-                f'FILTER(STRSTARTS(STR(?p), "{REL_PREFIX}")) }}'
+                f'FILTER(STRSTARTS(STR(?p), "{REL_PREFIX}")) }}{cap}'
             )
             for row in rows:
                 found.append((str(row["p"])[len(REL_PREFIX) :], _key_from_uri(row["o"]), False))
@@ -168,7 +167,7 @@ class MillenniumDBStore:
         if direction in ("in", "both"):
             rows = self.client.select(
                 f"SELECT ?p ?s WHERE {{ ?s ?p <{node_uri(*node)}> . "
-                f'FILTER(STRSTARTS(STR(?p), "{REL_PREFIX}")) }}'
+                f'FILTER(STRSTARTS(STR(?p), "{REL_PREFIX}")) }}{cap}'
             )
             for row in rows:
                 found.append((str(row["p"])[len(REL_PREFIX) :], _key_from_uri(row["s"]), True))

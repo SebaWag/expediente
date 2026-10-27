@@ -32,8 +32,11 @@ start() {
   mkdir -p "${ROOT}"
   [ -f "${ROOT}/seed.ttl" ] || printf '@prefix exp: <http://expediente.local/onto#> .\n' > "${ROOT}/seed.ttl"
 
-  if [ ! -d "${ROOT}/data/db" ]; then
-    echo "importing seed into ${ROOT}/data/db"
+  # The volume is ${ROOT}:/data, so the database the container sees at /data/db is
+  # ${ROOT}/db on the host. Checking ${ROOT}/data/db made "reset" a no-op and the
+  # next start failed with "folder already exists and it's not empty".
+  if [ ! -d "${ROOT}/db" ]; then
+    echo "importing seed into ${ROOT}/db"
     docker run --rm --entrypoint bash -v "${ROOT}:/data" "${IMAGE}" \
       -c "mdb import /data/seed.ttl /data/db"
   fi
@@ -74,7 +77,12 @@ status() {
 
 reset() {
   docker rm -f "${NAME}" >/dev/null 2>&1 || true
-  rm -rf "${ROOT}/data/db"
+  # The engine writes its files as the container user, so removing them from the host
+  # fails with EACCES. Deleting them from inside the image keeps the reset working
+  # without sudo and without widening the permissions of the folder.
+  docker run --rm --entrypoint bash -v "${ROOT}:/data" "${IMAGE}" \
+    -c "rm -rf /data/db /data/data/db" >/dev/null 2>&1 || true
+  rm -rf "${ROOT}/db" "${ROOT}/data/db" 2>/dev/null || true
   echo "database removed; run 'start' to recreate it"
 }
 
