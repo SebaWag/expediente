@@ -56,10 +56,16 @@ purchase orders, each with items, plus tender rules and award resolutions. Runni
 frontier model would consume the entire credit budget on work that is closer to parsing than
 to reasoning. Open weights at 2M TPM solve the throughput problem; the output is rows.
 
-**L2b is the one place the model chooses.** It receives the question and the tool schema and
-returns which structural query to execute. It does not write the answer, and it does not get
-tools that mutate anything. The reason is the same as everywhere else: the agent's choice is
-auditable (it is a query, visible on screen), while its prose is not.
+**L2b is the navigation agent, and it is the one place the model chooses.** It receives the
+question and the tool schema and returns **which edge to walk** — which structural query to run
+next, given what the previous one returned. It does not write the answer, and it gets no tools
+that mutate anything.
+
+This is the difference between an agent and a retrieval system, and it is worth stating precisely:
+a retrieval system maps a question to a text span, in one hop, with no notion of what came before.
+A navigation agent maps a question to a *traversal* — and each hop is justified by what the
+previous hop found. That is why the choice has to be visible on screen: it is a query, it can be
+audited, and it can be replayed. The prose it could write cannot.
 
 **L3 runs once.** Synthesis of the final dossier, at `reasoning_effort=high`. Measured at
 roughly seven times the cost of a `minimal` call, which is affordable exactly once per case.
@@ -94,8 +100,22 @@ not footnoted with a disclaimer — dropped. This is the only place in the syste
 information is destroyed on purpose, and it is what makes the citation rate a number we can
 report instead of a claim we make.
 
-Implementation status: the schema and the in-memory traversal exist and are tested; the
-export gate itself lands with the dossier module.
+It is implemented in [`expediente/evidence/gate.py`](../expediente/evidence/gate.py) and every
+rejection carries a reason code, because "two claims were dropped" is not a reviewable statement
+and "this claim pointed at evidence with no document" is:
+
+| Reason | Meaning |
+|---|---|
+| `NO_EVIDENCE` | the assertion cites nothing |
+| `EVIDENCE_UNKNOWN` | it cites an evidence id that does not exist |
+| `NO_DOCUMENT` | the evidence exists but points at no document |
+| `DOCUMENT_UNKNOWN` | it points at a document that does not exist |
+| `NO_PAGE` | the document exists but the evidence has no page |
+| `PAGE_OUT_OF_RANGE` | the page is beyond the document's page count |
+| `EMPTY_EXTRACT` | there is a page but nothing was extracted from it |
+
+A claim survives if **at least one** of its evidence entries is whole. The gate reports the
+citation rate over the whole dossier, which is the number that goes in the video.
 
 ## Storage
 

@@ -41,19 +41,44 @@ claim carries a citation:
 5. **Benchmark against ground truth** — the Contraloría's published audit findings. *"The system
    independently rediscovered N of the M irregularities in report X, with correct citations."*
 
-## What this is **not**
+## Not a retrieval system. A navigation agent.
 
-This is deliberately not a document chatbot, and it is not a RAG application. There is no chunking,
-no embedding index, no "ask the PDFs" surface. The retrieval layer is a **property graph with typed
-edges** and the agent's job is to choose *which structural query* to run, not which paragraph to
-quote.
+To be unambiguous: there is **no chunking, no embedding index, no vector store and no "ask the
+documents" surface anywhere in this repository.** That architecture answers *"which paragraph
+mentions X"*, which is not the question an auditor has.
 
-The reason is the product requirement, not a preference: the output is meant to be signed by
-someone legally accountable. A sentence like *"this looks fraudulent"* is worthless in an audit.
-A dossier that says *"here is the anomaly, here is the rule it violates, here is page 42 of the
-award resolution"* is evidence.
+Expediente is a **navigation agent**. It walks across datasets that were never joined, follows
+typed edges between them, and produces the one thing none of those datasets contains on its own:
+**a relation, with a citation**.
 
-**A spreadsheet answers _how much_. A graph answers _through whom_.**
+The datasets are all public. The joins are not:
+
+| Dataset | Publisher | Joined to the rest today? |
+|---|---|---|
+| Purchase orders | ChileCompra | only by order code, inside its own file |
+| `Compra Ágil` — including who quoted | ChileCompra | only by order code |
+| Tenders and awards | ChileCompra | by tender code, when one exists |
+| Contracts and modifications | ChileCompra | partially |
+| Audit findings | Contraloría | **not at all** — PDFs, no identifiers |
+| Ownership, legal representatives, addresses | company registries | **not at all** |
+
+Nobody joins them because the join is not a foreign key. It is a **person** who appears as legal
+representative of two suppliers. An **address** shared by three RUTs. A **sequence in time** —
+seven orders that only mean something read together. Each of those requires a different kind of
+traversal, and none of them is a similarity search over text.
+
+So the agent has exactly three verbs:
+
+| Verb | What it does | Why a retrieval system cannot |
+|---|---|---|
+| **Navigate** | chooses which edge to walk, and returns the path | a vector index has no edges to walk |
+| **Relate** | asserts the connection between records that never referenced each other | similarity is not a relation |
+| **Document** | attaches a document and a page to every assertion, or deletes the assertion | a chunk has a text span, not an accountable citation |
+
+The path is the answer:
+
+> A spreadsheet answers *how much*. A vector store answers *which text looks similar*.
+> A graph answers **through whom** — and only that answer can be signed.
 
 ## Architecture
 
@@ -93,6 +118,7 @@ expediente/
   ingest/       Mercado Público v1 + v2 clients, bulk loaders
   graph/        graph schema and store interface
   detectors/    deterministic, explainable rules
+  evidence/     the gate: what a dossier is allowed to say
   cli.py        command line entry point
 docs/           architecture, graph schema, scope
 tests/          unit tests, deterministic, offline
@@ -110,6 +136,7 @@ cd expediente
 
 python3 -m pytest tests/ -q            # or: python3 -m unittest discover -s tests
 python3 -m expediente.cli detect --input examples/oc_synthetic.json --ceiling 1000000
+python3 -m expediente.cli gate   --input examples/dossier_synthetic.json
 ```
 
 Talking to Mercado Público needs a free ticket (requested at
@@ -133,7 +160,8 @@ This is a hackathon build in progress. What is honest as of **day 2**:
 | Mercado Público v1 (purchase orders) client | 🟡 list endpoint only returns 3 fields — full record needs one call per order, so historical series come from the open-data bulk downloads |
 | Detector 1 — purchase splitting | ✅ working, tested |
 | Detectors 2–5 | ⬜ not started |
-| Evidence tracing + dossier export | ⬜ not started |
+| Evidence gate (claims without a document and page are deleted) | ✅ working, tested |
+| Dossier export | ⬜ not started |
 | Entity resolution (shared address / legal representative) | ⬜ not started |
 | Contraloría benchmark | ⬜ not started |
 
