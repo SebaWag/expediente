@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "expediente"
+version = "0.1.0"
+description = "A verifiable evidence engine for public procurement"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Sebastián Wagner" }]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+expediente = "expediente.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["expediente*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
