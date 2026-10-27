@@ -21,7 +21,8 @@ from .detectors.fraccionamiento import (
     DEFAULT_MIN_ORDERS,
     detect_fraccionamiento,
 )
-from .ingest.records import load_orders
+from .evidence.gate import evaluate
+from .ingest.records import load_dossier, load_orders
 from .graph.schema import describe
 
 
@@ -45,6 +46,13 @@ def build_parser() -> argparse.ArgumentParser:
     detect_cmd.add_argument("--min-orders", type=int, default=DEFAULT_MIN_ORDERS)
     detect_cmd.add_argument("--json", action="store_true", help="emit JSON instead of text")
     detect_cmd.set_defaults(handler=_cmd_detect)
+
+    gate_cmd = subparsers.add_parser(
+        "gate", help="apply the evidence gate to a dossier (claims that fail are deleted)"
+    )
+    gate_cmd.add_argument("--input", required=True, help="path to a dossier JSON file")
+    gate_cmd.add_argument("--json", action="store_true", help="emit JSON instead of text")
+    gate_cmd.set_defaults(handler=_cmd_gate)
 
     fetch_cmd = subparsers.add_parser("fetch-agil", help="download agile purchases from the live API")
     fetch_cmd.add_argument("--desde", required=True, help="change date, YYYY-MM-DD")
@@ -75,6 +83,26 @@ def _cmd_detect(args: argparse.Namespace) -> int:
     for index, finding in enumerate(findings, start=1):
         print(f"[{index}] {finding.explanation()}")
         print(f"    códigos: {', '.join(finding.order_codes)}\n")
+    return 0
+
+
+def _cmd_gate(args: argparse.Namespace) -> int:
+    claims, evidence, documents = load_dossier(args.input)
+    report = evaluate(claims, evidence, documents)
+
+    if args.json:
+        print(json.dumps(report.to_dict(), ensure_ascii=False, indent=2))
+        return 0
+
+    print(
+        f"{report.total} afirmaciones · {len(report.kept)} conservadas · "
+        f"{len(report.dropped)} eliminadas · tasa de citas {report.citation_rate:.1%}\n"
+    )
+    for kept in report.kept:
+        print(f"  OK  [{kept.claim.id}] {kept.claim.texto[:64]}")
+        print(f"      -> {kept.document_id} · p.{kept.pagina} · {kept.evidence_id}")
+    for dropped in report.dropped:
+        print(f"  NO  [{dropped.claim.id}] {dropped.reason.value} · {dropped.detail}")
     return 0
 
 

@@ -1,0 +1,104 @@
+{
+  "claims": [
+    {
+      "id": "AF-1",
+      "texto": "Cuatro órdenes del mismo municipio al mismo proveedor en octubre, ninguna sobre el umbral",
+      "evidence": [
+        "EV-1"
+      ]
+    },
+    {
+      "id": "AF-2",
+      "texto": "El proveedor comparte representante legal con una segunda empresa",
+      "evidence": [
+        "EV-2"
+      ]
+    },
+    {
+      "id": "AF-3",
+      "texto": "La orden fue modificada después de la adjudicación",
+      "evidence": [
+        "EV-3"
+      ]
+    },
+    {
+      "id": "AF-4",
+      "texto": "La Compra Ágil recibió tres cotizaciones",
+      "evidence": [
+        "EV-4",
+        "EV-5"
+      ]
+    },
+    {
+      "id": "AF-5",
+      "texto": "El municipio concentra el 71% de su gasto en un proveedor",
+      "evidence": []
+    },
+    {
+      "id": "AF-6",
+      "texto": "Contraloría observó fraccionamiento en la misma unidad",
+      "evidence": [
+        "EV-404"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "EV-1",
+      "document_id": "sha256:oc4101",
+      "pagina": 2,
+      "extracto": "ORDEN DE COMPRA 1000813-396-AG26 — total $940.000"
+    },
+    {
+      "id": "EV-2",
+      "document_id": null,
+      "pagina": 7,
+      "extracto": "Representante legal: ... (extracción sin documento asociado)"
+    },
+    {
+      "id": "EV-3",
+      "document_id": "sha256:oc4101",
+      "pagina": 80,
+      "extracto": "Fecha última modificación posterior a la aceptación"
+    },
+    {
+      "id": "EV-4",
+      "document_id": "sha256:agil2255",
+      "pagina": null,
+      "extracto": "Tres cotizaciones recibidas"
+    },
+    {
+      "id": "EV-5",
+      "document_id": "sha256:agil2255",
+      "pagina": 3,
+      "extracto": "Detalle de cotizaciones: 3 proveedores"
+    },
+    {
+      "id": "EV-6",
+      "document_id": "sha256:contraloria",
+      "pagina": 44,
+      "extracto": "Fraccionamiento de compras en la unidad auditada",
+      "extractor": "vision"
+    }
+  ],
+  "documents": [
+    {
+      "id": "sha256:oc4101",
+      "url": "https://example.org/oc4101.pdf",
+      "tipo": "pdf",
+      "paginas": 12
+    },
+    {
+      "id": "sha256:agil2255",
+      "url": "https://example.org/agil2255.pdf",
+      "tipo": "pdf",
+      "paginas": 8
+    },
+    {
+      "id": "sha256:contraloria",
+      "url": "https://example.org/informe.pdf",
+      "tipo": "pdf",
+      "paginas": 60
+    }
+  ]
+}

@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from ..domain.models import OrdenCompra, Organismo, Proveedor
+from ..evidence.models import Claim, Document, Evidence
 from ..domain.normalizers import name_key, normalize_rut, parse_clp, parse_date
 
 
@@ -76,3 +77,43 @@ def order_from_dict(item: dict[str, Any], index: int = 0) -> OrdenCompra:
         fecha_ultima_modificacion=parse_date(item.get("fecha_ultima_modificacion")),
         fecha_cancelacion=parse_date(item.get("fecha_cancelacion")),
     )
+
+
+def load_dossier(path: str | Path) -> tuple[list[Claim], list[Evidence], list[Document]]:
+    """Read a dossier fixture: claims, the evidence they cite, and the documents.
+
+    Used by the CLI and by tests. Shape errors raise, because a dossier that is
+    silently half-loaded would report a citation rate over the wrong denominator.
+    """
+    raw = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise RecordError(f"{path}: expected an object with claims, evidence and documents")
+
+    claims = [
+        Claim(
+            id=str(item["id"]),
+            texto=str(item.get("texto", "")),
+            evidence_ids=tuple(str(ref) for ref in item.get("evidence", ())),
+        )
+        for item in raw.get("claims", ())
+    ]
+    evidence = [
+        Evidence(
+            id=str(item["id"]),
+            document_id=item.get("document_id"),
+            pagina=item.get("pagina"),
+            extracto=str(item.get("extracto", "")),
+            extractor=str(item.get("extractor", "text-layer")),
+        )
+        for item in raw.get("evidence", ())
+    ]
+    documents = [
+        Document(
+            id=str(item["id"]),
+            url=str(item.get("url", "")),
+            tipo=str(item.get("tipo", "pdf")),
+            paginas=item.get("paginas"),
+        )
+        for item in raw.get("documents", ())
+    ]
+    return claims, evidence, documents
