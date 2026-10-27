@@ -153,6 +153,7 @@ def neighbours(store, args: dict[str, Any]) -> dict[str, Any]:
     if props is None:
         return {"node": f"{label}/{key}", "found": False, "neighbours": []}
 
+    uri = node_uri(label, key)
     relations = _relation_counts(store, label, key, direction)
     relations.sort(key=lambda r: -r["count"])
     total = sum(r["count"] for r in relations)

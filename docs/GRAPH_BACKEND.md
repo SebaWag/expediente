@@ -203,3 +203,36 @@ The same queries on the host cost **1–6 ms**:
 
 The engine was never slow; the observer was 12,000 km away. Worth writing down because
 "the database is slow" is the conclusion a tunnel will happily sell you.
+
+## The public API, and why the SPARQL endpoint is not public
+
+`https://expediente.wagnersolutionsai.com` serves six read-only endpoints:
+`/health`, `/stats`, `/search`, `/neighbours`, `/paths`, `/citation`.
+
+The handlers are **imported from the MCP server**. One behaviour, two transports: an
+agent calling `neighbours` over stdio and a browser calling `/neighbours` cannot get
+different answers, because it is the same function with the same clamps.
+
+Two networks, deliberately:
+
+| Network | Why |
+|---|---|
+| `traefik-public` | routing and TLS termination |
+| `expediente-net` | the API reaches the engine by name; the engine is never published |
+
+The engine speaks SPARQL **update**. The API speaks GET. Publishing the former to
+answer a demo would hand the internet a write endpoint into the graph; publishing the
+latter cannot write at all, because there is no code path that issues an update. That
+asymmetry is the security model, and it is why `expediente-mdb` stays bound to
+`127.0.0.1:1235`.
+
+### Two numbers that had to be cached
+
+| Endpoint | First version | After |
+|---|---:|---:|
+| `/health` (COUNT over 65 M triples, every call) | 2.4 s | **0.78 s** |
+| `/stats` (two full aggregations) | 45 s | **0.87 s** |
+
+Both answer questions about the *whole* graph, so both were moved off the request path
+into a warm-up thread at start-up. A demo should never open with a spinner, and a
+restart should not look like an outage.
