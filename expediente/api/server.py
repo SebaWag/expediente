@@ -139,7 +139,108 @@ class Api:
     def citation(self, params: dict[str, str]) -> dict[str, Any]:
         return citation_trail(self.store, params)
 
+    def signals(self, params: dict[str, str]) -> dict[str, Any]:
+        """The shortlist, ranked by score.
+
+        Two queries, because one is enough for four properties and slow for eight. With
+        seven independent OPTIONALs the engine spent 61 s building a wide join; splitting
+        the ranking from the property fetch and doing the second with VALUES brings the
+        same answer back in about a second. Measured, not assumed.
+        """
+        from collections import defaultdict
+
+        from expediente.graph.schema import ONTO, RDF_TYPE
+
+        detector = (params.get("detector") or "").strip()
+        limit = max(1, min(MAX_LIMIT, int(params.get("limit") or 50)))
+        filter_detector = f'FILTER(STR(?detector) = "{detector}")' if detector else ""
+
+        rows = self.store.client.select(
+            f"SELECT ?s ?detector ?score WHERE {{ "
+            f"?s <{RDF_TYPE}> <{ONTO}Senal> . "
+            f"?s <{ONTO}detector> ?detector . "
+            f"?s <{ONTO}score> ?score . {filter_detector} "
+            f"}} ORDER BY DESC(?score) LIMIT {limit}"
+        )
+        if not rows:
+            return {"count": 0, "signals": []}
+
+        uris = [str(row["s"]) for row in rows]
+        values = " ".join(f"<{uri}>" for uri in uris)
+        properties: dict[str, dict[str, Any]] = defaultdict(dict)
+        for row in self.store.client.select(
+            f"SELECT ?s ?p ?o WHERE {{ VALUES ?s {{ {values} }} ?s ?p ?o }}"
+        ):
+            predicate = str(row["p"]).replace(ONTO, "")
+            if predicate.startswith("rel/"):
+                continue
+            properties[str(row["s"])][predicate] = row["o"]
+
+        signals = []
+        for row in rows:
+            uri = str(row["s"])
+            found = properties.get(uri, {})
+            signals.append(
+                {
+                    "id": uri.split("/Senal/", 1)[-1],
+                    "detector": row.get("detector"),
+                    "score": row.get("score"),
+                    "severity": found.get("severidad"),
+                    "organismo": found.get("organismo_nombre"),
+                    "proveedor": found.get("proveedor_nombre"),
+                    "monto_clp": found.get("monto_clp"),
+                    "ordenes": found.get("ordenes"),
+                    "periodo": found.get("periodo"),
+                    "clase": found.get("clase"),
+                }
+            )
+        return {"count": len(signals), "signals": signals}
+
+    def signal_detail(self, params: dict[str, str]) -> dict[str, Any]:
+        """One signal, with the orders it points at.
+
+        This is what makes a signal different from a score: the orders are reachable from
+        the node, so the answer to "why?" is a list of records, not a paragraph.
+        """
+        from expediente.graph.schema import ONTO, node_uri, relation_uri
+
+        identifier = (params.get("id") or "").strip()
+        if not identifier:
+            raise ValueError("a signal id is required: /signals/<id>")
+        uri = node_uri("Senal", identifier)
+
+        props = {
+            str(row["p"]).replace(ONTO, ""): row["o"]
+            for row in self.store.client.select(f"SELECT ?p ?o WHERE {{ <{uri}> ?p ?o }}")
+        }
+        if not props:
+            raise LookupError(f"signal not found: {identifier}")
+
+        orders = self.store.client.select(
+            f"SELECT ?oc ?monto ?fecha ?estado WHERE {{ "
+            f"<{uri}> <{relation_uri('SE_OBSERVA_EN')}> ?oc . "
+            f"OPTIONAL {{ ?oc <{ONTO}monto_clp> ?monto }} "
+            f"OPTIONAL {{ ?oc <{ONTO}fecha> ?fecha }} "
+            f"OPTIONAL {{ ?oc <{ONTO}estado> ?estado }} "
+            f"}} ORDER BY DESC(?monto) LIMIT 100"
+        )
+        return {
+            "id": identifier,
+            "signal": props,
+            "orders": [
+                {
+                    "codigo": str(row["oc"]).split("node/OrdenCompra/", 1)[-1],
+                    "monto_clp": row.get("monto"),
+                    "fecha": row.get("fecha"),
+                    "estado": row.get("estado"),
+                }
+                for row in orders
+            ],
+            "orders_count": len(orders),
+        }
+
     ROUTES = {
+        "/signals": "signals",
         "/health": "health",
         "/stats": "stats",
         "/search": "search",
@@ -187,6 +288,18 @@ class Handler(BaseHTTPRequestHandler):
                     "hint": "GET /stats to see what is in the graph",
                 },
             )
+            return
+
+        if path.startswith("/signals/"):
+            try:
+                payload = self.api.signal_detail({"id": path.split("/signals/", 1)[1]})
+            except LookupError as exc:
+                self._send(404, {"error": str(exc)})
+                return
+            except Exception as exc:
+                self._send(502, {"error": f"{type(exc).__name__}: {exc}"})
+                return
+            self._send(200, payload)
             return
 
         method = self.api.ROUTES.get(path)

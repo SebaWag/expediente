@@ -236,3 +236,38 @@ asymmetry is the security model, and it is why `expediente-mdb` stays bound to
 Both answer questions about the *whole* graph, so both were moved off the request path
 into a warm-up thread at start-up. A demo should never open with a spinner, and a
 restart should not look like an outage.
+
+### 4. Independent OPTIONALs are not free
+
+The signals endpoint needed eight properties, seven of them optional. Written as one
+query, the engine spent **61 seconds**; the same data as a ranking query plus a
+`VALUES`-based property fetch came back in **1.1 s**.
+
+| Shape | Time |
+|---|---:|
+| `?s type Senal` + detector + score, no ORDER BY | 0.77 s |
+| … with 1 OPTIONAL + ORDER BY | 1.24 s |
+| … with 3 OPTIONALs + ORDER BY | 1.12 s |
+| … with **7 OPTIONALs** + ORDER BY | **61.4 s** |
+
+Seven independent OPTIONALs multiply out. The fix is the same one the annotation layer
+already uses: ask for the identifiers first, then fetch their properties with a `VALUES`
+clause. Two round trips that each use an index beat one query that makes the planner
+choose.
+
+### What the graph now contains
+
+| | |
+|---|---:|
+| Orders | 4,950,440 |
+| Suppliers | 103,220 |
+| Buyers | 1,400 |
+| Triples | 64,795,000 (approx., after signals) |
+| Detectors | 2 |
+| Signals (shortlist) | **85** — 60 splitting, 25 concentration |
+| Signal → order edges | 1,756 |
+
+The shortlist is deliberately small. The detectors produce 2,443 material patterns; what
+enters the graph is the subset classified `mismo_objeto` (the same description bought over
+and over just under the ceiling) plus the concentration cases above CLP 1,000 M. A graph
+of 2,443 unranked signals would be a list, not a shortlist.
