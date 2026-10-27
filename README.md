@@ -120,7 +120,8 @@ expediente/
   detectors/    deterministic, explainable rules
   evidence/     the gate: what a dossier is allowed to say
   cli.py        command line entry point
-docs/           architecture, graph schema, scope
+scripts/        isolated MillenniumDB instance (start/stop/reset)
+docs/           architecture, graph schema, scope, backend notes
 tests/          unit tests, deterministic, offline
 examples/       small synthetic fixtures (fake data, clearly labelled)
 ```
@@ -155,12 +156,14 @@ This is a hackathon build in progress. What is honest as of **day 2**:
 |---|---|
 | Domain models + normalisers (RUT, legal name, CLP, periods) | ✅ working, tested |
 | Graph schema (nodes, edges, evidence invariant) | ✅ defined |
-| Graph store | 🟡 in-memory reference implementation; MillenniumDB backend pending dialect verification |
+| Graph store — in memory | ✅ reference adapter, used by the tests |
+| Graph store — **MillenniumDB** | ✅ working against v1.0.0: nodes, edges, per-edge provenance, native property paths |
 | Mercado Público v2 (Compra Ágil) client | ✅ working against the live API |
 | Mercado Público v1 (purchase orders) client | 🟡 list endpoint only returns 3 fields — full record needs one call per order, so historical series come from the open-data bulk downloads |
 | Detector 1 — purchase splitting | ✅ working, tested |
 | Detectors 2–5 | ⬜ not started |
 | Evidence gate (claims without a document and page are deleted) | ✅ working, tested |
+| Route expressions (RPQ) with inverse, concatenation and alternation | ✅ working, and evaluated natively by the engine |
 | Dossier export | ⬜ not started |
 | Entity resolution (shared address / legal representative) | ⬜ not started |
 | Contraloría benchmark | ⬜ not started |

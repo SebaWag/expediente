@@ -264,3 +264,35 @@ def _merge(left: Path, right: Path) -> Path | None:
 def endpoints(paths: Iterable[Path]) -> list[NodeKey]:
     """Distinct destination nodes, ordered — the answer to "who else is connected"."""
     return sorted({path.end for path in paths})
+
+
+def to_property_path(expr: Expr, *, relation: "callable | None" = None) -> str:
+    """Compile a parsed expression into a SPARQL 1.1 property path.
+
+    This is what makes the traversal portable: the same string the in-memory
+    adapter interprets becomes a path the database evaluates with its own
+    algorithms. Bounded repetition has no property-path equivalent, so it raises
+    instead of silently changing the meaning.
+    """
+    term = relation or (lambda name: f"<{name}>")
+
+    if isinstance(expr, Rel):
+        base = term(expr.name)
+        return f"^{base}" if expr.inverse else base
+    if isinstance(expr, Seq):
+        return "/".join(to_property_path(part, relation=term) for part in expr.parts)
+    if isinstance(expr, Alt):
+        return "(" + "|".join(to_property_path(part, relation=term) for part in expr.parts) + ")"
+    if isinstance(expr, Repeat):
+        inner = to_property_path(expr.inner, relation=term)
+        if expr.minimum == 0 and expr.maximum == 1:
+            return f"({inner})?"
+        if expr.minimum == 1 and expr.maximum is None:
+            return f"({inner})+"
+        if expr.minimum == 0 and expr.maximum is None:
+            return f"({inner})*"
+        raise PatternError(
+            "bounded repetition {m,n} has no SPARQL property-path equivalent; "
+            "use '?', '*' or '+' or evaluate it in memory"
+        )
+    raise PatternError(f"unsupported expression {expr!r}")
