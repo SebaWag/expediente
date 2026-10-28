@@ -14,6 +14,9 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
+# PDF support is optional on purpose: the core install stays dependency-free.
+# pypdf is BSD. pymupdf is faster but AGPL — it is never installed by default.
+pdf = ["pypdf>=5.0"]
 
 [project.scripts]
 expediente = "expediente.cli:main"

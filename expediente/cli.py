@@ -1,6 +1,6 @@
 """Command line entry point.
 
-Three commands, no dependencies:
+Commands, no dependencies:
 
     python3 -m expediente.cli schema
     python3 -m expediente.cli detect --input examples/oc_synthetic.json
@@ -24,6 +24,7 @@ from .detectors.fraccionamiento import (
 from .dossier.build import build_dossier
 from .investigate import investigate
 from .evidence.gate import evaluate
+from .evidence.pdf import PdfError, locate, parse_pdf
 from .graph.store import InMemoryGraphStore
 from .ingest.records import load_dossier, load_orders, load_suppliers
 from .navigate.paths import find_paths
@@ -114,6 +115,24 @@ def build_parser() -> argparse.ArgumentParser:
     investigate_cmd.add_argument("--generado", default="")
     investigate_cmd.set_defaults(handler=_cmd_investigate)
 
+    parse_cmd = subparsers.add_parser(
+        "parse", help="read a PDF into located evidence: this document, this page, this text"
+    )
+    parse_cmd.add_argument("--pdf", required=True, help="path to the PDF to read")
+    parse_cmd.add_argument("--url", default="", help="source URL for the document node")
+    parse_cmd.add_argument("--find", default="", help="text to locate; empty means describe only")
+    parse_cmd.add_argument("--claim", default="", help="claim text citing every hit found")
+    parse_cmd.add_argument("--contexto", type=int, default=180, help="chars of context per hit")
+    parse_cmd.add_argument("--max-hits", type=int, default=10)
+    parse_cmd.add_argument(
+        "--extractor",
+        default="auto",
+        help="auto (first installed backend), pypdf, pymupdf (AGPL), or pdfplumber",
+    )
+    parse_cmd.add_argument("--out", default="", help="write a gate-compatible JSON here")
+    parse_cmd.add_argument("--json", action="store_true", help="emit JSON instead of text")
+    parse_cmd.set_defaults(handler=_cmd_parse)
+
     fetch_cmd = subparsers.add_parser("fetch-agil", help="download agile purchases from the live API")
     fetch_cmd.add_argument("--desde", required=True, help="change date, YYYY-MM-DD")
     fetch_cmd.add_argument("--out", required=True, help="where to write the JSON payload")
@@ -124,6 +143,83 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _cmd_schema(_args: argparse.Namespace) -> int:
     print(describe())
+    return 0
+
+
+def _cmd_parse(args: argparse.Namespace) -> int:
+    """Parse a PDF and emit evidence that the gate can consume.
+
+    This is the command that stops a citation from being a typed number: the page
+    comes from the file, and ``--find`` can only return pages that actually say it.
+    """
+    try:
+        parsed = parse_pdf(args.pdf, url=args.url, extractor=args.extractor)
+    except PdfError as exc:
+        print(f"ERROR {exc.code}: {exc.detail}", file=sys.stderr)
+        return 2
+
+    hits = locate(
+        parsed, args.find, contexto=args.contexto, max_hits=args.max_hits
+    ) if args.find else ()
+
+    if args.find and not hits:
+        print(
+            f"0 coincidencias de {args.find!r} en {parsed.document.paginas} paginas: "
+            "el documento no lo dice, y no se inventa una cita",
+            file=sys.stderr,
+        )
+
+    payload: dict = {
+        "documents": [
+            {
+                "id": parsed.document.id,
+                "url": parsed.document.url,
+                "tipo": parsed.document.tipo,
+                "paginas": parsed.document.paginas,
+            }
+        ],
+        "evidence": [
+            {
+                "id": item.id,
+                "document_id": item.document_id,
+                "pagina": item.pagina,
+                "extracto": item.extracto,
+                "extractor": item.extractor,
+            }
+            for item in hits
+        ],
+    }
+    if args.claim and hits:
+        payload["claims"] = [
+            {
+                "id": "AF-1",
+                "texto": args.claim,
+                "evidence": [item.id for item in hits],
+            }
+        ]
+
+    if args.out:
+        Path(args.out).write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+
+    if args.json:
+        print(json.dumps({**parsed.summary(), "hits": len(hits), "payload": payload},
+                         ensure_ascii=False, indent=2))
+        return 0
+
+    print(parsed.document.url or args.pdf)
+    print(
+        f"  {parsed.document.id} · {parsed.document.paginas} paginas · "
+        f"extractor={parsed.extractor}" + (" · AGPL" if parsed.copyleft else "")
+    )
+    if parsed.paginas_sin_texto:
+        print(f"  paginas sin capa de texto (necesitan OCR): {list(parsed.paginas_sin_texto)}")
+    for item in hits:
+        preview = item.extracto[:90].replace("\n", " ")
+        print(f"  p.{item.pagina}  {item.id}  {preview}")
+    if args.out:
+        print(f"\n-> {args.out} (compatible con `expediente gate --input`)")
     return 0
 
 
