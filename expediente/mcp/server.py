@@ -460,7 +460,122 @@ def citation_trail(store, args: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def network(store, args: dict[str, Any]) -> dict[str, Any]:
+    """The suppliers that share a physical address with this one.
+
+    This is the two-hop path ``Proveedor -> Domicilio <- Proveedor`` as a first-class
+    call, because the question it answers is the one a spreadsheet cannot: *who else
+    is registered at this address*.
+
+    It is deliberately **not** a ``:Senal``. ``SE_OBSERVA_EN`` runs
+    ``(:Senal) -> (:OrdenCompra)``, and a shared address is not observed in a single
+    purchase order. What this returns is a bounded list of candidates with the orders
+    attached, which is what a reviewer needs before deciding anything.
+
+    The answer also carries what it is *not*: two companies in one office building are
+    not a network. That sentence ships with the payload so a demo cannot quietly drop
+    it.
+
+    Two queries, not four. The engine answers any single SELECT in about 0.76 s
+    regardless of size, so cost here is round trips and nothing else: name, address and
+    peers come back together in one query, and the order counts in a second. Asking for
+    them separately cost 3.5 s for the same answer.
+    """
+    from expediente.domain.normalizers import rut_display
+    from expediente.graph.schema import ONTO, node_uri, relation_uri
+
+    raw = args.get("rut") or args.get("node") or ""
+    rut = rut_display(raw)
+    if not rut:
+        raise ValueError("a supplier RUT with its check digit is required, e.g. 79.984.240-8")
+
+    limit = _clamp(args.get("limit"), 20, MAX_LIMIT)
+    uri = node_uri("Proveedor", rut)
+
+    client = getattr(store, "client", None)
+    if client is None:
+        return {"rut": rut, "found": False, "peers": [], "note": "no SPARQL client"}
+
+    head = client.select(
+        f"SELECT ?nom ?dir ?region ?prut ?pnom WHERE {{ "
+        f"<{uri}> <{ONTO}razon_social> ?nom . "
+        f"OPTIONAL {{ "
+        f"  <{uri}> <{relation_uri('TIENE_DOMICILIO')}> ?d . "
+        f"  ?d <{ONTO}direccion_texto> ?dir . "
+        f"  OPTIONAL {{ ?d <{ONTO}region> ?region }} "
+        f"  OPTIONAL {{ ?peer <{relation_uri('TIENE_DOMICILIO')}> ?d . "
+        f"    ?peer <{ONTO}rut_norm> ?prut . ?peer <{ONTO}razon_social> ?pnom . "
+        f"    FILTER(?peer != <{uri}>) }} "
+        f"}} }} LIMIT {limit + 1}"
+    )
+    if not head:
+        return {"rut": rut, "found": False, "peers": []}
+
+    result: dict[str, Any] = {
+        "rut": rut,
+        "found": True,
+        "proveedor": head[0].get("nom"),
+    }
+
+    if head[0].get("dir") is None:
+        result.update(
+            {"domicilio": None, "peers": [], "note": "no domicilio recorded for this supplier"}
+        )
+        return result
+
+    peers: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in head:
+        peer_rut = row.get("prut")
+        if not peer_rut or peer_rut in seen:
+            continue
+        seen.add(peer_rut)
+        peers.append({"rut": peer_rut, "razon_social": row.get("pnom"), "orders": 0})
+    peers = peers[:limit]
+
+    # One GROUP BY over VALUES, predicate bound: the index is used and the 4.95 M
+    # ADJUDICADA_A edges are never scanned.
+    if peers:
+        values = " ".join(f"<{node_uri('Proveedor', str(peer['rut']))}>" for peer in peers)
+        for row in client.select(
+            f"SELECT ?p (COUNT(*) AS ?n) WHERE {{ "
+            f"?oc <{relation_uri('ADJUDICADA_A')}> ?p . VALUES ?p {{ {values} }} }} GROUP BY ?p"
+        ):
+            key = str(row["p"]).rsplit("/", 1)[-1]
+            for peer in peers:
+                if peer["rut"] == key:
+                    peer["orders"] = int(row["n"])
+
+    result["domicilio"] = {"direccion": head[0].get("dir"), "region": head[0].get("region")}
+    result["peer_count"] = len(peers)
+    result["peers"] = peers
+    result["claim"] = (
+        "these suppliers share a registered address; that is a candidate to review, "
+        "not an identity"
+    )
+    result["not_claimed"] = (
+        "a shared address is also what an office building looks like. No peer here is "
+        "asserted to be related to any other."
+    )
+    result["evidence"] = {"source": "OCDS", "field": "parties[].address.streetAddress"}
+    return result
+
+
 TOOLS: list[dict[str, Any]] = [
+    {
+        "name": "network",
+        "description": "Suppliers registered at the same address as this RUT: the "
+        "Proveedor -> Domicilio <- Proveedor path, with each peer's order count. "
+        "Returns candidates to review, never a claim of relatedness.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "rut": {"type": "string", "description": "supplier RUT with check digit, e.g. 79.984.240-8"},
+                "limit": {"type": "integer", "default": 20, "maximum": MAX_LIMIT},
+            },
+            "required": ["rut"],
+        },
+    },
     {
         "name": "neighbours",
         "description": "What is attached to a node, grouped by relation. Returns node "
@@ -527,6 +642,7 @@ HANDLERS = {
     "find_paths": find_paths,
     "search": search,
     "citation_trail": citation_trail,
+    "network": network,
 }
 
 

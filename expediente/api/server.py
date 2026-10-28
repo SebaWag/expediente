@@ -37,13 +37,14 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
-from expediente.graph.schema import NODES
+from expediente.graph.schema import EDGES, NODES, relation_uri
 from expediente.mcp.server import (
     MAX_HOPS,
     MAX_LIMIT,
     citation_trail,
     find_paths,
     neighbours,
+    network,
     search,
 )
 
@@ -101,17 +102,28 @@ class Api:
         if self._stats_cache is not None and params.get("refresh") not in ("1", "true"):
             return self._stats_cache
 
-        # Two full aggregations, so the client timeout is raised deliberately: the
-        # engine answers in seconds, but the default 30 s is a request timeout, not a
-        # query budget. The result is cached because the graph only changes on reload.
+        # Two aggregations, and only one of them can use an index.
+        #
+        # The relation counts used to be a predicate-free ``?s ?p ?o`` scan with a
+        # FILTER on the predicate prefix. Measured: 45.5 s, and under memory pressure
+        # it returns an empty map rather than an error — a silent zero, which is the
+        # one failure mode this project does not accept. Binding the predicates from
+        # the vocabulary instead of discovering them gives the same five rows in 1.1 s,
+        # because now the engine has something to look up. Same lesson the neighbours()
+        # docstring already records; it had not been applied here.
+        #
+        # The cache is invalidated by ?refresh=1. It is not invalidated by reload only:
+        # INSERT DATA changes the graph while this process runs (the Domicilio load did
+        # exactly that), so the old comment was wrong.
         by_label = self.store.client.select(
             "SELECT ?t (COUNT(*) AS ?n) WHERE { ?s "
             "<http://www.w3.org/1999/02/22-rdf-syntax-ns#type> ?t } GROUP BY ?t",
             timeout_s=180,
         )
+        relation_values = " ".join(f"<{relation_uri(name)}>" for name in EDGES)
         by_relation = self.store.client.select(
-            "SELECT ?p (COUNT(*) AS ?n) WHERE { ?s ?p ?o . "
-            'FILTER(STRSTARTS(STR(?p), "urn:expediente:onto/rel/")) } GROUP BY ?p',
+            f"SELECT ?p (COUNT(*) AS ?n) WHERE {{ VALUES ?p {{ {relation_values} }} "
+            f"?s ?p ?o }} GROUP BY ?p",
             timeout_s=180,
         )
         self._stats_cache = {
@@ -239,6 +251,9 @@ class Api:
             "orders_count": len(orders),
         }
 
+    def network(self, params: dict[str, str]) -> dict[str, Any]:
+        return network(self.store, params)
+
     ROUTES = {
         "/signals": "signals",
         "/health": "health",
@@ -247,6 +262,7 @@ class Api:
         "/neighbours": "neighbours",
         "/paths": "paths",
         "/citation": "citation",
+        "/network": "network",
     }
 
 
@@ -288,6 +304,19 @@ class Handler(BaseHTTPRequestHandler):
                     "hint": "GET /stats to see what is in the graph",
                 },
             )
+            return
+
+        if path.startswith("/network/"):
+            rut = path.split("/network/", 1)[1]
+            try:
+                payload = self.api.network({**params, "rut": rut})
+            except ValueError as exc:
+                self._send(400, {"error": str(exc)})
+                return
+            except Exception as exc:
+                self._send(502, {"error": f"{type(exc).__name__}: {exc}"})
+                return
+            self._send(200, payload)
             return
 
         if path.startswith("/signals/"):

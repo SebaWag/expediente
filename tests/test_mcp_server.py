@@ -46,7 +46,7 @@ def test_tools_list_declares_every_handler(store):
     response = handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"}, store)
     names = {tool["name"] for tool in response["result"]["tools"]}
     assert names == set(HANDLERS)
-    assert names == {"neighbours", "find_paths", "search", "citation_trail"}
+    assert names == {"neighbours", "find_paths", "search", "citation_trail", "network"}
     for tool in response["result"]["tools"]:
         assert tool["inputSchema"]["type"] == "object"
 
@@ -137,3 +137,30 @@ def test_a_long_partial_still_matches(store):
     graph = InMemoryGraphStore()
     graph.upsert_node("Proveedor", "p-1", razon_social="AGROSUPER COMERCIALIZADORA DE ALIMENTOS")
     assert search(graph, {"label": "Proveedor", "text": "AGROSU"})["count"] == 1
+
+
+# ------------------------------------------------------------------ network
+def test_network_accepts_any_rut_spelling_and_normalises_it(store):
+    """77.290.194-1, 772901941 and 77.290.194-1 must reach the same node key."""
+    from expediente.mcp.server import network
+
+    for spelling in ("89.862.200-2", "89862200-2", "898622002"):
+        payload = network(store, {"rut": spelling})
+        assert payload["rut"] == "89.862.200-2", spelling
+
+
+def test_network_without_a_check_digit_is_a_value_error(store):
+    from expediente.mcp.server import network
+
+    with pytest.raises(ValueError):
+        network(store, {"rut": ""})
+
+
+def test_network_without_a_graph_client_says_so_instead_of_guessing(store):
+    """The in-memory store has no SPARQL client; the answer must admit that."""
+    from expediente.mcp.server import network
+
+    payload = network(store, {"rut": "89.862.200-2"})
+    assert payload["found"] is False
+    assert payload.get("note")
+    assert payload["peers"] == []

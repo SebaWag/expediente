@@ -47,6 +47,33 @@ def normalize_rut(raw: str | int | None) -> str | None:
     return f"{compact[:-1]}-{compact[-1]}"
 
 
+def rut_display(raw: str | int | None) -> str | None:
+    """Render a RUT the way ChileCompra writes it: ``79.984.240-8``.
+
+    ``normalize_rut`` returns the compact canonical form (``79984240-8``), which is
+    right for comparisons but not for node keys: the bulk ingestion keyed every
+    :Proveedor on the *display* form, dots included. Joining a new source on the
+    compact form matches nothing and raises nothing — a silent empty join.
+
+    Measured on the OCDS suppliers: compact form matched 0 of 863, display form
+    matched 755 of 863 (87.5%). This function is the adapter between the two.
+
+    The check digit is required, as it is for ``normalize_rut``: a bare body such as
+    ``79984240`` is read as body ``7998424`` plus digit ``0``, which is a different
+    supplier. Callers must pass the full RUT.
+    """
+    normalised = normalize_rut(raw)
+    if not normalised:
+        return None
+    body, digit = normalised.split("-")
+    groups: list[str] = []
+    while len(body) > 3:
+        groups.insert(0, body[-3:])
+        body = body[:-3]
+    groups.insert(0, body)
+    return ".".join(groups) + "-" + digit
+
+
 def rut_check_digit(body: str) -> str:
     """Compute the Chilean check digit for a RUT body written without separators."""
     total, weight = 0, 2

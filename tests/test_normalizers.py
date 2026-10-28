@@ -84,3 +84,24 @@ def test_period_key_groups_by_month():
 def test_geo_bucket_is_stable_grid():
     assert geo_bucket(-33.4489, -70.6693) == geo_bucket(-33.4488, -70.6694)
     assert geo_bucket(-33.4489, -70.6693) != geo_bucket(-33.5100, -70.6693)
+
+
+def test_rut_display_matches_the_format_the_bulk_wrote():
+    """The graph keys :Proveedor on the dotted form; joining on the compact one is silent."""
+    from expediente.domain.normalizers import rut_display
+
+    assert rut_display("79984240-8") == "79.984.240-8"
+    assert rut_display("79.984.240-8") == "79.984.240-8"
+    assert rut_display("6574609-3") == "6.574.609-3"
+    assert rut_display("10194297-K") == "10.194.297-K"
+    assert rut_display("10194297-k") == "10.194.297-K"
+    assert rut_display(None) is None
+    assert rut_display("") is None
+
+
+def test_rut_display_needs_the_check_digit():
+    """A bare body is a different supplier, not a shorthand. Documented, not guessed."""
+    from expediente.domain.normalizers import rut_display
+
+    # 79984240 is read as body 7998424 + digit 0, which is not the supplier 79.984.240-8
+    assert rut_display("79984240") != "79.984.240-8"
