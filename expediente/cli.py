@@ -24,7 +24,9 @@ from .detectors.fraccionamiento import (
 from .dossier.build import build_dossier
 from .investigate import investigate
 from .evidence.gate import evaluate
+from .evidence.models import Claim
 from .evidence.pdf import PdfError, locate, parse_pdf
+from .evidence.persist import persist_evidence
 from .graph.store import InMemoryGraphStore
 from .ingest.records import load_dossier, load_orders, load_suppliers
 from .navigate.paths import find_paths
@@ -130,6 +132,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="auto (first installed backend), pypdf, pymupdf (AGPL), or pdfplumber",
     )
     parse_cmd.add_argument("--out", default="", help="write a gate-compatible JSON here")
+    parse_cmd.add_argument(
+        "--orden", action="append", default=[],
+        help="order code to accredit; the page is found in the PDF, never supplied",
+    )
+    parse_cmd.add_argument(
+        "--graph", action="store_true",
+        help="write :Documento/:Evidencia/:Afirmacion to EXPEDIENTE_MDB_URL",
+    )
+    parse_cmd.add_argument("--expediente", default="", help="expediente id to attach claims to")
+    parse_cmd.add_argument("--titulo", default="", help="expediente title")
     parse_cmd.add_argument("--json", action="store_true", help="emit JSON instead of text")
     parse_cmd.set_defaults(handler=_cmd_parse)
 
@@ -144,6 +156,23 @@ def build_parser() -> argparse.ArgumentParser:
 def _cmd_schema(_args: argparse.Namespace) -> int:
     print(describe())
     return 0
+
+
+def _open_write_store():
+    """Open the graph for writing, and explain why not when it cannot be opened.
+
+    The client refuses production hosts on its own; this only turns a stack trace
+    into a sentence a person can act on.
+    """
+    from .graph.millenniumdb import MillenniumDBStore
+    from .graph.sparql import SparqlError
+
+    try:
+        return MillenniumDBStore.from_env(), ""
+    except RuntimeError as exc:
+        return None, f"NO_STORE: {exc}"
+    except SparqlError as exc:  # pragma: no cover - only reachable with a live endpoint
+        return None, f"WRITE_REFUSED: {exc}"
 
 
 def _cmd_parse(args: argparse.Namespace) -> int:
@@ -198,6 +227,31 @@ def _cmd_parse(args: argparse.Namespace) -> int:
             }
         ]
 
+    persisted = None
+    if args.graph:
+        store, error = _open_write_store()
+        if error:
+            print(f"ERROR {error}", file=sys.stderr)
+            return 2
+        claims = (
+            [Claim(id="AF-1", texto=args.claim, evidence_ids=tuple(i.id for i in hits))]
+            if args.claim and hits
+            else []
+        )
+        persisted = persist_evidence(
+            store,
+            parsed,
+            hits,
+            claims=claims,
+            orders=args.orden,
+            expediente=(
+                {"id": args.expediente, "titulo": args.titulo or args.expediente,
+                 "estado": "borrador"}
+                if args.expediente else None
+            ),
+        )
+        payload["persisted"] = persisted.to_dict()
+
     if args.out:
         Path(args.out).write_text(
             json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -218,6 +272,14 @@ def _cmd_parse(args: argparse.Namespace) -> int:
     for item in hits:
         preview = item.extracto[:90].replace("\n", " ")
         print(f"  p.{item.pagina}  {item.id}  {preview}")
+    if persisted is not None:
+        print(
+            f"\n  grafo: 1 documento · {len(persisted.evidence)} evidencias · "
+            f"{len(persisted.claims)} afirmaciones · "
+            f"{len(persisted.accredited)} acreditaciones"
+        )
+        for what, why in persisted.skipped:
+            print(f"  omitido: {what} -> {why}")
     if args.out:
         print(f"\n-> {args.out} (compatible con `expediente gate --input`)")
     return 0
