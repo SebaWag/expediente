@@ -25,3 +25,6 @@ out/
 
 # OCDS raw sample (7MB, regenerate with the script in docs/OCDS_FINDINGS.md)
 benchmarks/raw_ocds_awards.jsonl
+
+# embedding matrix (27MB, regenerate)
+benchmarks/name_emb.npy

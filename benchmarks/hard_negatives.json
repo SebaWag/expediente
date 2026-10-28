@@ -1,0 +1,1352 @@
+[
+ {
+  "rut_a": "969292300",
+  "name_a": "TERUMO BCT CHILE S.A.",
+  "rut_b": "875906003",
+  "name_b": "TERUMO CHILE LTDA",
+  "cosine": 0.9703,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "761967509",
+  "name_a": "Enacom Chile Ltda",
+  "rut_b": "967138800",
+  "name_b": "Chilecom",
+  "cosine": 0.9348,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "764716655",
+  "name_a": "Carlos Marcelo",
+  "rut_b": "762500914",
+  "name_b": "Marcelo Javier",
+  "cosine": 0.9239,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "764716655",
+  "name_a": "Carlos Marcelo",
+  "rut_b": "769788832",
+  "name_b": "Carlos Alberto",
+  "cosine": 0.9216,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "765200873",
+  "name_a": "PLUSMEDICAL SPA",
+  "rut_b": "773851808",
+  "name_b": "SMARTMEDICAL SPA",
+  "cosine": 0.9155,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "995502305",
+  "name_a": "MEDILAND SPA",
+  "rut_b": "76364166K",
+  "name_b": "Medex Spa",
+  "cosine": 0.9154,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "764716655",
+  "name_a": "Carlos Marcelo",
+  "rut_b": "766158390",
+  "name_b": "Sergio Rodrigo",
+  "cosine": 0.9145,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "762500914",
+  "name_a": "Marcelo Javier",
+  "rut_b": "766158390",
+  "name_b": "Sergio Rodrigo",
+  "cosine": 0.9129,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "140193623",
+  "name_a": "Claudia del Carmen",
+  "rut_b": "157879820",
+  "name_b": "Fabiola Burgos",
+  "cosine": 0.9098,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "965823107",
+  "name_a": "Grifols Chile S.A.",
+  "rut_b": "875906003",
+  "name_b": "TERUMO CHILE LTDA",
+  "cosine": 0.9085,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "766462898",
+  "name_a": "Gonzalo Esteban",
+  "rut_b": "765662362",
+  "name_b": "Elias Enrique",
+  "cosine": 0.9084,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "969643707",
+  "name_a": "AGQ CHILE SA",
+  "rut_b": "762098369",
+  "name_b": "AMEQ CHILE S.A.",
+  "cosine": 0.9069,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "764580516",
+  "name_a": "Juan José",
+  "rut_b": "76318305K",
+  "name_b": "Claudio Alberto",
+  "cosine": 0.9068,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "796220600",
+  "name_a": "GALENICA S A",
+  "rut_b": "762852292",
+  "name_b": "GALENICUM HEALTH CHILE SPA",
+  "cosine": 0.9063,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "133193960",
+  "name_a": "Javier Sanzana Chaura",
+  "rut_b": "163378825",
+  "name_b": "José Huenufil",
+  "cosine": 0.9049,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "968069802",
+  "name_a": "ENTEL PCS TELECOMUNICACIONES S A",
+  "rut_b": "761967509",
+  "name_b": "Enacom Chile Ltda",
+  "cosine": 0.9048,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "967138800",
+  "name_a": "CHILECOM S A",
+  "rut_b": "760831034",
+  "name_b": "MHS Chile S.A",
+  "cosine": 0.904,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "76398981K",
+  "name_a": "COMERCIALIZADORA Y DISTRIBUIDORA DE EQUIPOS E INSUMOS MEDICOS LIMITADA",
+  "rut_b": "781247707",
+  "name_b": "COMERCIALIZADORA Y DISTRIBUIDORA MEDICA SPA",
+  "cosine": 0.9033,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "764264754",
+  "name_a": "MEDISAN CHILE SPA",
+  "rut_b": "776935409",
+  "name_b": "COMERCIALIZADORA MEDISAN LIMITADA",
+  "cosine": 0.9028,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "900730004",
+  "name_a": "Sanitas S.A.",
+  "rut_b": "969424002",
+  "name_b": "MegaSalud S.A.",
+  "cosine": 0.8993,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "761967509",
+  "name_a": "Enacom Chile Ltda",
+  "rut_b": "761248901",
+  "name_b": "TELEFONICA MOVILES CHILE S.A.",
+  "cosine": 0.8985,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "775969407",
+  "name_a": "LABORATORIO CHILE S A",
+  "rut_b": "945440007",
+  "name_b": "MEGALABS CHILE SA",
+  "cosine": 0.8977,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "965995102",
+  "name_a": "EUROFARMA CHILE SPA",
+  "rut_b": "761137344",
+  "name_b": "PHARMATECH CHILE SPA",
+  "cosine": 0.8966,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "965823107",
+  "name_a": "Grifols Chile S.A.",
+  "rut_b": "969292300",
+  "name_b": "TERUMO BCT CHILE S.A.",
+  "cosine": 0.8942,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "766447651",
+  "name_a": "César Antonio",
+  "rut_b": "766462898",
+  "name_b": "Gonzalo Esteban",
+  "cosine": 0.8938,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "765820685",
+  "name_a": "GALEN SOLUCIONES MÉDICAS SPA",
+  "rut_b": "762852292",
+  "name_b": "GALENICUM HEALTH CHILE SPA",
+  "cosine": 0.893,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "885975003",
+  "name_a": "LABORATORIO BIOSANO S A",
+  "rut_b": "798732706",
+  "name_b": "LABORATORIO BIOTOSCANA FARMA SPA",
+  "cosine": 0.8917,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "775969407",
+  "name_a": "LABORATORIO CHILE S A",
+  "rut_b": "762997584",
+  "name_b": "LABORATORIO FLEX PHARMA CHILE SPA",
+  "cosine": 0.8915,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "764264754",
+  "name_a": "MEDISAN CHILE SPA",
+  "rut_b": "761705016",
+  "name_b": "EMIMED COMERCIALIZADORA DE EQUIPOS MEDICOS SPA",
+  "cosine": 0.8909,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "969812509",
+  "name_a": "PFIZER CHILE S.A.",
+  "rut_b": "76423281K",
+  "name_b": "PISA FARMACEUTICA DE CHILE SPA",
+  "cosine": 0.8891,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "764580516",
+  "name_a": "Juan José",
+  "rut_b": "132524963",
+  "name_b": "Matías Cristian Alvarado Ramirez",
+  "cosine": 0.8889,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "760310719",
+  "name_a": "Distribuidora Salcobrand",
+  "rut_b": "769013946",
+  "name_b": "Socolet SpA",
+  "cosine": 0.8885,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "965995102",
+  "name_a": "EUROFARMA CHILE SPA",
+  "rut_b": "768053596",
+  "name_b": "VARIFARMA CHILE SPA",
+  "cosine": 0.8882,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "96799250K",
+  "name_a": "CLARO CHILE S.A.",
+  "rut_b": "769026592",
+  "name_b": "INVERSIONES CLARO ARZ SPA",
+  "cosine": 0.8877,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "763909670",
+  "name_a": "IMPORTADORA Y COMERCIALIZADORA MEDICPRO LIMITADA",
+  "rut_b": "776935409",
+  "name_b": "COMERCIALIZADORA MEDISAN LIMITADA",
+  "cosine": 0.8868,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "104389937",
+  "name_a": "Eduardo Núñez Jerez",
+  "rut_b": "112805699",
+  "name_b": "Osvaldo del Carmen",
+  "cosine": 0.8867,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "770955173",
+  "name_a": "CULMINE INGENIERÍA Y CONSTRUCCIÓN SPA",
+  "rut_b": "76424608K",
+  "name_b": "CONSTRUCCIONES CUMBRE  SPA",
+  "cosine": 0.8857,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "761137344",
+  "name_a": "PHARMATECH CHILE SPA",
+  "rut_b": "768053596",
+  "name_b": "VARIFARMA CHILE SPA",
+  "cosine": 0.8854,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "765985641",
+  "name_a": "BLAU FARMACEUTICA CHILE SPA",
+  "rut_b": "761137344",
+  "name_b": "PHARMATECH CHILE SPA",
+  "cosine": 0.8852,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "782334204",
+  "name_a": "HOSPITALIA PRODUCTOS MEDICOS LTDA",
+  "rut_b": "776935409",
+  "name_b": "COMERCIALIZADORA MEDISAN LIMITADA",
+  "cosine": 0.8851,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "76318305K",
+  "name_a": "Claudio Alberto",
+  "rut_b": "766158390",
+  "name_b": "Sergio Rodrigo",
+  "cosine": 0.8849,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "142058766",
+  "name_a": "FERNANDO ALBERTO VELOSO OLIVA",
+  "rut_b": "762024632",
+  "name_b": "Fernando Alberto",
+  "cosine": 0.8845,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "762997584",
+  "name_a": "LABORATORIO FLEX PHARMA CHILE SPA",
+  "rut_b": "761137344",
+  "name_b": "PHARMATECH CHILE SPA",
+  "cosine": 0.8843,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "83002400K",
+  "name_a": "NOVARTIS CHILE S A",
+  "rut_b": "969812509",
+  "name_b": "PFIZER CHILE S.A.",
+  "cosine": 0.883,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "770253160",
+  "name_a": "Ensus Chile SpA",
+  "rut_b": "760831034",
+  "name_b": "MHS Chile S.A",
+  "cosine": 0.8822,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "968069802",
+  "name_a": "ENTEL PCS TELECOMUNICACIONES S A",
+  "rut_b": "761248901",
+  "name_b": "TELEFONICA MOVILES CHILE S.A.",
+  "cosine": 0.8821,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "766482112",
+  "name_a": "COMAR Chile SpA",
+  "rut_b": "760831034",
+  "name_b": "MHS Chile S.A",
+  "cosine": 0.882,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "774045139",
+  "name_a": "2TECH SPA",
+  "rut_b": "768598142",
+  "name_b": "TECHNICAL SPA",
+  "cosine": 0.8808,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "767109830",
+  "name_a": "Encinas Spa",
+  "rut_b": "762837986",
+  "name_b": "Ataway SPA",
+  "cosine": 0.8808,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "945440007",
+  "name_a": "MEGALABS CHILE SA",
+  "rut_b": "760831034",
+  "name_b": "MHS Chile S.A",
+  "cosine": 0.8806,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "969812509",
+  "name_a": "PFIZER CHILE S.A.",
+  "rut_b": "761137344",
+  "name_b": "PHARMATECH CHILE SPA",
+  "cosine": 0.8805,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "766447651",
+  "name_a": "César Antonio",
+  "rut_b": "118933907",
+  "name_b": "CÉSAR ANTONIO HERRERA MUÑOZ",
+  "cosine": 0.8803,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "966403500",
+  "name_a": "PENTAFARMA S A",
+  "rut_b": "768963894",
+  "name_b": "VITAFARMA S A",
+  "cosine": 0.8802,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "650206231",
+  "name_a": "Aptus Chile",
+  "rut_b": "969643707",
+  "name_b": "AGQ CHILE SA",
+  "cosine": 0.8797,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "111807132",
+  "name_a": "JORGE BELOZO AHUMADA",
+  "rut_b": "137642824",
+  "name_b": "Pablo Valencia Figueroa",
+  "cosine": 0.8794,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "140682128",
+  "name_a": "Elizabeth Castillo",
+  "rut_b": "12763467K",
+  "name_b": "ALEJANDRA ANDREA GUERRERO DELGADO",
+  "cosine": 0.8791,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "945440007",
+  "name_a": "MEGALABS CHILE SA",
+  "rut_b": "760329800",
+  "name_b": "MEGAMED CHILE LIMITADA",
+  "cosine": 0.879,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "960260007",
+  "name_a": "Chemopharma S.A.",
+  "rut_b": "768300909",
+  "name_b": "Caribean Pharma SpA",
+  "cosine": 0.8789,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "775604980",
+  "name_a": "SC INGENIERÍA & CONSTRUCCIÓN SPA",
+  "rut_b": "763410560",
+  "name_b": "INGENIERIA CIVIL EL DORADO SPA",
+  "cosine": 0.8782,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "764580516",
+  "name_a": "Juan José",
+  "rut_b": "766158390",
+  "name_b": "Sergio Rodrigo",
+  "cosine": 0.8781,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "765888409",
+  "name_a": "Musses Ingenieria Limitada",
+  "rut_b": "76318305K",
+  "name_b": "Contructora Mycla Ltda",
+  "cosine": 0.8781,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "775858672",
+  "name_a": "CONSTRUCCIONES M&A LIMITADA",
+  "rut_b": "765526841",
+  "name_b": "Empresa Constructora Guayacan Ltda",
+  "cosine": 0.8778,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "132524963",
+  "name_a": "Matías Cristian Alvarado Ramirez",
+  "rut_b": "766158390",
+  "name_b": "Sergio Rodrigo",
+  "cosine": 0.8778,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "764628101",
+  "name_a": "CMS Medical Chile",
+  "rut_b": "764264754",
+  "name_b": "MEDISAN CHILE SPA",
+  "cosine": 0.8777,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "967138800",
+  "name_a": "Chilecom",
+  "rut_b": "761248901",
+  "name_b": "TELEFONICA MÓVILES CHILE S.A.",
+  "cosine": 0.8776,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "960260007",
+  "name_a": "Chemopharma S.A.",
+  "rut_b": "863970008",
+  "name_b": "Dipromed S.A.",
+  "cosine": 0.8775,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "769788832",
+  "name_a": "Carlos Alberto",
+  "rut_b": "766158390",
+  "name_b": "Sergio Rodrigo",
+  "cosine": 0.8774,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "76318305K",
+  "name_a": "Claudio Alberto",
+  "rut_b": "132524963",
+  "name_b": "Matías Cristian Alvarado Ramirez",
+  "cosine": 0.8774,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "760310719",
+  "name_a": "Distribuidora Salcobrand",
+  "rut_b": "761202871",
+  "name_b": "Topox Ltda",
+  "cosine": 0.8771,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "76318305K",
+  "name_a": "Contructora Mycla Ltda",
+  "rut_b": "760496499",
+  "name_b": "J & C Construccion",
+  "cosine": 0.8766,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "132524963",
+  "name_a": "Matías Cristian Alvarado Ramirez",
+  "rut_b": "762500914",
+  "name_b": "Marcelo Javier",
+  "cosine": 0.8762,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "969643707",
+  "name_a": "AGQ CHILE SA",
+  "rut_b": "967138800",
+  "name_b": "CHILECOM S A",
+  "cosine": 0.875,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "775604980",
+  "name_a": "SC INGENIERÍA & CONSTRUCCIÓN SPA",
+  "rut_b": "778383934",
+  "name_b": "INGENIERIA Y CONSTRUCCION SEMOTI SPA",
+  "cosine": 0.875,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "965823107",
+  "name_a": "Grifols Chile S.A.",
+  "rut_b": "77478120K",
+  "name_b": "FRESENIUS KABI CHILE LIMITADA",
+  "cosine": 0.875,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "969643707",
+  "name_a": "AGQ CHILE SA",
+  "rut_b": "760831034",
+  "name_b": "MHS Chile S.A",
+  "cosine": 0.8749,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "760349852",
+  "name_a": "LAYNER",
+  "rut_b": "761797298",
+  "name_b": "LAYNER MEDICAL",
+  "cosine": 0.8745,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "773851808",
+  "name_a": "SMARTMEDICAL SPA",
+  "rut_b": "76364166K",
+  "name_b": "Medex Spa",
+  "cosine": 0.8744,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "768300909",
+  "name_a": "FARMACEUTICA CARIBEAN LTDA",
+  "rut_b": "797285706",
+  "name_b": "FARMALATINA LTDA",
+  "cosine": 0.8744,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "770502128",
+  "name_a": "CLAUDIO MARCELO",
+  "rut_b": "768761868",
+  "name_b": "marco antonio",
+  "cosine": 0.8744,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "770955173",
+  "name_a": "CULMINE INGENIERÍA Y CONSTRUCCIÓN SPA",
+  "rut_b": "775604980",
+  "name_b": "SC INGENIERÍA & CONSTRUCCIÓN SPA",
+  "cosine": 0.8743,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "590435406",
+  "name_a": "MSD CHILE",
+  "rut_b": "760831034",
+  "name_b": "MHS Chile S.A",
+  "cosine": 0.874,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "796220600",
+  "name_a": "GALENICA S A",
+  "rut_b": "765820685",
+  "name_b": "Galen Soluciones Medicas",
+  "cosine": 0.8738,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "774211918",
+  "name_a": "Obentis",
+  "rut_b": "969955903",
+  "name_b": "Atrys",
+  "cosine": 0.8736,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "762051370",
+  "name_a": "COMERCIAL INTERMEDICA LIMITADA",
+  "rut_b": "781247707",
+  "name_b": "COMERCIALIZADORA Y DISTRIBUIDORA MEDICA SPA",
+  "cosine": 0.8734,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "960260007",
+  "name_a": "Chemopharma S.A.",
+  "rut_b": "965995102",
+  "name_b": "MEDIPHARM S.A.",
+  "cosine": 0.8733,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "135171298",
+  "name_a": "JIMMY JOSÉ LÓPEZ AZAS",
+  "rut_b": "181599502",
+  "name_b": "Dario Azocar",
+  "cosine": 0.8732,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "93441818",
+  "name_a": "MARIA ELENA BUSTAMANTE MELLA",
+  "rut_b": "136115839",
+  "name_b": "Mariela Fernanda",
+  "cosine": 0.873,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "774474447",
+  "name_a": "HARMONY MEDICAL SPA",
+  "rut_b": "773851808",
+  "name_b": "SMARTMEDICAL SPA",
+  "cosine": 0.8729,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "782047221",
+  "name_a": "CONSTRUCTORA ESPINOSA SPA",
+  "rut_b": "765526841",
+  "name_b": "CONSTRUCTORA GUAYACÁN SPA",
+  "cosine": 0.8726,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "766010849",
+  "name_a": "INNOVIT SPA",
+  "rut_b": "781183695",
+  "name_b": "INNOVASUPPLY SPA",
+  "cosine": 0.8723,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "774959602",
+  "name_a": "A & S TECNOLOGIAS COMPUTACIONALES LIMITADA",
+  "rut_b": "856303004",
+  "name_b": "ST COMPUTACION S A",
+  "cosine": 0.8721,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "113822937",
+  "name_a": "RICARDO ENRIQUE QUIROZ SAGAL",
+  "rut_b": "68078016",
+  "name_b": "RICARDO SEGUNDO PARRA RODRIGUEZ",
+  "cosine": 0.8716,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "76423281K",
+  "name_a": "PISA FARMACEUTICA DE CHILE SPA",
+  "rut_b": "761137344",
+  "name_b": "PHARMATECH CHILE SPA",
+  "cosine": 0.8714,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "804474005",
+  "name_a": "MUNNICH PHARMA MEDICAL SPA",
+  "rut_b": "763113566",
+  "name_b": "MAINZ MEDICAL SPA",
+  "cosine": 0.8714,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "783009226",
+  "name_a": "Kittyland SPA",
+  "rut_b": "762837986",
+  "name_b": "Ataway SPA",
+  "cosine": 0.8714,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "760476846",
+  "name_a": "ABMMEDICAL LIMITADA",
+  "rut_b": "776935409",
+  "name_b": "COMERCIALIZADORA MEDISAN LIMITADA",
+  "cosine": 0.8712,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "960260007",
+  "name_a": "Chemopharma S.A.",
+  "rut_b": "773375445",
+  "name_b": "SCM PHARMA SPA",
+  "cosine": 0.8707,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "770253160",
+  "name_a": "INGENIERIA, SOPORTE Y CADENA DE SUMINISTRO SPA",
+  "rut_b": "773898677",
+  "name_b": "SYS INGENIERIA SPA",
+  "cosine": 0.8707,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "965156607",
+  "name_a": "Cencomex S.A.",
+  "rut_b": "761202871",
+  "name_b": "Topox Ltda",
+  "cosine": 0.8707,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "764628101",
+  "name_a": "CMS Medical Chile",
+  "rut_b": "969955903",
+  "name_b": "INTERNATIONAL TELEMEDICAL SYSTEMS CHILE SPA",
+  "cosine": 0.8707,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "770253160",
+  "name_a": "Ensus Chile SpA",
+  "rut_b": "766482112",
+  "name_b": "COMAR Chile SpA",
+  "cosine": 0.8699,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "763909670",
+  "name_a": "IMPORTADORA Y COMERCIALIZADORA MEDICPRO LIMITADA",
+  "rut_b": "76512686K",
+  "name_b": "IMPORTADORA Y DISTRIBUIDORA DELTAMED LIMITADA",
+  "cosine": 0.8699,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "967565407",
+  "name_a": "B BRAUN MEDICAL SPA",
+  "rut_b": "773851808",
+  "name_b": "SMARTMEDICAL SPA",
+  "cosine": 0.8694,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "768053596",
+  "name_a": "VARIFARMA CHILE SPA",
+  "rut_b": "768963894",
+  "name_b": "VITAFARMA S.A.",
+  "cosine": 0.8694,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "773159440",
+  "name_a": "Promovip Spa",
+  "rut_b": "762837986",
+  "name_b": "Ataway SPA",
+  "cosine": 0.8692,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "132524963",
+  "name_a": "Matías Cristian Alvarado Ramirez",
+  "rut_b": "79089532",
+  "name_b": "JAIME ENRIQUE GARCIA CHAMORRO",
+  "cosine": 0.8687,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "968804405",
+  "name_a": "TESAM CHILE S A",
+  "rut_b": "760831034",
+  "name_b": "MHS Chile S.A",
+  "cosine": 0.8686,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "770502128",
+  "name_a": "CLAUDIO MARCELO",
+  "rut_b": "76318305K",
+  "name_b": "Claudio Alberto",
+  "cosine": 0.8683,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "767065671",
+  "name_a": "HOSPIMEDICA SPA",
+  "rut_b": "761705016",
+  "name_b": "EMIMED COMERCIALIZADORA DE EQUIPOS MEDICOS SPA",
+  "cosine": 0.8682,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "133193960",
+  "name_a": "Javier Sanzana Chaura",
+  "rut_b": "140422991",
+  "name_b": "JUAN CARLOS SOTO CAICHEO",
+  "cosine": 0.8682,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "104389937",
+  "name_a": "Eduardo Núñez Jerez",
+  "rut_b": "130047335",
+  "name_b": "Alex Patricio",
+  "cosine": 0.8678,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "765985641",
+  "name_a": "BLAU FARMACEUTICA CHILE SPA",
+  "rut_b": "965995102",
+  "name_b": "EUROFARMA CHILE SPA",
+  "cosine": 0.8677,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "761027883",
+  "name_a": "CLP Chile",
+  "rut_b": "777492101",
+  "name_b": "PTM CHILE",
+  "cosine": 0.8676,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "117824624",
+  "name_a": "OSCAR PATRICIO SALAZAR HENRÍQUEZ",
+  "rut_b": "181599502",
+  "name_b": "Dario Azocar",
+  "cosine": 0.8676,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "761202871",
+  "name_a": "Topox Ltda",
+  "rut_b": "760831034",
+  "name_b": "MHS Chile S.A",
+  "cosine": 0.8672,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "774211918",
+  "name_a": "Obentis",
+  "rut_b": "762590409",
+  "name_b": "Flesan",
+  "cosine": 0.8671,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "969456702",
+  "name_a": "NOVOFARMA SERVICE S A",
+  "rut_b": "768963894",
+  "name_b": "VITAFARMA S A",
+  "cosine": 0.8669,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "83002400K",
+  "name_a": "NOVARTIS CHILE S A",
+  "rut_b": "922510008",
+  "name_b": "SANOFI-AVENTIS DE CHILE S.A.",
+  "cosine": 0.8669,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "764628101",
+  "name_a": "COMERCIAL CMS MEDICAL CHILE LIMITADA",
+  "rut_b": "776935409",
+  "name_b": "COMERCIALIZADORA MEDISAN LIMITADA",
+  "cosine": 0.8668,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "609100001",
+  "name_a": "UNIVERSIDAD DE CHILE",
+  "rut_b": "966355204",
+  "name_b": "Instituto Profesional La Araucana",
+  "cosine": 0.8667,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "764264754",
+  "name_a": "MEDISAN CHILE SPA",
+  "rut_b": "76364166K",
+  "name_b": "SOCIEDAD DE MANTENIMIENTO DE EQUIPOS MEDICOS E INDUSTRIALES MEDEX SPA",
+  "cosine": 0.8667,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "77365669K",
+  "name_a": "ESPINOZA INGENIERÍA 2 SPA",
+  "rut_b": "775604980",
+  "name_b": "SC INGENIERÍA & CONSTRUCCIÓN SPA",
+  "cosine": 0.8666,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "766314902",
+  "name_a": "COMERCIALIZADORA DE TECNOLOGIAS MEDICAS GLOBAL MED LIMITADA",
+  "rut_b": "761705016",
+  "name_b": "EMIMED COMERCIALIZADORA DE EQUIPOS MEDICOS SPA",
+  "cosine": 0.8664,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "95333028",
+  "name_a": "LUIS OMAR AYALA RODRÍGUEZ",
+  "rut_b": "127478104",
+  "name_b": "LUIS ALEJANDRO BAEZA SANHUEZA",
+  "cosine": 0.8661,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "162424289",
+  "name_a": "CLAUDIO ANTONIO FERRADA OYARZÚN",
+  "rut_b": "6943066K",
+  "name_b": "MARIO ENRIQUE MARDONES CASTRO",
+  "cosine": 0.866,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "968069802",
+  "name_a": "ENTEL PCS TELECOMUNICACIONES S A",
+  "rut_b": "967138800",
+  "name_b": "Chilecom",
+  "cosine": 0.8659,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "969812509",
+  "name_a": "PFIZER CHILE S.A.",
+  "rut_b": "922510008",
+  "name_b": "SANOFI-AVENTIS DE CHILE S.A.",
+  "cosine": 0.8659,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "765200873",
+  "name_a": "PLUSMEDICAL SPA",
+  "rut_b": "76364166K",
+  "name_b": "Medex Spa",
+  "cosine": 0.8656,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "761705016",
+  "name_a": "EMIMED COMERCIALIZADORA DE EQUIPOS MEDICOS SPA",
+  "rut_b": "76364166K",
+  "name_b": "SOCIEDAD DE MANTENIMIENTO DE EQUIPOS MEDICOS E INDUSTRIALES MEDEX SPA",
+  "cosine": 0.8653,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "76039808K",
+  "name_a": "QUEZADA ARQUITECTOS",
+  "rut_b": "761050273",
+  "name_b": "D-Heen Arquitectos",
+  "cosine": 0.8652,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "83002400K",
+  "name_a": "NOVARTIS CHILE S A",
+  "rut_b": "761137344",
+  "name_b": "PHARMATECH CHILE SPA",
+  "cosine": 0.8651,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "767812345",
+  "name_a": "SOLUCIONES MÉDICAS SPA",
+  "rut_b": "76364166K",
+  "name_b": "Medex Spa",
+  "cosine": 0.865,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "762997584",
+  "name_a": "LABORATORIO FLEX PHARMA CHILE LIMITADA",
+  "rut_b": "763941744",
+  "name_b": "LABORATORIO C&D PHARMA LIMITADA",
+  "cosine": 0.8649,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "967138800",
+  "name_a": "CHILECOM S A",
+  "rut_b": "968804405",
+  "name_b": "TESAM CHILE S A",
+  "cosine": 0.8647,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "760310719",
+  "name_a": "Distribuidora Salcobrand",
+  "rut_b": "96792430K",
+  "name_b": "SODIMAC S.A.",
+  "cosine": 0.8644,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "766314902",
+  "name_a": "COMERCIALIZADORA DE TECNOLOGIAS MEDICAS GLOBAL MED LIMITADA",
+  "rut_b": "776935409",
+  "name_b": "COMERCIALIZADORA MEDISAN LIMITADA",
+  "cosine": 0.8641,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "770253160",
+  "name_a": "Ensus Chile SpA",
+  "rut_b": "761202871",
+  "name_b": "Topox Ltda",
+  "cosine": 0.8641,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "966893109",
+  "name_a": "TRANSBANK S.A.",
+  "rut_b": "76300290K",
+  "name_b": "TRANSACTION LINE CHILE S.A.",
+  "cosine": 0.864,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "965995102",
+  "name_a": "EUROFARMA CHILE SPA",
+  "rut_b": "760657751",
+  "name_b": "FAES FARMA CHILE",
+  "cosine": 0.8638,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "765200873",
+  "name_a": "PLUSMEDICAL SPA",
+  "rut_b": "767812345",
+  "name_b": "SOLUCIONES MÉDICAS SPA",
+  "cosine": 0.8636,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "776935409",
+  "name_a": "COMERCIALIZADORA MEDISAN LIMITADA",
+  "rut_b": "761705016",
+  "name_b": "EMIMED COMERCIALIZADORA DE EQUIPOS MEDICOS SPA",
+  "cosine": 0.8636,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "769869247",
+  "name_a": "MDC HEALTH SPA",
+  "rut_b": "76364166K",
+  "name_b": "Medex Spa",
+  "cosine": 0.8635,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "770502128",
+  "name_a": "CC DENTAL CHILE SPA",
+  "rut_b": "769771204",
+  "name_b": "MAYORDENT CHILE LIMITADA",
+  "cosine": 0.8632,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "76416055K",
+  "name_a": "UNIFARMA SPA",
+  "rut_b": "768963894",
+  "name_b": "VITAFARMA S A",
+  "cosine": 0.8628,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "760125512",
+  "name_a": "IMPORTADORA MEGA MARKET LIMITADA",
+  "rut_b": "771518141",
+  "name_b": "IMPORTADORA MB",
+  "cosine": 0.8628,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "765200873",
+  "name_a": "PLUSMEDICAL SPA",
+  "rut_b": "995502305",
+  "name_b": "MEDILAND SPA",
+  "cosine": 0.8628,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "78547970K",
+  "name_a": "SERVICIOS Y SOLUCIONES INTEGRALES SPA",
+  "rut_b": "762993589",
+  "name_b": "SERVICIOS INTEGRADOS SIDAPT LTDA",
+  "cosine": 0.8627,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "762098369",
+  "name_a": "AMEQ CHILE S.A.",
+  "rut_b": "760831034",
+  "name_b": "MHS Chile S.A",
+  "cosine": 0.8624,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "995502305",
+  "name_a": "MEDILAND SPA",
+  "rut_b": "773851808",
+  "name_b": "SMARTMEDICAL SPA",
+  "cosine": 0.8623,
+  "stratum": "hard_negative",
+  "truth": "different"
+ },
+ {
+  "rut_a": "775463988",
+  "name_a": "BALOC SPA",
+  "rut_b": "774095667",
+  "name_b": "SOLING SPA",
+  "cosine": 0.8622,
+  "stratum": "hard_negative",
+  "truth": "different"
+ }
+]
