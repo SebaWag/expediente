@@ -22,3 +22,6 @@ venv/
 .idea/
 .vscode/
 out/
+
+# OCDS raw sample (7MB, regenerate with the script in docs/OCDS_FINDINGS.md)
+benchmarks/raw_ocds_awards.jsonl
