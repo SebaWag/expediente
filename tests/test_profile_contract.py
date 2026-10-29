@@ -113,3 +113,28 @@ def test_the_evidence_bridge_translates_a_digest_into_the_order_code(graph):
     assert portal._order_for_document("f" * 64) is None
     # And something that is not a digest is never sent to the engine at all.
     assert portal._order_for_document("1417966-39-SE25") is None
+
+
+@needs_mdb
+def test_the_overview_draws_a_signal_that_has_no_properties(graph):
+    """A node is drawn because it exists, not because it is well formed.
+
+    The portal used to materialise a signal only inside the property loop, so the four
+    signals with no `explicacion` — the ones the health check already flags as citing no
+    orders — were absent from the map. The map showed 562 of 565 and nothing said which
+    three were missing.
+    """
+    from expediente.portal.server import Portal
+
+    bare = ("Senal", f"ct-{RUN}-bare")
+    graph.upsert_node(*bare)  # rdf:type and nothing else
+
+    portal = Portal.__new__(Portal)
+    portal.store = graph
+    portal._overview_cache = None
+    payload = portal.overview()
+
+    drawn = {node["id"] for node in payload["nodes"]}
+    assert f"Senal/{bare[1]}" in drawn
+    # And the note counts what it drew instead of quoting a number nobody updates.
+    assert str(len([n for n in payload["nodes"] if n["label"] == "Senal"])) in payload["note"]

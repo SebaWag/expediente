@@ -728,6 +728,14 @@ class Portal:
             for row in client.select(f"SELECT ?s WHERE {{ ?s <{RDF_TYPE}> <{ONTO}Senal> }}")
             if str(row["s"]).startswith(NODE_PREFIX)
         ]
+        # A node is drawn because it exists, not because it is well formed. The first
+        # version only materialised a signal inside the property loop below, so the
+        # four signals with no `explicacion` — the ones the health check already flags
+        # as citing no orders — were silently absent from the map. The map showed 562
+        # of 565 and nobody could tell which three were missing. A view that hides its
+        # own holes is the failure mode this project exists to argue against.
+        for uri in signals:
+            add(uri, uri.rsplit("/", 1)[-1], "Senal")
         signal_values = " ".join(f"<{uri}>" for uri in signals) if signals else ""
         if signal_values:
             for row in client.select(
@@ -817,7 +825,7 @@ class Portal:
             "truncated": True,
             "note": (
                 f"{len(nodes)} nodos y {len(edges)} relaciones dibujadas: la maquinaria completa "
-                "(detectores, las 85 señales, una muestra de sus órdenes y los documentos que las "
+                f"({len(signals)} señales, una muestra de sus órdenes y los documentos que las "
                 "acreditan). El grafo real tiene 64,8 millones de tripletas."
             ),
         }
