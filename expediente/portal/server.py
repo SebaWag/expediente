@@ -894,13 +894,48 @@ class Portal:
         This is the artefact the citation is made of. A reader who does not trust the
         summary can take this file, run sha256sum on it, and compare it with the hash
         printed in the dossier. If they differ, the dossier is wrong and they know it.
+
+        Two identifiers arrive here, because the graph calls two different things by a
+        name that a URL cannot tell apart. An ``:OrdenCompra`` is cited by its code and
+        its file is ``<code>.json``; the ``:Documento`` that accredits it is keyed by the
+        sha256 of its own bytes, and the file on disk is still named after the order.
+        Serving only the first left every document node in the map answering "no hay
+        archivo guardado" — a citation that cannot be opened is not a citation — so the
+        digest is translated here, once, instead of teaching the UI that a citation and
+        a document have different names.
         """
         if not re.fullmatch(r"[0-9A-Za-z_.\-]{3,64}", codigo or ""):
             return None
-        path = self.evidence_dir / f"{codigo}.json"
-        if not path.is_file():
+        for candidate in (codigo, self._order_for_document(codigo)):
+            if not candidate:
+                continue
+            path = self.evidence_dir / f"{candidate}.json"
+            if path.is_file():
+                return ("application/json; charset=utf-8", path.read_bytes())
+        return None
+
+    def _order_for_document(self, digest: str) -> str | None:
+        """The order a document accredits, so a digest can be served as a file."""
+        client = getattr(self.store, "client", None)
+        if client is None or not re.fullmatch(r"[0-9a-f]{64}", digest or ""):
             return None
-        return ("application/json; charset=utf-8", path.read_bytes())
+        from ..graph.millenniumdb import node_uri
+        from ..graph.schema import relation_uri
+
+        try:
+            rows = client.select(
+                f"SELECT ?o WHERE {{ <{node_uri('Documento', digest)}> "
+                f"<{relation_uri('ACREDITA')}> ?o }} LIMIT 1"
+            )
+        except Exception:
+            # A graph that cannot be reached must not turn a download into a 500: the
+            # honest answer is the same 404 the reader already understands.
+            return None
+        if not rows:
+            return None
+        uri = str(rows[0]["o"])
+        prefix = "urn:expediente:node/"
+        return uri[len(prefix) + len("OrdenCompra/"):] if uri.startswith(prefix) and "/" in uri else None
 
     @staticmethod
     def _content_digest(record: dict[str, Any]) -> str | None:

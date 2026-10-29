@@ -574,7 +574,14 @@ def entity_profile(store, label: str, key: str, *, top: int = 10) -> dict[str, A
         counterparty = f"?c <{relation_uri('EMITE')}> ?o"
         counterparty_label = "Organismo"
         role = "proveedor"
+    elif label == "Documento":
+        return _document_profile(store, key, props)
+    elif label == "OrdenCompra":
+        return _order_profile(store, key, props)
     else:
+        # Everything else is a signal or a label the map does not draw yet. Saying which
+        # one is better than a generic error, and the contract test walks every label the
+        # portal renders so a new one cannot silently land here.
         return _signal_profile(store, label, key, props)
 
     rows = client.select(f"{order_query} LIMIT {PROFILE_CAP + 1}")
@@ -717,6 +724,139 @@ def entity_profile(store, label: str, key: str, *, top: int = 10) -> dict[str, A
             else f"Conté las {count} órdenes de esta entidad en el grafo, no una muestra. "
         )
         + "Las banderas son comparaciones contra un umbral declarado, no conclusiones.",
+    }
+
+
+def _document_profile(store, key: str, props: dict[str, str]) -> dict[str, Any]:
+    """A document opened as a profile: what it is, and which records it accredits.
+
+    Clicking a document in the map is a different question from clicking a signal.
+    The signal asks "what does the system observe"; the document asks "what is this
+    file, where did it come from, and what does it prove". Answering the second with
+    the first one's refusal was the map offering a door with no room behind it — and
+    a reader who cannot open the document cannot check the citation, which is the
+    whole product.
+
+    The document is keyed by the sha256 of its bytes, so the digest *is* the
+    identifier: the download path carries it and the server resolves it to the file.
+    """
+    client = store.client
+    uri = node_uri("Documento", key)
+    codes = [u.rsplit("/", 1)[-1] for u in _neighbours(client, uri, "ACREDITA", limit=50)]
+    orders = order_records(store, codes)
+    evidence = [u.rsplit("/", 1)[-1] for u in _incoming(client, uri, "EN", limit=50)]
+    covered = len(orders)
+
+    return {
+        "label": "Documento",
+        "role": "documento",
+        "key": key,
+        "name": props.get("tipo") or "Documento",
+        "props": props,
+        "hash_sha256": key,
+        "tipo": props.get("tipo"),
+        "url": props.get("url"),
+        "recuperado_en": props.get("recuperado_en"),
+        "orders_count": len(codes),
+        "orders_with_record": covered,
+        "evidence": evidence,
+        "download": f"/api/evidence/{key}",
+        "case": {
+            "orders": orders,
+            "evidence": evidence,
+            "counts": {
+                "orders_cited": len(codes),
+                "orders_with_record": covered,
+                "orders_with_document": covered,
+            },
+        },
+        "flags": (
+            []
+            if covered == len(codes)
+            else [
+                {
+                    "level": "media",
+                    "flag": "documento no abre todas sus órdenes",
+                    "detail": f"{covered} de {len(codes)} órdenes citadas tienen registro en el grafo",
+                }
+            ]
+        ),
+        "note": (
+            "El archivo se sirve tal como se descargó: su sha256 es el identificador del nodo, "
+            "así que un lector puede recalcularlo y compararlo."
+        ),
+    }
+
+
+def _order_profile(store, key: str, props: dict[str, str]) -> dict[str, Any]:
+    """A purchase order opened as a profile: the two parties and the paper behind it.
+
+    An order is the atom of the graph — every detector counts orders, every claim cites
+    them — so a node the map draws 177 times at once had better answer when clicked.
+    """
+    client = store.client
+    uri = node_uri("OrdenCompra", key)
+    buyers = _incoming(client, uri, "EMITE", limit=5)
+    suppliers = _neighbours(client, uri, "ADJUDICADA_A", limit=5)
+    documents = _incoming(client, uri, "ACREDITA", limit=5)
+
+    def _party(uris: list[str], field: str) -> dict[str, Any] | None:
+        if not uris:
+            return None
+        party_props = _props(client, uris[0])
+        return {
+            "node": uris[0][len("urn:expediente:node/"):],
+            "name": party_props.get(field) or party_props.get("nombre") or party_props.get("razon_social"),
+            "rut": party_props.get("rut"),
+        }
+
+    document = _props(client, documents[0]) if documents else {}
+    return {
+        "label": "OrdenCompra",
+        "role": "orden",
+        "key": key,
+        "name": props.get("nombre") or props.get("descripcion") or key,
+        "props": props,
+        "descripcion": props.get("descripcion"),
+        "monto_clp": props.get("monto_clp"),
+        "fecha": props.get("fecha"),
+        "estado": props.get("estado"),
+        "procedencia": props.get("procedencia"),
+        "codigo_licitacion": props.get("codigo_licitacion"),
+        "buyer": _party(buyers, "nombre"),
+        "supplier": _party(suppliers, "razon_social"),
+        "has_document": bool(documents),
+        "document": (
+            {
+                "hash_sha256": documents[0].rsplit("/", 1)[-1],
+                "tipo": document.get("tipo"),
+                "url": document.get("url"),
+                "recuperado_en": document.get("recuperado_en"),
+                "download": f"/api/evidence/{documents[0].rsplit('/', 1)[-1]}",
+            }
+            if documents
+            else None
+        ),
+        "case": {
+            "orders": order_records(store, [key]),
+            "evidence": [],
+            "counts": {"orders_cited": 1, "orders_with_record": 1, "orders_with_document": 1 if documents else 0},
+        },
+        "flags": (
+            []
+            if documents
+            else [
+                {
+                    "level": "alta",
+                    "flag": "orden sin documento adjunto",
+                    "detail": "una afirmación que la cite no pasaría el control de evidencia",
+                }
+            ]
+        ),
+        "note": (
+            "Una orden de compra es el átomo del grafo: los detectores la cuentan y las "
+            "afirmaciones la citan. Lo que se muestra son sus campos, sin interpretación."
+        ),
     }
 
 

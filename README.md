@@ -208,12 +208,12 @@ python3 -m expediente.cli fetch-agil --desde 2026-10-20 --out data/agil.json
 
 ## Status
 
-Honest as of **day 4** (2026-10-29). **51 commits, 264 tests** — and both runs are
+Honest as of **day 4** (2026-10-29). **52 commits, 272 tests** — and both runs are
 reproduced on every push by CI, not by a badge that only claims it:
 
 ```bash
-python3 -m pytest -q            # 257 passed, 7 skipped (the engine tests need a server)
-EXPEDIENTE_MDB_URL=http://127.0.0.1:1234 python3 -m pytest -q   # 264 passed
+python3 -m pytest -q            # 257 passed, 15 skipped (the engine tests need a server)
+EXPEDIENTE_MDB_URL=http://127.0.0.1:1234 python3 -m pytest -q   # 272 passed
 ```
 
 The `graph` job in [`.github/workflows/ci.yml`](.github/workflows/ci.yml) starts an
