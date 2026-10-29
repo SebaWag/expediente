@@ -34,6 +34,7 @@ echo "building ${IMAGE} from ${SRC}"
 docker build -q -t "${IMAGE}" "${SRC}" >/dev/null
 
 mkdir -p "${RUNS}"
+mkdir -p "${EVIDENCE:-/opt/expediente/evidencia}"
 # The container runs as uid 10001. The directory has to be writable by that uid and
 # by nobody else: the runs are the record, and the record is not shared.
 chown -R 10001:10001 "${RUNS}"
@@ -49,6 +50,7 @@ docker run -d --name "${CONTAINER}" --restart unless-stopped \
   -e "EXPEDIENTE_MDB_URL=${MDB_URL}" \
   -e "EXPEDIENTE_RUNS_DIR=/data/runs" \
   -v "${RUNS}:/data/runs" \
+  -v "${EVIDENCE:-/opt/expediente/evidencia}:/data/evidencia:ro" \
   --read-only --tmpfs /tmp \
   --label traefik.enable=true \
   --label "traefik.http.routers.investiga.rule=Host(\`${HOST_DOMAIN}\`)" \

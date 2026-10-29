@@ -9,6 +9,11 @@ COPY expediente/ ./expediente/
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8080
 
+# The one dependency in this repository, and it is scoped to the signable export:
+# reportlab renders the PDF an auditor signs. Everything else — detectors, gate,
+# traversal, the API — still runs on the standard library alone.
+RUN pip install --no-cache-dir "reportlab>=4.0"
+
 # Non-root: the API only reads, so it does not need more than that.
 RUN useradd --create-home --uid 10001 expediente
 USER expediente

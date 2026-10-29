@@ -344,20 +344,58 @@
       if (self.isHidden(edge.source.label) || self.isHidden(edge.target.label)) { return; }
       var lit = !self.selected || neighbour[edge.source.id] || neighbour[edge.target.id];
       var isDirect = self.selected && (edge.source.id === self.selected || edge.target.id === self.selected);
-      ctx.strokeStyle = isDirect ? "#8a8f99" : lit ? "#d9d5cc" : "#eeebe4";
+      var colour = isDirect ? "#8a8f99" : lit ? "#d9d5cc" : "#eeebe4";
+
+      // A directed graph that draws straight lines is a graph you cannot read: the
+      // edge ADJUDICADA_A runs order -> supplier, and SENAL -> order the other way.
+      // Curving the edges and putting a head on them is what turns a hairball into
+      // a structure. The control point is offset perpendicular to the chord, so two
+      // edges between the same pair of nodes never overlap.
+      var sx = edge.source.x;
+      var sy = edge.source.y;
+      var tx = edge.target.x;
+      var ty = edge.target.y;
+      var dx = tx - sx;
+      var dy = ty - sy;
+      var length = Math.sqrt(dx * dx + dy * dy) || 1;
+      var bend = Math.min(24, length * 0.12);
+      var cx = (sx + tx) / 2 - (dy / length) * bend;
+      var cy = (sy + ty) / 2 + (dx / length) * bend;
+
+      ctx.strokeStyle = colour;
       ctx.beginPath();
-      ctx.moveTo(edge.source.x, edge.source.y);
-      ctx.lineTo(edge.target.x, edge.target.y);
+      ctx.moveTo(sx, sy);
+      ctx.quadraticCurveTo(cx, cy, tx, ty);
       ctx.stroke();
 
+      // arrowhead, stopping at the target's radius so it does not sit inside the dot
+      if (lit && length > 24) {
+        var tt = 0.88;
+        var hx = (1 - tt) * (1 - tt) * sx + 2 * (1 - tt) * tt * cx + tt * tt * tx;
+        var hy = (1 - tt) * (1 - tt) * sy + 2 * (1 - tt) * tt * cy + tt * tt * ty;
+        var angle = Math.atan2(ty - hy, tx - hx);
+        var size = (isDirect ? 5.5 : 4) / self.scale;
+        ctx.beginPath();
+        ctx.moveTo(tx - Math.cos(angle) * (edge.target.r + size), ty - Math.sin(angle) * (edge.target.r + size));
+        ctx.lineTo(
+          tx - Math.cos(angle) * (edge.target.r + size * 2.4) + Math.sin(angle) * size,
+          ty - Math.sin(angle) * (edge.target.r + size * 2.4) - Math.cos(angle) * size
+        );
+        ctx.lineTo(
+          tx - Math.cos(angle) * (edge.target.r + size * 2.4) - Math.sin(angle) * size,
+          ty - Math.sin(angle) * (edge.target.r + size * 2.4) + Math.cos(angle) * size
+        );
+        ctx.closePath();
+        ctx.fillStyle = colour;
+        ctx.fill();
+      }
+
       if (isDirect) {
-        var mx = (edge.source.x + edge.target.x) / 2;
-        var my = (edge.source.y + edge.target.y) / 2;
         ctx.save();
         ctx.font = "9px ui-sans-serif, system-ui, sans-serif";
         ctx.fillStyle = "#6b7280";
         ctx.textAlign = "center";
-        ctx.fillText(edge.rel, mx, my - 3);
+        ctx.fillText(edge.rel, (sx + 2 * cx + tx) / 4, (sy + 2 * cy + ty) / 4 - 3);
         ctx.restore();
       }
     });
@@ -366,6 +404,12 @@
       if (self.isHidden(node.label)) { return; }
       var lit = !self.selected || neighbour[node.id];
       ctx.globalAlpha = lit ? 1 : 0.28;
+      if (node.id === self.selected) {
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, node.r + 6, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(22,80,107,.14)";
+        ctx.fill();
+      }
       ctx.beginPath();
       ctx.arc(node.x, node.y, node.r, 0, Math.PI * 2);
       ctx.fillStyle = self.colorFor(node.label);

@@ -225,8 +225,29 @@
     });
     body.appendChild(dl);
 
-    body.appendChild(el("h3", { text: "Qué puedes hacer" }));
+    body.appendChild(el("h3", { text: "Descargar el expediente" }));
+    body.appendChild(el("p", {
+      class: "pie",
+      text: "El PDF trae las órdenes, la dirección de cada registro, su huella digital y el bloque de firma."
+    }));
+    var downloads = el("div", { class: "acciones" });
+    [["PDF firmable", "pdf"], ["Markdown", "md"], ["CSV de órdenes", "csv"], ["JSON con hashes", "json"]]
+      .forEach(function (pair) {
+        downloads.appendChild(el("a", {
+          class: "chip descarga",
+          href: "/api/signals/" + card.id + "." + pair[1],
+          text: pair[0]
+        }));
+      });
+    body.appendChild(downloads);
+
+    body.appendChild(el("h3", { text: "Qué más puedes hacer" }));
     var actions = el("div", { class: "acciones" });
+    actions.appendChild(el("button", {
+      class: "chip",
+      text: "Ver la cadena completa en el mapa",
+      onclick: function () { showNode("Senal/" + card.id); }
+    }));
     actions.appendChild(el("button", {
       class: "chip",
       text: "Ver el registro de la señal",
@@ -449,6 +470,13 @@
         class: "chip",
         text: "Ver su red de domicilios",
         onclick: function () { openNetwork(node.key); }
+      }));
+    }
+    if (node.label === "Senal") {
+      actions.appendChild(el("a", {
+        class: "chip descarga",
+        href: "/api/signals/" + node.key + ".pdf",
+        text: "Descargar expediente (PDF)"
       }));
     }
     actions.appendChild(el("button", {

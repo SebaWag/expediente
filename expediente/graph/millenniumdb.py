@@ -156,20 +156,38 @@ class MillenniumDBStore:
         # VALUES clause. Bounded at the engine, the same call answers in a second.
         cap = f" LIMIT {int(limit)}" if limit else ""
 
+        # ``FILTER(isIRI(?o))`` is not decoration. MillenniumDB v1.0.0 returns triples
+        # that do not match the predicate for some subjects: asking for one signal's
+        # SE_OBSERVA_EN edges came back with the signal's own ``similitud_descripciones``
+        # (the float 1.0) and its ``explicacion`` (a long string) among the neighbours.
+        # Measured on 2026-10-29 against the production graph. The engine also disagrees
+        # with itself across query shapes — the same relation counted 1,756 objects with
+        # one query and 1,758 with another.
+        #
+        # So the adapter no longer trusts that an object is a node. Anything that is not
+        # an IRI in our own namespace is dropped here, at the boundary, and a reader can
+        # never receive a "neighbour" that is really a property value. A wrong answer is
+        # worse than a missing one in a system whose output is meant to be signed.
         if direction in ("out", "both"):
             rows = self.client.select(
                 f"SELECT ?p ?o WHERE {{ <{node_uri(*node)}> ?p ?o . "
-                f'FILTER(STRSTARTS(STR(?p), "{REL_PREFIX}")) }}{cap}'
+                f'FILTER(STRSTARTS(STR(?p), "{REL_PREFIX}")) '
+                f"FILTER(isIRI(?o)) }}{cap}"
             )
             for row in rows:
+                if not str(row["o"]).startswith(NODE_PREFIX):
+                    continue
                 found.append((str(row["p"])[len(REL_PREFIX) :], _key_from_uri(row["o"]), False))
 
         if direction in ("in", "both"):
             rows = self.client.select(
                 f"SELECT ?p ?s WHERE {{ ?s ?p <{node_uri(*node)}> . "
-                f'FILTER(STRSTARTS(STR(?p), "{REL_PREFIX}")) }}{cap}'
+                f'FILTER(STRSTARTS(STR(?p), "{REL_PREFIX}")) '
+                f"FILTER(isIRI(?s)) }}{cap}"
             )
             for row in rows:
+                if not str(row["s"]).startswith(NODE_PREFIX):
+                    continue
                 found.append((str(row["p"])[len(REL_PREFIX) :], _key_from_uri(row["s"]), True))
 
         # the edge as it is stored, regardless of how we walked it

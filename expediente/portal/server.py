@@ -56,7 +56,7 @@ STATIC_DIR = Path(__file__).parent / "static"
 MAX_NODES = 70
 #: How many purchase orders one expansion may add. Orders are the evidence, not the
 #: structure; a canvas full of them answers no question a reader has.
-ORDER_CAP = 3
+ORDER_CAP = 6
 SIGNAL_CACHE_S = 120
 
 
@@ -119,7 +119,7 @@ def _label_from_uri(uri: str) -> str:
 
 def _subgraph_batched(store, client, label: str, key: str, depth: int, max_nodes: int, limit_per_node: int) -> dict[str, Any]:
     from ..graph.millenniumdb import node_uri
-    from ..graph.schema import EDGES, ONTO, relation_uri
+    from ..graph.schema import EDGES, NODE_PREFIX, ONTO, relation_uri
 
     seed_uri = node_uri(label, key)
     if not client.select(f"SELECT ?p WHERE {{ <{seed_uri}> ?p ?o }} LIMIT 1"):
@@ -136,13 +136,15 @@ def _subgraph_batched(store, client, label: str, key: str, depth: int, max_nodes
             break
         values = " ".join(f"<{uri}>" for uri in frontier[:24])
 
+        # isIRI on both ends: the engine returns property values as objects for some
+        # subjects, and a canvas is where a stray float would become a node.
         outgoing = client.select(
-            f"SELECT ?s ?p ?o WHERE {{ VALUES ?s {{ {values} }} VALUES ?p {{ {relations} }} ?s ?p ?o }} "
-            f"LIMIT {max_nodes * 12}"
+            f"SELECT ?s ?p ?o WHERE {{ VALUES ?s {{ {values} }} VALUES ?p {{ {relations} }} ?s ?p ?o "
+            f"FILTER(isIRI(?o)) }} LIMIT {max_nodes * 12}"
         )
         incoming = client.select(
-            f"SELECT ?s ?p ?o WHERE {{ VALUES ?o {{ {values} }} VALUES ?p {{ {relations} }} ?s ?p ?o }} "
-            f"LIMIT {max_nodes * 12}"
+            f"SELECT ?s ?p ?o WHERE {{ VALUES ?o {{ {values} }} VALUES ?p {{ {relations} }} ?s ?p ?o "
+            f"FILTER(isIRI(?s)) }} LIMIT {max_nodes * 12}"
         )
 
         per_source: dict[str, int] = {}
@@ -157,6 +159,8 @@ def _subgraph_batched(store, client, label: str, key: str, depth: int, max_nodes
             of them filled the canvas anyway.
             """
             if len(seen) >= max_nodes:
+                return
+            if not other_uri.startswith(NODE_PREFIX) or not owner_uri.startswith(NODE_PREFIX):
                 return
             label = _label_from_uri(other_uri)
             # Structural nodes first. A supplier with 2,044 orders otherwise fills the
@@ -476,6 +480,27 @@ class Portal:
     def network(self, params: dict[str, str]) -> dict[str, Any]:
         return network(self.store, {"rut": params.get("rut") or ""})
 
+    # -- audit -------------------------------------------------------------
+    def signal_pack(self, signal_id: str, *, order_limit: int = 120) -> dict[str, Any]:
+        from ..audit import signal_pack
+
+        return signal_pack(self.store, signal_id, order_limit=order_limit)
+
+    def export(self, signal_id: str, fmt: str) -> tuple[str, bytes, str]:
+        from ..audit import render
+
+        return render(self.signal_pack(signal_id), fmt)
+
+    def document(self, code: str) -> dict[str, Any]:
+        from ..audit import order_document
+
+        return order_document(self.store, code)
+
+    def health_graph(self) -> dict[str, Any]:
+        from ..audit import graph_health
+
+        return graph_health(self.store)
+
     def roots(self) -> dict[str, Any]:
         """Starting points, so the map is never an empty canvas.
 
@@ -608,6 +633,24 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, portal.summary())
             if path == "/api/roots":
                 return self._json(200, portal.roots())
+            if path == "/api/health/graph":
+                return self._json(200, portal.health_graph())
+            match = re.fullmatch(r"/api/signals/([A-Za-z0-9_-]+)\.(pdf|md|csv|json)", path)
+            if match:
+                content_type, body, filename = portal.export(match.group(1), match.group(2))
+                self.send_response(200)
+                self.send_header("Content-Type", content_type)
+                self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+                self.send_header("Content-Length", str(len(body)))
+                self._cors()
+                self.end_headers()
+                return self.wfile.write(body)
+            match = re.fullmatch(r"/api/signals/([A-Za-z0-9_-]+)", path)
+            if match:
+                return self._json(200, portal.signal_pack(match.group(1)))
+            match = re.fullmatch(r"/api/orders/([A-Za-z0-9_.-]+)/document", path)
+            if match:
+                return self._json(200, portal.document(match.group(1)))
             if path == "/api/signals":
                 return self._json(200, portal.signals(params))
             if path == "/api/kanban":

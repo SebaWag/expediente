@@ -330,3 +330,9 @@ button.primary[disabled] { background: var(--ink-soft); cursor: progress; }
   .filtros-capa { position: static; margin-top: .5rem; max-height: none; flex-direction: row; flex-wrap: wrap; }
   .mapa-controles { position: static; justify-content: flex-end; margin-top: .5rem; }
 }
+
+.chip.descarga {
+  text-decoration: none; display: inline-block; border-color: var(--accent);
+  color: var(--accent); font-weight: 600;
+}
+.chip.descarga:hover { background: var(--accent-soft); }
