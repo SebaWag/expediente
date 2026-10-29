@@ -84,6 +84,12 @@ def subgraph(store, label: str, key: str, *, depth: int = 2, limit_per_node: int
     what the engine is actually good at. The port-based walk stays as the fallback so
     the in-memory adapter and the tests keep working.
     """
+    # A detector is a hub: its whole point is the list of every case it produced, so
+    # the canvas is allowed to hold all of them. Any other node keeps the tight cap,
+    # because a municipality with 2,145 orders is a list, not a drawing.
+    if label == "Detector":
+        max_nodes = max(max_nodes, 110)
+        limit_per_node = max(limit_per_node, 110)
     client = getattr(store, "client", None)
     if client is not None:
         try:
@@ -496,6 +502,148 @@ class Portal:
 
         return order_document(self.store, code)
 
+    # -- exploration -------------------------------------------------------
+    def connections(self, nodo: str) -> dict[str, Any]:
+        """Every relation this node has, with how many on each side.
+
+        Two queries, not twenty-three: the predicates are bound from the vocabulary and
+        the counts come back grouped, the same shape ``/stats`` uses after its scan was
+        measured at 45 s.
+        """
+        from ..graph.schema import EDGES, NODE_PREFIX, relation_uri
+
+        if "/" not in nodo:
+            return {"error": "nodo debe ser 'Label/id'"}
+        label, key = nodo.split("/", 1)
+        from ..graph.millenniumdb import node_uri
+
+        uri = node_uri(label, key)
+        client = self.store.client
+        predicates = " ".join(f"<{relation_uri(name)}>" for name in EDGES)
+
+        out_counts = {}
+        for row in client.select(
+            f"SELECT ?p (COUNT(*) AS ?n) WHERE {{ VALUES ?p {{ {predicates} }} <{uri}> ?p ?o "
+            f"FILTER(isIRI(?o)) }} GROUP BY ?p"
+        ):
+            out_counts[str(row["p"]).replace("urn:expediente:onto/rel/", "")] = int(row["n"])
+        in_counts = {}
+        for row in client.select(
+            f"SELECT ?p (COUNT(*) AS ?n) WHERE {{ VALUES ?p {{ {predicates} }} ?s ?p <{uri}> "
+            f"FILTER(isIRI(?s)) }} GROUP BY ?p"
+        ):
+            in_counts[str(row["p"]).replace("urn:expediente:onto/rel/", "")] = int(row["n"])
+
+        connections = []
+        for name, (src_label, dst_label) in EDGES.items():
+            if src_label == label and out_counts.get(name):
+                connections.append(
+                    {"rel": name, "direction": "out", "other": dst_label, "count": out_counts[name]}
+                )
+            if dst_label == label and in_counts.get(name):
+                connections.append(
+                    {"rel": name, "direction": "in", "other": src_label, "count": in_counts[name]}
+                )
+        connections.sort(key=lambda item: -item["count"])
+        return {"node": nodo, "connections": connections}
+
+    def connection_page(self, params: dict[str, str]) -> dict[str, Any]:
+        """One page of a node's neighbours, with the fields a reader needs.
+
+        Paging happens in the engine (``LIMIT``/``OFFSET`` measure at about a second on a
+        municipality with 2,145 orders), and the order can be by amount, because "show me
+        the biggest first" is the first thing anyone asks of a spending list.
+        """
+        from ..graph.millenniumdb import node_uri
+        from ..graph.schema import NODE_PREFIX, ONTO, relation_uri
+
+        nodo = params.get("nodo") or ""
+        rel = (params.get("rel") or "").strip()
+        if "/" not in nodo or not rel:
+            return {"error": "faltan 'nodo' (Label/id) o 'rel'"}
+        label, key = nodo.split("/", 1)
+        uri = node_uri(label, key)
+        direction = params.get("direction") or "out"
+        page = max(1, int(params.get("page") or 1))
+        size = max(1, min(100, int(params.get("size") or 25)))
+        order = (params.get("orden") or "").strip()
+        offset = (page - 1) * size
+        client = self.store.client
+
+        if direction == "in":
+            pattern = f"?s <{relation_uri(rel)}> <{uri}>"
+            variable = "?s"
+        else:
+            pattern = f"<{uri}> <{relation_uri(rel)}> ?o"
+            variable = "?o"
+
+        total_rows = client.select(f"SELECT (COUNT(*) AS ?n) WHERE {{ {pattern} FILTER(isIRI({variable})) }}")
+        total = int(total_rows[0]["n"]) if total_rows else 0
+
+        sortable = {"monto": "monto_clp", "fecha": "fecha", "nombre": "nombre"}
+        if order in sortable:
+            prop = sortable[order]
+            rows = client.select(
+                f"SELECT {variable} ?v WHERE {{ {pattern} . {variable} <{ONTO}{prop}> ?v "
+                f"FILTER(isIRI({variable})) }} ORDER BY DESC(?v) LIMIT {size} OFFSET {offset}"
+            )
+        else:
+            rows = client.select(
+                f"SELECT {variable} WHERE {{ {pattern} FILTER(isIRI({variable})) }} LIMIT {size} OFFSET {offset}"
+            )
+
+        uris = [
+            str(row[variable[1:]]) for row in rows if str(row[variable[1:]]).startswith(NODE_PREFIX)
+        ]
+        props: dict[str, dict[str, str]] = {uri_: {} for uri_ in uris}
+        if uris:
+            values = " ".join(f"<{u}>" for u in uris)
+            for row in client.select(
+                f"SELECT ?s ?p ?o WHERE {{ VALUES ?s {{ {values} }} ?s ?p ?o . "
+                f"VALUES ?p {{ <{ONTO}razon_social> <{ONTO}nombre> <{ONTO}monto_clp> <{ONTO}fecha> "
+                f"<{ONTO}descripcion> <{ONTO}estado> <{ONTO}procedencia> <{ONTO}score> "
+                f"<{ONTO}severidad> <{ONTO}explicacion> }} }}"
+            ):
+                subject = str(row["s"])
+                predicate = str(row["p"]).replace(ONTO, "")
+                if subject in props:
+                    props[subject].setdefault(predicate, str(row["o"]))
+
+        items = []
+        for uri_ in uris:
+            node_label = uri_[len(NODE_PREFIX):].split("/", 1)[0]
+            node_key = uri_[len(NODE_PREFIX):].split("/", 1)[-1]
+            fields = props.get(uri_, {})
+            items.append(
+                {
+                    "id": f"{node_label}/{node_key}",
+                    "label": node_label,
+                    "name": fields.get("razon_social")
+                    or fields.get("nombre")
+                    or fields.get("descripcion")
+                    or fields.get("explicacion")
+                    or node_key,
+                    "monto_clp": fields.get("monto_clp"),
+                    "fecha": fields.get("fecha"),
+                    "estado": fields.get("estado"),
+                    "procedencia": fields.get("procedencia"),
+                    "severidad": fields.get("severidad"),
+                    "score": fields.get("score"),
+                }
+            )
+
+        return {
+            "node": nodo,
+            "rel": rel,
+            "direction": direction,
+            "page": page,
+            "size": size,
+            "total": total,
+            "pages": (total + size - 1) // size if size else 0,
+            "orden": order or "grafo",
+            "items": items,
+        }
+
     def health_graph(self) -> dict[str, Any]:
         from ..audit import graph_health
 
@@ -633,6 +781,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, portal.summary())
             if path == "/api/roots":
                 return self._json(200, portal.roots())
+            if path == "/api/connections":
+                return self._json(200, portal.connections(params.get("nodo") or ""))
+            if path == "/api/connection-page":
+                return self._json(200, portal.connection_page(params))
             if path == "/api/health/graph":
                 return self._json(200, portal.health_graph())
             match = re.fullmatch(r"/api/signals/([A-Za-z0-9_-]+)\.(pdf|md|csv|json)", path)

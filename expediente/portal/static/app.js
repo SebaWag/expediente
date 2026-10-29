@@ -491,7 +491,140 @@
       }
     }));
     body.appendChild(actions);
+
+    // Everything this node is connected to, with the count, and a list you can page
+    // through. The canvas stays legible; the list is where the full set lives.
+    var connections = el("div", { id: "conexiones" }, [
+      el("h3", { text: "Conexiones" }),
+      el("p", { class: "pie", text: "Contando…" })
+    ]);
+    body.appendChild(connections);
+    loadConnections(node.id);
+    // Opening a detector should land on its cases, not on a count you have to click.
+    if (node.label === "Detector") {
+      setTimeout(function () { loadConnectionPage(node.id, "PRODUCE", "out", 1, ""); }, 400);
+    }
+
     $("nodo-panel").hidden = false;
+  }
+
+  var REL_LABEL = {
+    EMITE: "emitió", ADJUDICADA_A: "adjudicada a", DERIVA_DE: "deriva de",
+    CONVOCADA_POR: "convocada por", OFERTA_EN: "oferta en", GENERA: "genera",
+    PUBLICA: "publica", EJECUTA: "ejecuta", SOCIO_DE: "socio de",
+    REPRESENTA_A: "representa a", TIENE_DOMICILIO: "domicilio en",
+    SOPORTADA_POR: "soportada por", EN: "está en", ACREDITA: "acredita",
+    RESPALDA: "respalda", SE_OBSERVA_EN: "se observa en", PRODUCE: "produce",
+    CORRELACIONA_CON: "se correlaciona con", CONTIENE: "contiene",
+    CONTIENE_HALLAZGO: "contiene hallazgo", INVOLUCRA: "involucra",
+    REDESCUBIERTO_POR: "redescubierto por", AFIRMA: "afirma"
+  };
+
+  function loadConnections(nodeId) {
+    var box = $("conexiones");
+    if (!box) { return; }
+    api("/api/connections?nodo=" + encodeURIComponent(nodeId))
+      .then(function (data) {
+        box.innerHTML = "";
+        box.appendChild(el("h3", { text: "Conexiones" }));
+        var list = data.connections || [];
+        if (!list.length) {
+          box.appendChild(el("p", { class: "vacio", text: "Este nodo no tiene relaciones registradas." }));
+          return;
+        }
+        list.forEach(function (connection) {
+          var row = el("div", { class: "conexion" }, [
+            el("div", {}, [
+              el("span", { class: "rel-tag", text: (REL_LABEL[connection.rel] || connection.rel) }),
+              el("span", { class: "rel-target", text: connection.direction === "in"
+                ? "← " + connection.other
+                : "→ " + connection.other }),
+              el("span", { class: "rel-count", text: count(connection.count) })
+            ]),
+            el("button", {
+              class: "chip",
+              text: "Ver lista",
+              onclick: function () {
+                loadConnectionPage(nodeId, connection.rel, connection.direction, 1);
+              }
+            })
+          ]);
+          box.appendChild(row);
+        });
+      })
+      .catch(function (error) {
+        box.innerHTML = "";
+        box.appendChild(el("p", { class: "descarte", text: "No se pudieron leer las conexiones: " + error.message }));
+      });
+  }
+
+  function loadConnectionPage(nodeId, rel, direction, page, orden) {
+    var box = $("conexiones");
+    box.innerHTML = "";
+    box.appendChild(el("h3", { text: REL_LABEL[rel] || rel }));
+    box.appendChild(el("p", { class: "pie", text: "Cargando…" }));
+
+    var query = "/api/connection-page?nodo=" + encodeURIComponent(nodeId)
+      + "&rel=" + encodeURIComponent(rel)
+      + "&direction=" + encodeURIComponent(direction)
+      + "&page=" + (page || 1) + "&size=25"
+      + (orden ? "&orden=" + encodeURIComponent(orden) : "");
+
+    api(query).then(function (data) {
+      box.innerHTML = "";
+      var head = el("div", { class: "lista-head" }, [
+        el("button", { class: "link", text: "← volver a las conexiones", onclick: function () { loadConnections(nodeId); } }),
+        el("span", { class: "pie", text: count(data.total) + " en total · página " + data.page + " de " + data.pages })
+      ]);
+      box.appendChild(head);
+
+      var controls = el("div", { class: "acciones" });
+      [["Más grandes", "monto"], ["Más recientes", "fecha"], ["Orden del grafo", ""]].forEach(function (pair) {
+        controls.appendChild(el("button", {
+          class: "chip" + (data.orden === (pair[1] || "grafo") ? " activo" : ""),
+          text: pair[0],
+          onclick: function () { loadConnectionPage(nodeId, rel, direction, 1, pair[1]); }
+        }));
+      });
+      box.appendChild(controls);
+
+      var list = el("div", { class: "lista" });
+      (data.items || []).forEach(function (item) {
+        var bits = [];
+        if (item.monto_clp) { bits.push(shortMonto(item.monto_clp)); }
+        if (item.fecha) { bits.push(String(item.fecha).slice(0, 10)); }
+        if (item.procedencia) { bits.push(item.procedencia); }
+        if (item.severidad) { bits.push(item.severidad); }
+        var row = el("button", {
+          class: "item-fila",
+          onclick: function () { closePanels(); drawNode(item.id, 1, false); }
+        }, [
+          el("span", { class: "item-nombre", text: String(item.name).slice(0, 90) }),
+          el("span", { class: "item-meta", text: bits.join(" · ") }),
+          el("span", { class: "badge", text: item.label })
+        ]);
+        list.appendChild(row);
+      });
+      box.appendChild(list);
+
+      if (data.pages > 1) {
+        var nav = el("div", { class: "acciones" });
+        if (data.page > 1) {
+          nav.appendChild(el("button", { class: "chip", text: "← anteriores", onclick: function () {
+            loadConnectionPage(nodeId, rel, direction, data.page - 1, orden);
+          }}));
+        }
+        if (data.page < data.pages) {
+          nav.appendChild(el("button", { class: "chip", text: "siguientes →", onclick: function () {
+            loadConnectionPage(nodeId, rel, direction, data.page + 1, orden);
+          }}));
+        }
+        box.appendChild(nav);
+      }
+    }).catch(function (error) {
+      box.innerHTML = "";
+      box.appendChild(el("p", { class: "descarte", text: "No se pudo leer la lista: " + error.message }));
+    });
   }
 
   function openNetwork(rut) {
