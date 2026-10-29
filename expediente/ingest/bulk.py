@@ -146,7 +146,27 @@ def _text_lines(raw, stats: "AggregateStats | None" = None) -> Iterator[str]:
             if stats is not None:
                 stats.nul_bytes += line.count(b"\x00")
             line = line.replace(b"\x00", b"")
-        yield line.decode("latin-1")
+        yield _decode(line)
+
+
+def _decode(line: bytes) -> str:
+    """Decode one CSV line, honouring the encoding the publisher actually used.
+
+    ChileCompra's bulk archives are **not** consistently encoded. Most members are
+    Latin-1; some are UTF-8, and decoding one of those as Latin-1 turns every accented
+    character into mojibake — "CIRUGÍA" becomes "CIRUGÃA". Reading everything as
+    Latin-1 put 366 descriptions and 201 names into the production graph that way,
+    measured on 2026-10-29 out of 4.9 M records.
+
+    So: UTF-8 first, because it fails loudly on non-UTF-8 bytes instead of silently
+    producing the wrong text, and Latin-1 as the fallback, because Latin-1 decodes any
+    byte sequence. The order matters — the reverse (which is what this used to do)
+    never fails and is therefore always wrong for the UTF-8 members.
+    """
+    try:
+        return line.decode("utf-8")
+    except UnicodeDecodeError:
+        return line.decode("latin-1")
 
 
 def iter_rows(

@@ -307,9 +307,34 @@ def graph_health(store) -> dict[str, Any]:
         "hay documentos adjuntos" if documents else {"check": "sin documentos adjuntos", "count": 0}
     )
 
+    # Text that was decoded with the wrong encoding. 253 values were repaired on
+    # 2026-10-29 (the bulk archives are not consistently Latin-1); what remains is
+    # truncated or ambiguous, and the repair script refuses to guess. Reported here so
+    # the number is visible instead of being discovered by a reader who cannot spell
+    # the word they are searching for.
+    mojibake = 0
+    for prop in ("descripcion", "nombre", "razon_social"):
+        rows = client.select(
+            f'SELECT (COUNT(*) AS ?n) WHERE {{ ?x <{ONTO}{prop}> ?v FILTER(CONTAINS(STR(?v), "\u00c3")) }}'
+        )
+        if rows:
+            mojibake += int(rows[0]["n"])
+    if mojibake:
+        problems.append(
+            {
+                "check": "texto con acentos corruptos (no reparable por round-trip)",
+                "count": mojibake,
+                "note": "originated in the bulk import; scripts/fix_encoding.py repaired 253 values, "
+                "the rest are truncated sequences",
+            }
+        )
+    else:
+        healthy.append("sin texto con encoding corrupto")
+
     return {
         "signals": len(signals),
         "documents": documents,
+        "mojibake_values": mojibake,
         "healthy": healthy,
         "problems": [p for p in problems if isinstance(p, dict)],
     }
