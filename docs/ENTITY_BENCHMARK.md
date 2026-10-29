@@ -1,6 +1,6 @@
 # Entity resolution benchmark — what the threshold is worth
 
-**Date:** 2026-10-28 · **Pairs:** 1.249 · **Cost of the whole run:** $0,013
+**Date:** 2026-10-28, extended 2026-10-29 · **Pairs:** 1.892 · **Cost of both runs:** ~$0,02
 
 ## The three questions this answers
 
@@ -104,10 +104,9 @@ guarantees and break the other.
 
 ## Honest limitations
 
-- **Positives are easier than the real distribution.** Many are the same string with
-  different capitalisation or legal form (`SPA` vs `SpA`). That inflates the top of
-  the recall curve. The discriminative contest happens in the negatives, which is why
-  they are reported separately.
+- **~~Positives are easier than the real distribution.~~** Fixed in run 2: 627 positives
+  with genuinely different names. The recall figures in run 1 were optimistic — the
+  assert threshold reaches 15 % of the hard positives against 23 % of the easy ones.
 - **The hard negatives are adversarial.** They were selected *because* cosine ranked
   them high. Their 0,925 precision at 0,30 is not an estimate of production
   precision; it is a floor under hostile sampling.
@@ -135,3 +134,94 @@ python3 benchmarks/evaluate.py benchmarks/pairs_reranked.json
 > similarity distribution, and measured. Embeddings alone admit 150 of 150 hard
 > negatives; the second stage rejects 148 of them at 0,991 precision. That is why the
 > pipeline has two stages and two thresholds instead of one clever cutoff.
+
+---
+
+# Run 2 — the positives were too easy, so the set was rebuilt
+
+Run 1 closed with a limitation written down rather than hidden:
+
+> *Positives are easier than the real distribution. Many are the same string with
+> different capitalisation or legal form (`SPA` vs `SpA`). That inflates the top of the
+> recall curve.*
+
+That is a real defect in a benchmark. 627 of the 952 positives in run 1 are variants of
+a single `legalName`, and some differ only in case. A system that scores those correctly
+has demonstrated that it can lowercase text.
+
+Run 2 adds two strata that did not exist:
+
+| Stratum | Pairs | How it was built | Truth from |
+|---|---|---|---|
+| **hard_positive** | 627 | the same RUT with **genuinely different names**, after folding accents, punctuation and case | the RUT |
+| **address_negative** | 16 | different RUTs sharing a `streetAddress` — the Fresenius/Sanderson office building | the RUT |
+| positive (run 1) | 952 | `legalName` vs trade name | the RUT |
+| easy_negative (run 1) | 147 | different RUT, region and address | the RUT |
+| hard_negative (run 1) | 150 | top-cosine, different RUT | the RUT |
+
+`python3 benchmarks/build_entity_benchmark.py` reproduces it: 643 new pairs scored with
+`qwen3-reranker-8b` in 75 seconds.
+
+## What each stratum looks like
+
+| Stratum | n | median cosine | median rerank | pass at 0.30 | pass at 0.90 |
+|---|---|---|---|---|---|
+| hard_positive | 627 | 0,793 | 0,500 | **61 %** | **15 %** |
+| positive (run 1) | 952 | 0,807 | 0,562 | 63 % | 23 % |
+| easy_negative | 147 | 0,594 | 0,001 | 1 % | 0 % |
+| hard_negative | 150 | 0,875 | 0,113 | 32 % | 1 % |
+| address_negative | 16 | 0,677 | 0,007 | 12 % | **6 %** |
+
+The hard positives are harder than run 1's: 15 % reach the assert threshold instead of
+23 %. The recall figures in run 1 were, as suspected, optimistic.
+
+## The result that changes the design
+
+At the assert threshold, the three negatives that survive — including at 0,95 and 0,97 —
+are not noise. They are the ceiling of the signal:
+
+```
+0.973   COMERCIALIZADORA Y DISTRIBUIDORA ...   |  COMERCIALIZADORA Y DISTRIBUIDO ...
+0.961   César Antonio                          |  CÉSAR ANTONIO HERRERA MUÑOZ
+0.953   LAYNER SPA                             |  LAYNER OTEC SPA          ← same address, different RUT
+```
+
+And raising the threshold does not remove them:
+
+| rerank threshold | precision | recall | false positives kept |
+|---|---|---|---|
+| 0,30 | 0,882 | 0,606 | 51 |
+| 0,90 | 0,969 | 0,150 | 3 |
+| 0,93 | 0,961 | 0,118 | 3 |
+| 0,95 | 0,943 | 0,080 | 3 |
+| 0,97 | 0,967 | 0,046 | 1 |
+| 0,98 | 1,000 | 0,026 | 0 |
+
+*(627 hard positives against all 313 negatives. The 0,98 row is not a solution: it
+asserts 16 pairs out of 627 and buys its perfect precision by refusing to work.)*
+
+From 0,90 to 0,97 the precision moves from 0,969 to 0,967 — it does not improve — while
+recall falls by two thirds. **There is no threshold at which a name signal can safely
+assert identity.** Two companies can share a name stem and an address and still be two
+companies; `LAYNER SPA` and `LAYNER OTEC SPA` are exactly that, and they score 0,953.
+
+## What this means for the pipeline
+
+The two-stage architecture survives intact. The mapping of stage to output does not.
+
+| Output | Run 1 rule | Run 2 rule |
+|---|---|---|
+| `Candidate` — a human looks | rerank ≥ 0,30 | rerank ≥ 0,30 · **unchanged** |
+| `Relation` — the dossier asserts it | rerank ≥ 0,90 | **a name match is not sufficient at any threshold** |
+
+An asserted relation between two different RUTs now requires an **independent**
+corroborating edge — a shared legal representative, a shared owner, or the same RUT —
+and the name score only orders the queue. The reason is measured, not stylistic: the
+best false positive in this set scores higher than 61 % of the true positives.
+
+That is the sentence this benchmark buys:
+
+> We did not pick a threshold. We built 1.892 pairs whose labels come from the RUT,
+> made the positives hard on purpose, and found that the signal saturates: a look-alike
+> at 0,953 outscores six of every ten true pairs. A name can raise a candidate. It
+> cannot, at any cutoff, be allowed to assert one.

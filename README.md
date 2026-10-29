@@ -263,15 +263,27 @@ With a source in hand, the threshold question was answered with a labelled set r
 than a guess. Labels come from the **RUT**, not from a model — two strings sharing an
 `identifier.id` are the same legal entity by definition, so there is no circularity:
 
+1,892 pairs, of which **627 are hard positives** — the same RUT with genuinely
+different names. Measured against all 313 negatives:
+
 | Stage | Threshold | Precision | Recall |
 |---|---|---|---|
 | Embeddings only (`qwen3-embedding-8b`) | cos ≥ 0.86 | **0 of 150** hard negatives rejected — unusable alone | — |
-| Reranker (`qwen3-reranker-8b`) — candidate | 0.30 | 0.925 | 0.634 |
-| Reranker — asserted relation | 0.90 | **0.991** | 0.226 |
+| Reranker (`qwen3-reranker-8b`) — candidate | 0.30 | 0.882 | 0.606 |
+| Reranker — asserted relation | 0.90 | 0.969 | 0.150 |
+| same, raised | 0.97 | 0.967 | 0.046 |
 
 Naming a *candidate* and asserting a *relation* are different acts with different costs.
-A false candidate costs a human two minutes. A false relation is a false accusation. So
-there are two thresholds, and the dossier only ever asserts the second.
+A false candidate costs a human two minutes. A false relation is a false accusation.
+
+The second run found something the first could not: **raising the threshold buys no
+safety.** From 0.90 to 0.97 the precision does not move (0.969 → 0.967) while recall
+falls by two thirds. A look-alike at 0.953 — `LAYNER SPA` against `LAYNER OTEC SPA`,
+same address, different RUT — outscores 61 % of the true pairs. So a name match is
+allowed to *raise* a candidate and is no longer allowed to *assert* a relation: that
+now requires an independent corroborating edge (same RUT, shared representative,
+shared owner), with the name score only ordering the queue. Full numbers and the
+per-stratum breakdown in [`docs/ENTITY_BENCHMARK.md`](docs/ENTITY_BENCHMARK.md).
 
 The hard case that justifies the whole pipeline:
 
