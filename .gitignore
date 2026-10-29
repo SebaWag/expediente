@@ -3,8 +3,11 @@
 *.pem
 *.key
 
-# data (regenerate with `expediente fetch-agil`)
-data/
+# data (regenerate with `expediente fetch-agil`).
+# The leading slash matters: without it this rule also swallowed `expediente/data/`,
+# which holds the curated acronym table — a source file, not a cache. A clean clone
+# then lost every acronym expansion and only the test noticed.
+/data/
 !examples/*.json
 
 # python

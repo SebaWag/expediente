@@ -1,0 +1,15 @@
+{
+  "_comment": "Siglas y sinónimos que la gente usa -> el texto que aparece en los datos. Curado a mano y validado contra el grafo cargado con scripts/validate_aliases.py; toda entrada que no resuelve se borra, porque una sigla que devuelve cero es una mentira en un archivo de configuración. No se generan por iniciales: 'FONDO NACIONAL DE SALUD' daría FNS, que nadie dice. Ojo: la lista es corta porque el universo de compradores son hospitales, unidades de logística de las FFAA y municipalidades; los ministerios casi no emiten órdenes en este dataset, y afirmar lo contrario sería inventar.",
+
+  "CENABAST": "CENTRAL DE ABASTECIMIENTO DEL SISTEMA NACIONAL DE SERVICIO DE SALUD",
+  "FONASA": "FONDO NACIONAL DE SALUD",
+  "ARMADA": "ARMADA",
+  "CARABINEROS": "CARABINEROS",
+  "FACH": "FUERZA AEREA",
+  "EJERCITO": "EJERCITO",
+  "PDI": "POLICIA DE INVESTIGACIONES",
+  "DIPRECA": "DIRECCION DE PREVISION DE CARABINEROS",
+  "MUNI": "MUNICIPALIDAD",
+  "SERVICIO DE SALUD": "SERVICIO DE SALUD",
+  "HOSPITAL": "HOSPITAL"
+}
