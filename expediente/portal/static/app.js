@@ -440,18 +440,11 @@
     body.appendChild(el("h2", { text: node.name }));
     body.appendChild(el("p", { class: "badge graf", text: node.label }));
 
-    var props = node.props || {};
-    var keys = Object.keys(props).filter(function (key) {
-      return props[key] !== null && props[key] !== "" && String(props[key]).length < 160;
-    }).slice(0, 9);
-    if (keys.length) {
-      var dl = el("dl");
-      keys.forEach(function (key) {
-        dl.appendChild(el("dt", { text: key.replace(/_/g, " ") }));
-        dl.appendChild(el("dd", { text: String(props[key]) }));
-      });
-      body.appendChild(dl);
-    }
+    var profileBox = el("div", { id: "perfil" }, [
+      el("p", { class: "pie", text: "Leyendo los registros de esta entidad…" })
+    ]);
+    body.appendChild(profileBox);
+    loadProfile(node.id);
 
     body.appendChild(el("h3", { text: "Qué puedes hacer" }));
     var actions = el("div", { class: "acciones" });
@@ -519,6 +512,147 @@
     CONTIENE_HALLAZGO: "contiene hallazgo", INVOLUCRA: "involucra",
     REDESCUBIERTO_POR: "redescubierto por", AFIRMA: "afirma"
   };
+
+  function bar(value, max, cls) {
+    var width = max > 0 ? Math.max(2, Math.round((value / max) * 100)) : 0;
+    return el("span", { class: "barra " + (cls || "") }, [
+      el("span", { class: "barra-fill", style: "width:" + width + "%" })
+    ]);
+  }
+
+  function loadProfile(nodeId) {
+    var box = $("perfil");
+    if (!box) { return; }
+    api("/api/profile?nodo=" + encodeURIComponent(nodeId))
+      .then(function (data) {
+        box.innerHTML = "";
+        if (data.error) {
+          box.appendChild(el("p", { class: "vacio", text: data.error }));
+          return;
+        }
+
+        // --- the numbers a reader looks at first -------------------------
+        var kpis = el("div", { class: "kpis" });
+        function kpi(value, label, hint) {
+          kpis.appendChild(el("div", { class: "kpi", title: hint || "" }, [
+            el("span", { class: "kpi-n", text: value }),
+            el("span", { class: "kpi-l", text: label })
+          ]));
+        }
+        kpi(count(data.orders), "órdenes");
+        kpi(shortMonto(data.total_clp), "monto total");
+        kpi(shortMonto(data.average_clp), "promedio por orden");
+        if (data.counterparty_label) {
+          kpi(count(data.counterparties_total), data.counterparty_label === "Proveedor" ? "proveedores" : "organismos");
+        }
+        if (typeof data.hhi === "number") {
+          kpi(count(data.hhi), "concentración (HHI)", "Sobre 2.500 se considera concentrado");
+        }
+        box.appendChild(kpis);
+
+        // --- flags: what an auditor should look at -----------------------
+        if (data.flags && data.flags.length) {
+          var flags = el("div", { class: "banderas" });
+          data.flags.forEach(function (flag) {
+            flags.appendChild(el("div", { class: "bandera " + flag.level }, [
+              el("strong", { text: flag.flag }),
+              el("span", { text: flag.detail })
+            ]));
+          });
+          box.appendChild(flags);
+        }
+
+        // --- history ------------------------------------------------------
+        if (data.by_year && data.by_year.length) {
+          box.appendChild(el("h3", { text: "Por año" }));
+          var maxYear = Math.max.apply(null, data.by_year.map(function (y) { return y.orders; }));
+          var chart = el("div", { class: "anios" });
+          data.by_year.forEach(function (year) {
+            chart.appendChild(el("div", { class: "anio" }, [
+              el("span", { class: "anio-l", text: year.year }),
+              bar(year.orders, maxYear),
+              el("span", { class: "anio-v", text: count(year.orders) })
+            ]));
+          });
+          box.appendChild(chart);
+        }
+
+        // --- procedures ---------------------------------------------------
+        if (data.procedures && data.procedures.length) {
+          box.appendChild(el("h3", { text: "Por procedimiento" }));
+          var maxProc = Math.max.apply(null, data.procedures.map(function (x) { return x.ordenes; }));
+          var procs = el("div", { class: "anios" });
+          data.procedures.forEach(function (item) {
+            procs.appendChild(el("div", { class: "anio" }, [
+              el("span", { class: "anio-l ancho", text: item.procedimiento }),
+              bar(item.ordenes, maxProc, item.procedimiento === "Trato Directo" ? "alerta" : ""),
+              el("span", { class: "anio-v", text: count(item.ordenes) })
+            ]));
+          });
+          box.appendChild(procs);
+        }
+
+        // --- who it deals with --------------------------------------------
+        if (data.counterparties && data.counterparties.length) {
+          box.appendChild(el("h3", { text: "Principales " + (data.counterparty_label === "Proveedor" ? "proveedores" : "compradores") }));
+          var maxCp = Math.max.apply(null, data.counterparties.map(function (c) { return c.orders; }));
+          var list = el("div", { class: "anios" });
+          data.counterparties.forEach(function (party) {
+            var row = el("div", { class: "anio clickable" }, [
+              el("span", { class: "anio-l ancho", text: String(party.name).slice(0, 34) }),
+              bar(party.orders, maxCp),
+              el("span", { class: "anio-v", text: count(party.orders) })
+            ]);
+            row.addEventListener("click", function () { closePanels(); drawNode(party.node, 1, false); });
+            list.appendChild(row);
+          });
+          box.appendChild(list);
+        }
+
+        // --- address network ----------------------------------------------
+        if (data.network_peers && data.network_peers.length) {
+          box.appendChild(el("h3", { text: "Mismo domicilio registrado" }));
+          data.network_peers.forEach(function (peer) {
+            box.appendChild(el("div", { class: "fuente-item" }, [
+              el("span", { class: "dom", text: peer.razon_social || peer.rut }),
+              el("span", { text: " · " + count(peer.orders) + " órdenes · RUT " + peer.rut })
+            ]));
+          });
+          box.appendChild(el("p", {
+            class: "pie",
+            text: "Un domicilio compartido también es lo que parece un edificio de oficinas: es una pista, no una relación afirmada."
+          }));
+        }
+
+        // --- the system's own patterns ------------------------------------
+        if (data.signals && data.signals.length) {
+          box.appendChild(el("h3", { text: "Señales que la mencionan" }));
+          data.signals.forEach(function (signal) {
+            var item = el("button", {
+              class: "item-fila",
+              onclick: function () { closePanels(); drawNode("Senal/" + signal.id, 1, false); }
+            }, [
+              el("span", { class: "item-nombre", text: String(signal.claim).slice(0, 120) }),
+              el("span", { class: "item-meta", text: signal.detector + " · " + count(signal.ordenes) + " órdenes" })
+            ]);
+            box.appendChild(item);
+          });
+        }
+
+        if (data.claim) {
+          box.appendChild(el("h3", { text: "La afirmación" }));
+          box.appendChild(el("p", { class: "lead small", text: data.claim }));
+        }
+
+        if (data.note) {
+          box.appendChild(el("p", { class: "pie", text: data.note }));
+        }
+      })
+      .catch(function (error) {
+        box.innerHTML = "";
+        box.appendChild(el("p", { class: "descarte", text: "No se pudo leer el perfil: " + error.message }));
+      });
+  }
 
   function loadConnections(nodeId) {
     var box = $("conexiones");

@@ -10,6 +10,7 @@ from .export import EXPORTS, render, to_csv, to_json, to_markdown
 from .pdf import build_pdf, case_id
 from .queries import (
     ORDER_FIELDS,
+    entity_profile,
     evidence_for_orders,
     graph_health,
     order_document,
@@ -24,6 +25,7 @@ __all__ = [
     "ORDER_FIELDS",
     "build_pdf",
     "case_id",
+    "entity_profile",
     "evidence_for_orders",
     "graph_health",
     "order_document",

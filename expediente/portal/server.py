@@ -452,6 +452,7 @@ class Portal:
         self.runs = runs
         self.registry = registry
         self._signals_cache: tuple[float, dict[str, Any]] | None = None
+        self._profile_cache: dict[str, tuple[float, dict[str, Any]]] = {}
 
     def summary(self) -> dict[str, Any]:
         stats = self.api.stats({})
@@ -644,6 +645,33 @@ class Portal:
             "items": items,
         }
 
+    def profile(self, nodo: str) -> dict[str, Any]:
+        """The investigation profile of one entity, cached for five minutes.
+
+        Ten seconds on a cold call is the price of counting 2,145 orders across six
+        dimensions; repeating it on every click is not. The cache is keyed by node and
+        the TTL is short because the graph changes when evidence is attached.
+        """
+        import time as _time
+
+        if "/" not in nodo:
+            return {"error": "nodo debe ser 'Label/id'"}
+        now = _time.time()
+        cached = self._profile_cache.get(nodo)
+        if cached and now - cached[0] < 300:
+            return cached[1]
+
+        from ..audit import entity_profile
+
+        label, key = nodo.split("/", 1)
+        profile = entity_profile(self.store, label, key)
+        self._profile_cache[nodo] = (now, profile)
+        if len(self._profile_cache) > 200:
+            oldest = sorted(self._profile_cache.items(), key=lambda item: item[1][0])[:80]
+            for old_key, _value in oldest:
+                self._profile_cache.pop(old_key, None)
+        return profile
+
     def health_graph(self) -> dict[str, Any]:
         from ..audit import graph_health
 
@@ -781,6 +809,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, portal.summary())
             if path == "/api/roots":
                 return self._json(200, portal.roots())
+            if path == "/api/profile":
+                return self._json(200, portal.profile(params.get("nodo") or ""))
             if path == "/api/connections":
                 return self._json(200, portal.connections(params.get("nodo") or ""))
             if path == "/api/connection-page":
