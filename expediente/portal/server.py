@@ -301,6 +301,16 @@ def _subgraph_walk(store, label: str, key: str, depth: int, max_nodes: int, limi
 
 
 # ------------------------------------------------------------------------- runs
+class RunNotFound(LookupError):
+    """A run id that is not on disk. Distinct from any other file the server touches.
+
+    The first version let ``FileNotFoundError`` from *anywhere* fall into one handler
+    that answered ``{"error": "run no encontrado"}``, so a missing alias table in the
+    container looked like a missing investigation. An error message that names the
+    wrong cause costs an hour of debugging.
+    """
+
+
 class RunRegistry:
     """Active and finished runs, and the only place a run is started.
 
@@ -466,8 +476,55 @@ class Portal:
     def network(self, params: dict[str, str]) -> dict[str, Any]:
         return network(self.store, {"rut": params.get("rut") or ""})
 
+    def roots(self) -> dict[str, Any]:
+        """Starting points, so the map is never an empty canvas.
+
+        A graph explorer whose only entry is a search box is a graph explorer nobody
+        opens. These are four doors: the two detectors, the strongest signals, and the
+        counts that say how much is behind each one.
+        """
+        detectors: list[dict[str, Any]] = []
+        try:
+            client = getattr(self.store, "client", None)
+            if client is not None:
+                from ..graph.schema import ONTO, RDF_TYPE
+
+                rows = client.select(f"SELECT ?s WHERE {{ ?s <{RDF_TYPE}> <{ONTO}Detector> }}")
+                codes = sorted(str(row["s"]).split("/")[-1] for row in rows)
+            else:
+                codes = sorted(key for _label, key in self.store.nodes("Detector"))
+        except Exception:
+            codes = []
+
+        hints = {
+            "fraccionamiento": "Compras partidas justo bajo el umbral de licitación",
+            "concentracion": "Un proveedor que se lleva una parte anómala del gasto",
+            "colicotizacion": "Empresas que siempre cotizan juntas",
+            "modificaciones": "Contratos que crecen después de adjudicados",
+        }
+        for code in codes:
+            detectors.append({"id": f"Detector/{code}", "label": code, "hint": hints.get(code, "")})
+
+        signals = self.api.signals({"limit": "6"}).get("signals", [])
+        return {
+            "detectors": detectors,
+            "signals": [
+                {
+                    "id": f"Senal/{signal['id']}",
+                    "label": (signal.get("proveedor") or "señal")[:60],
+                    "hint": (signal.get("organismo") or "")[:60],
+                    "severity": signal.get("severity"),
+                }
+                for signal in signals
+            ],
+            "counts": {k: v for k, v in (self.api.stats({}).get("nodes") or {}).items()},
+        }
+
     def run_detail(self, run_id: str) -> dict[str, Any]:
-        run = self.runs.open(run_id)
+        try:
+            run = self.runs.open(run_id)
+        except FileNotFoundError as exc:
+            raise RunNotFound(run_id) from exc
         events = run.events.events()
         state = replay(events)
         return {
@@ -480,7 +537,10 @@ class Portal:
         }
 
     def run_events(self, run_id: str, since: int) -> dict[str, Any]:
-        run = self.runs.open(run_id)
+        try:
+            run = self.runs.open(run_id)
+        except FileNotFoundError as exc:
+            raise RunNotFound(run_id) from exc
         return {"events": [event.to_json() for event in run.events.since(since)]}
 
 
@@ -546,6 +606,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, {"status": "ok"})
             if path == "/api/summary":
                 return self._json(200, portal.summary())
+            if path == "/api/roots":
+                return self._json(200, portal.roots())
             if path == "/api/signals":
                 return self._json(200, portal.signals(params))
             if path == "/api/kanban":
@@ -572,7 +634,7 @@ class Handler(BaseHTTPRequestHandler):
             match = re.fullmatch(r"/api/runs/([A-Za-z0-9_-]+)/stream", path)
             if match:
                 return self._stream(match.group(1), int(params.get("since") or 0))
-        except FileNotFoundError:
+        except RunNotFound:
             return self._json(404, {"error": "run no encontrado"})
         except ValueError as exc:
             return self._json(400, {"error": str(exc)})

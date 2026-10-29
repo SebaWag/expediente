@@ -69,6 +69,7 @@
       var best = null;
       var bestDistance = 22 / self.scale;
       self.nodes.forEach(function (node) {
+        if (self.isHidden(node.label)) { return; }
         var dx = node.x - point.x;
         var dy = node.y - point.y;
         var distance = Math.sqrt(dx * dx + dy * dy);
@@ -143,12 +144,24 @@
     }, { passive: false });
   };
 
-  GraphView.prototype.setData = function (data) {
+  GraphView.prototype.setData = function (data, options) {
+    var merge = !!(options && options.merge) && this.nodes.length > 0;
     var width = this.canvas.clientWidth || 800;
     var height = this.canvas.clientHeight || 520;
     var byId = {};
 
-    this.nodes = (data.nodes || []).map(function (node, index) {
+    if (merge) {
+      this.nodes.forEach(function (node) { byId[node.id] = node; });
+      this.edges.forEach(function (edge) { edge.__keep = true; });
+    }
+
+    var existing = this.nodes;
+    var added = (data.nodes || []).map(function (node, index) {
+      if (merge && byId[node.id]) {
+        byId[node.id].data = node;
+        byId[node.id].name = node.name;
+        return null;
+      }
       var angle = (index / Math.max(1, data.nodes.length)) * Math.PI * 2;
       var radius = Math.min(width, height) * 0.32;
       var entry = {
@@ -165,26 +178,81 @@
       };
       byId[entry.id] = entry;
       return entry;
-    });
+    }).filter(Boolean);
 
-    this.edges = (data.edges || []).filter(function (edge) {
+    var newEdges = (data.edges || []).filter(function (edge) {
       return byId[edge.source] && byId[edge.target];
     }).map(function (edge) {
-      byId[edge.source].degree += 1;
-      byId[edge.target].degree += 1;
       return { source: byId[edge.source], target: byId[edge.target], rel: edge.rel };
     });
 
+    if (merge) {
+      var seen = {};
+      this.edges.forEach(function (edge) {
+        seen[edge.source.id + "|" + edge.rel + "|" + edge.target.id] = true;
+      });
+      newEdges = newEdges.filter(function (edge) {
+        return !seen[edge.source.id + "|" + edge.rel + "|" + edge.target.id];
+      });
+    }
+
+    this.nodes = merge ? existing.concat(added) : added;
+    this.edges = (merge ? this.edges.concat(newEdges) : newEdges).filter(function (edge) {
+      return !edge.__keep || merge;
+    });
+
+    this.nodes.forEach(function (node) { node.degree = 0; });
+    this.edges.forEach(function (edge) {
+      edge.source.degree += 1;
+      edge.target.degree += 1;
+    });
     this.nodes.forEach(function (node) {
       node.r = node.id === data.seed ? 14 : Math.min(11, 6 + Math.sqrt(node.degree) * 1.1);
     });
 
+    this.selected = data.seed || this.selected;
+    if (!merge) {
+      this.scale = 1;
+      this.tx = 0;
+      this.ty = 0;
+    }
+    this._step(merge ? 120 : 240);
+    this.render();
+  };
+
+  GraphView.prototype.zoomBy = function (factor) {
+    var width = this.canvas.clientWidth || 800;
+    var height = this.canvas.clientHeight || 520;
+    this.tx = width / 2 - (width / 2 - this.tx) * factor;
+    this.ty = height / 2 - (height / 2 - this.ty) * factor;
+    this.scale = Math.max(0.35, Math.min(3, this.scale * factor));
+    this.render();
+  };
+
+  GraphView.prototype.reset = function () {
     this.scale = 1;
     this.tx = 0;
     this.ty = 0;
-    this.selected = data.seed;
-    this._step(240);
+    this._step(120);
     this.render();
+  };
+
+  GraphView.prototype.setLabelVisible = function (label, visible) {
+    this.hidden = this.hidden || {};
+    this.hidden[label] = !visible;
+    this.render();
+  };
+
+  GraphView.prototype.isHidden = function (label) {
+    return !!(this.hidden && this.hidden[label]);
+  };
+
+  GraphView.prototype.counts = function () {
+    var counts = {};
+    this.nodes.forEach(function (node) {
+      counts[node.label] = (counts[node.label] || 0) + 1;
+    });
+    return counts;
   };
 
   GraphView.prototype._step = function (iterations) {
@@ -273,6 +341,7 @@
     var self = this;
     ctx.lineWidth = 1 / this.scale;
     this.edges.forEach(function (edge) {
+      if (self.isHidden(edge.source.label) || self.isHidden(edge.target.label)) { return; }
       var lit = !self.selected || neighbour[edge.source.id] || neighbour[edge.target.id];
       var isDirect = self.selected && (edge.source.id === self.selected || edge.target.id === self.selected);
       ctx.strokeStyle = isDirect ? "#8a8f99" : lit ? "#d9d5cc" : "#eeebe4";
@@ -294,6 +363,7 @@
     });
 
     this.nodes.forEach(function (node) {
+      if (self.isHidden(node.label)) { return; }
       var lit = !self.selected || neighbour[node.id];
       ctx.globalAlpha = lit ? 1 : 0.28;
       ctx.beginPath();

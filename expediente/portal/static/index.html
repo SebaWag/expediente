@@ -116,8 +116,13 @@
       </div>
     </div>
 
+    <div class="partida">
+      <span class="partida-titulo">Puntos de partida</span>
+      <div id="puntos-partida" class="resultados"></div>
+    </div>
+
     <form class="buscador" id="form-buscar" role="search">
-      <label for="q-nodo">Buscar</label>
+      <label for="q-nodo">o busca por nombre</label>
       <select id="label-nodo" aria-label="Tipo de entidad">
         <option value="Proveedor">Empresa</option>
         <option value="Organismo">Municipalidad u organismo</option>
@@ -129,13 +134,23 @@
 
     <div class="mapa-wrap">
       <canvas id="mapa" height="520" aria-label="Mapa de relaciones del grafo" role="img"></canvas>
-      <div class="leyenda" id="leyenda" aria-hidden="true"></div>
+
+      <div class="mapa-controles" role="group" aria-label="Controles del mapa">
+        <button type="button" data-mapa="in" title="Acercar">+</button>
+        <button type="button" data-mapa="out" title="Alejar">−</button>
+        <button type="button" data-mapa="reset" title="Centrar">Centrar</button>
+        <button type="button" data-mapa="clear" title="Empezar de nuevo">Limpiar</button>
+      </div>
+
+      <div class="filtros-capa" id="filtros-capa" aria-label="Mostrar u ocultar tipos de nodo"></div>
+
       <aside class="nodo-panel" id="nodo-panel" hidden>
         <button class="cerrar" id="cerrar-nodo" aria-label="Cerrar">×</button>
         <div id="nodo-panel-cuerpo"></div>
       </aside>
     </div>
-    <p class="pie" id="mapa-pie"></p>
+
+    <p class="pie" id="mapa-pie">Elige un punto de partida arriba: cada uno dibuja lo que cuelga de él.</p>
   </section>
 
   <!-- ======================================================== INVESTIGAR -->

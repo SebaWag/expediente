@@ -84,6 +84,7 @@
     if (view === "inicio") { loadSummary(); }
     if (view === "senales") { loadKanban(); }
     if (view === "registro") { loadRunList(); }
+    if (view === "grafo") { loadRoots(); }
   }
 
   document.querySelectorAll(".tab").forEach(function (tab) {
@@ -266,78 +267,153 @@
   }
 
   // --------------------------------------------------------------------- mapa
+  //
+  // The explorer. A search box alone is not an explorer: you cannot look at a graph
+  // you have to guess a name to see. So there are starting points, a node can be
+  // expanded or isolated, and the layers can be switched off when the drawing gets
+  // busy. Everything here reads; nothing here writes.
+
   if (!state.graph && $("mapa")) {
     state.graph = new window.GraphView($("mapa"), {
       onSelect: function (node) { openNode(node); }
     });
   }
 
-  $("form-buscar").addEventListener("submit", function (event) {
-    event.preventDefault();
-    var label = $("label-nodo").value;
-    var text = $("q-nodo").value.trim();
-    if (text.length < 2) { return; }
-    var results = $("resultados-busqueda");
-    results.innerHTML = "";
-    results.appendChild(el("span", { class: "pie", text: "Buscando…" }));
-    api("/api/search?label=" + encodeURIComponent(label) + "&texto=" + encodeURIComponent(text))
-      .then(function (data) {
-        results.innerHTML = "";
-        var nodes = data.results || data.nodes || [];
-        if (!nodes.length) {
-          results.appendChild(el("span", { class: "pie", text: "No se encontró nada con ese nombre. Prueba con menos palabras." }));
-          return;
-        }
-        nodes.slice(0, 10).forEach(function (node) {
-          var id = node.id || (node.label + "/" + node.key) || (label + "/" + (node.key || node.rut_norm));
-          var name = node.name || node.razon_social || node.nombre || node.key || id;
-          results.appendChild(el("button", {
-            class: "chip",
-            text: name,
-            onclick: function () { showNode(id.indexOf("/") >= 0 ? id : label + "/" + id); }
-          }));
-        });
-        results.appendChild(el("span", { class: "pie", text: "Elige una para dibujar el mapa." }));
-      })
-      .catch(function (error) {
-        results.innerHTML = "";
-        results.appendChild(el("span", { class: "pie", text: "Error al buscar: " + error.message }));
+  function loadRoots() {
+    var box = $("puntos-partida");
+    box.innerHTML = "";
+    box.appendChild(el("span", { class: "pie", text: "Cargando…" }));
+    api("/api/roots").then(function (data) {
+      box.innerHTML = "";
+      (data.detectors || []).forEach(function (root) {
+        box.appendChild(el("button", {
+          class: "chip partida-chip",
+          title: root.hint || "",
+          text: "Patrón: " + root.label,
+          onclick: function () { drawNode(root.id, 1, false); }
+        }));
       });
-  });
+      (data.signals || []).slice(0, 4).forEach(function (root) {
+        box.appendChild(el("button", {
+          class: "chip partida-chip" + (root.severity === "alta" ? " alta" : ""),
+          title: root.hint || "",
+          text: "Señal: " + root.label,
+          onclick: function () { drawNode(root.id, 2, false); }
+        }));
+      });
+      if (data.counts && data.counts.Proveedor) {
+        box.appendChild(el("span", {
+          class: "pie",
+          text: "En total: " + count(data.counts.Proveedor) + " empresas · "
+            + count(data.counts.Organismo) + " organismos · " + count(data.counts.OrdenCompra) + " órdenes."
+        }));
+      }
+    }).catch(function (error) {
+      box.innerHTML = "";
+      box.appendChild(el("span", { class: "pie", text: "No se pudieron cargar los puntos de partida: " + error.message }));
+    });
+  }
 
-  function showNode(nodeId) {
-    closePanels();
-    $("mapa-pie").textContent = "Dibujando " + nodeId + "…";
-    api("/api/subgraph?nodo=" + encodeURIComponent(nodeId) + "&saltos=2")
+  function drawNode(nodeId, depth, merge) {
+    $("mapa-pie").textContent = "Leyendo el grafo alrededor de " + nodeId + "…";
+    api("/api/subgraph?nodo=" + encodeURIComponent(nodeId) + "&saltos=" + (depth || 1))
       .then(function (data) {
         if (data.error) {
           $("mapa-pie").textContent = data.error;
           return;
         }
-        state.graph.setData(data);
-        renderLegend(data);
-        $("mapa-pie").textContent = data.nodes.length + " nodo(s) y " + data.edges.length
-          + " relación(es) dibujadas" + (data.truncated ? " · el mapa se cortó para poder leerlo; el total del grafo es mucho mayor" : "");
-        if (state.view !== "grafo") { show("grafo"); }
+        state.graph.setData(data, { merge: !!merge });
+        renderFilters();
+        var total = state.graph.nodes.length;
+        var shown = total;
+        $("mapa-pie").textContent = (merge ? "Sumé " : "")
+          + (data.nodes || []).length + " nodo(s) y " + (data.edges || []).length + " relación(es)"
+          + (merge ? " · en pantalla " + total : "")
+          + (data.truncated ? " · el dibujo se cortó para poder leerlo; el total del grafo es mucho mayor" : "")
+          + " · toca un nodo para ver qué es y expandirlo";
+        $("nodo-panel").hidden = true;
       })
       .catch(function (error) {
         $("mapa-pie").textContent = "No se pudo dibujar: " + error.message;
       });
   }
 
-  function renderLegend(data) {
-    var legend = $("leyenda");
-    legend.innerHTML = "";
-    state.graph.labels().forEach(function (item) {
-      legend.appendChild(el("span", {}, [
-        el("i", { style: "background:" + item.color }),
-        document.createTextNode(item.label)
+  function renderFilters() {
+    var box = $("filtros-capa");
+    var counts = state.graph.counts();
+    var labels = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; });
+    box.innerHTML = "";
+    if (!labels.length) { return; }
+    labels.forEach(function (label) {
+      var id = "capa-" + label;
+      var input = el("input", { type: "checkbox", id: id, checked: "checked" });
+      input.addEventListener("change", function () {
+        state.graph.setLabelVisible(label, input.checked);
+      });
+      box.appendChild(el("label", { class: "capa", for: id }, [
+        input,
+        el("i", { style: "background:" + state.graph.colorFor(label) }),
+        document.createTextNode(label + " (" + counts[label] + ")")
       ]));
     });
   }
 
+  document.querySelectorAll("[data-mapa]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      var action = button.dataset.mapa;
+      if (action === "in") { state.graph.zoomBy(1.25); }
+      if (action === "out") { state.graph.zoomBy(0.8); }
+      if (action === "reset") { state.graph.reset(); }
+      if (action === "clear") {
+        state.graph.setData({ nodes: [], edges: [], seed: null });
+        state.graph.hidden = {};
+        $("filtros-capa").innerHTML = "";
+        $("nodo-panel").hidden = true;
+        $("mapa-pie").textContent = "Lienzo limpio. Elige un punto de partida arriba.";
+      }
+    });
+  });
+
+  $("form-buscar").addEventListener("submit", function (event) {
+    event.preventDefault();
+    var label = $("label-nodo").value;
+    var text = $("q-nodo").value.trim();
+    if (text.length < 2) {
+      $("mapa-pie").textContent = "Escribe al menos dos letras para buscar.";
+      return;
+    }
+    var results = $("resultados-busqueda");
+    results.innerHTML = "";
+    results.appendChild(el("span", { class: "pie", text: "Buscando " + text + "…" }));
+    api("/api/search?label=" + encodeURIComponent(label) + "&texto=" + encodeURIComponent(text))
+      .then(function (data) {
+        results.innerHTML = "";
+        var nodes = data.results || data.nodes || [];
+        if (!nodes.length) {
+          results.appendChild(el("span", {
+            class: "pie",
+            text: "No se encontró «" + text + "». Prueba con menos palabras, o con el RUT."
+          }));
+          return;
+        }
+        nodes.slice(0, 10).forEach(function (node) {
+          var id = node.node || node.id || (label + "/" + (node.key || ""));
+          var name = node.match || node.name || node.razon_social || node.nombre || id;
+          results.appendChild(el("button", {
+            class: "chip",
+            text: name,
+            onclick: function () { drawNode(id, 2, false); }
+          }));
+        });
+        results.appendChild(el("span", { class: "pie", text: "Elige una para dibujar su entorno." }));
+      })
+      .catch(function (error) {
+        results.innerHTML = "";
+        results.appendChild(el("span", { class: "pie", text: "La búsqueda falló: " + error.message }));
+      });
+  });
+
   function openNode(node) {
-    var panel = $("nodo-panel");
     var body = $("nodo-panel-cuerpo");
     body.innerHTML = "";
     body.appendChild(el("h2", { text: node.name }));
@@ -356,11 +432,17 @@
       body.appendChild(dl);
     }
 
+    body.appendChild(el("h3", { text: "Qué puedes hacer" }));
     var actions = el("div", { class: "acciones" });
     actions.appendChild(el("button", {
       class: "chip",
-      text: "Ver qué cuelga de aquí",
-      onclick: function () { showNode(node.id); }
+      text: "Expandir un paso",
+      onclick: function () { drawNode(node.id, 1, true); }
+    }));
+    actions.appendChild(el("button", {
+      class: "chip",
+      text: "Aislar este nodo",
+      onclick: function () { drawNode(node.id, 1, false); }
     }));
     if (node.label === "Proveedor") {
       actions.appendChild(el("button", {
@@ -381,7 +463,7 @@
       }
     }));
     body.appendChild(actions);
-    panel.hidden = false;
+    $("nodo-panel").hidden = false;
   }
 
   function openNetwork(rut) {
@@ -408,16 +490,16 @@
         });
       }
       if (data.not_claimed) {
-        body.appendChild(el("p", {
-          class: "pie",
-          text: "Ojo: " + data.not_claimed
-        }));
+        body.appendChild(el("p", { class: "pie", text: "Ojo: " + data.not_claimed }));
       }
       $("nodo-panel").hidden = false;
     }).catch(function (error) {
       body.appendChild(el("p", { class: "descarte", text: "No se pudo leer la red: " + error.message }));
     });
   }
+
+  // showNode is kept for the signal card, which jumps from the board to the map.
+  function showNode(nodeId) { drawNode(nodeId, 2, false); }
 
   // --------------------------------------------------------------- investigar
   document.querySelectorAll(".sugerencias .chip").forEach(function (chip) {
