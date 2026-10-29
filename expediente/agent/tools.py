@@ -46,6 +46,10 @@ TOOL_ORDER: tuple[str, ...] = (
     "caminos",
     "red_proveedor",
     "citas",
+    "senal_detalle",
+    "senales_de",
+    "perfil_de_gasto",
+    "documento_de_orden",
     "buscar_en_web",
     "leer_fuente",
     "afirmar",
@@ -125,6 +129,40 @@ SCHEMAS: list[dict[str, Any]] = [
         ["nodo"],
     ),
     _fn(
+        "senal_detalle",
+        "Abre una señal completa: la afirmación, las órdenes con su monto, fecha y descripción, "
+        "y el documento oficial de cada orden con su huella digital. Es la herramienta principal "
+        "para validar o refutar. Devuelve 'completo' = si todas las órdenes tienen documento.",
+        {"senal_id": {"type": "string", "description": "id de la señal, sin el prefijo 'Senal/'"},
+         "limite": {"type": "integer", "minimum": 1, "maximum": 120}},
+        ["senal_id"],
+    ),
+    _fn(
+        "senales_de",
+        "Busca las señales que nombran a una empresa o a un organismo. El vínculo es por nombre "
+        "exacto, no por RUT: la respuesta lo dice, porque un nombre es una coincidencia más débil "
+        "que un identificador.",
+        {"label": {"type": "string", "enum": ["Proveedor", "Organismo"]},
+         "clave": {"type": "string", "description": "RUT del proveedor u código del organismo"}},
+        ["label", "clave"],
+    ),
+    _fn(
+        "perfil_de_gasto",
+        "Cuánto gasta un organismo (o cuánto recibe un proveedor): total, número de órdenes, "
+        "reparto por procedimiento (licitación, trato directo, convenio marco) y con quién. "
+        "Los conteos son del grafo completo.",
+        {"label": {"type": "string", "enum": ["Proveedor", "Organismo"]},
+         "clave": {"type": "string", "description": "RUT del proveedor u código del organismo"}},
+        ["label", "clave"],
+    ),
+    _fn(
+        "documento_de_orden",
+        "El documento detrás de una orden de compra: dirección oficial, huella sha256, cuándo se "
+        "descargó y el extracto del registro. Si no tiene documento, lo dice.",
+        {"codigo": {"type": "string", "description": "código de la orden, ej. '1417966-39-SE25'"}},
+        ["codigo"],
+    ),
+    _fn(
         "buscar_en_web",
         "Busca en internet fuentes externas (prensa, Contraloría, municipios, diario oficial). "
         "Devuelve candidatos con URL. Un candidato NO es una fuente: hay que leerlo con "
@@ -159,6 +197,12 @@ SCHEMAS: list[dict[str, Any]] = [
                 "description": "Códigos de orden de compra del grafo que sostienen la afirmación",
             },
             "senales": {"type": "array", "items": {"type": "string"}, "description": "ids de :Senal en el grafo"},
+            "documentos": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "huellas sha256 de :Documento (las devuelve senal_detalle o documento_de_orden). "
+                "Es la forma más fuerte de sostener una afirmación: apunta al archivo descargado.",
+            },
             "source_id": {"type": "string", "description": "id devuelto por leer_fuente, si la afirmación es sobre la web"},
             "cita": {"type": "string", "description": "frase copiada textualmente del documento descargado"},
         },
@@ -282,6 +326,70 @@ def _citas(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def _senal_detalle(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    from ..audit import signal_pack
+
+    signal_id = str(args["senal_id"]).replace("Senal/", "").strip()
+    pack = signal_pack(ctx.store, signal_id, order_limit=int(args.get("limite") or 40))
+    if pack.get("error"):
+        ctx.observations.append(f"no pude abrir la señal {signal_id}: {pack['error']}")
+        return pack
+    counts = pack.get("counts") or {}
+    ctx.observations.append(
+        f"abrir la señal {signal_id}: {counts.get('orders_cited')} orden(es), "
+        f"{counts.get('orders_with_document')} con documento, "
+        f"{'cadena completa' if pack.get('complete') else 'CADENA INCOMPLETA'}"
+    )
+    return pack
+
+
+def _senales_de(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    from ..audit import signals_for
+
+    label = args.get("label") or "Proveedor"
+    found = signals_for(ctx.store, label, args["clave"])
+    ctx.observations.append(
+        f"busqué señales de {label}/{args['clave']}: {len(found)} encontrada(s)"
+    )
+    return {
+        "label": label,
+        "clave": args["clave"],
+        "count": len(found),
+        "senales": found,
+        "nota": "El vínculo es por nombre exacto, no por identificador. Un resultado vacío no "
+        "significa que no haya nada: significa que el nombre no coincide literalmente.",
+    }
+
+
+def _perfil_de_gasto(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    from ..audit import spend_profile
+
+    profile = spend_profile(ctx.store, args.get("label") or "Organismo", args["clave"])
+    if profile.get("error"):
+        ctx.observations.append(f"no pude perfilar {args['clave']}: {profile['error']}")
+        return profile
+    ctx.observations.append(
+        f"perfil de {profile.get('name')}: {profile.get('orders')} órdenes, "
+        f"${profile.get('total_clp'):,} en total, "
+        f"{profile.get('orders_below_threshold')} bajo el umbral"
+    )
+    return profile
+
+
+def _documento_de_orden(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    from ..audit import order_document
+
+    document = order_document(ctx.store, args["codigo"])
+    if document.get("has_document"):
+        ctx.observations.append(
+            f"la orden {args['codigo']} tiene documento: {document.get('url')} "
+            f"(sha256 {str(document.get('hash_sha256'))[:12]}…)"
+        )
+    else:
+        ctx.observations.append(f"la orden {args['codigo']} NO tiene documento adjunto")
+    return document
+
+
 def _buscar_web(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     hits = (ctx.searcher or web_search)(args["consulta"], limit=args.get("limite", 6))
     ctx.observations.append(f"busqué en la web «{args['consulta']}»: {len(hits)} candidato(s)")
@@ -339,6 +447,7 @@ def _afirmar(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     ordenes = [code for code in (args.get("ordenes") or []) if str(code).strip()]
     senales = [sid for sid in (args.get("senales") or []) if str(sid).strip()]
     nodos = [ref for ref in (args.get("nodos") or []) if str(ref).strip()]
+    documentos = [h for h in (args.get("documentos") or []) if str(h).strip()]
     source_id = (args.get("source_id") or "").strip()
     cita = (args.get("cita") or "").strip()
 
@@ -362,8 +471,16 @@ def _afirmar(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
                  "url": claim.url, "source_id": claim.source_id, "sha256": claim.sha256,
                  "dominio": claim.domain, "oficial": claim.official,
                  "offset": claim.quotes[0].offset}
+    elif documentos and not (ordenes or senales or nodos):
+        verified = _verify_documents(ctx.store, documentos)
     elif ordenes or senales or nodos:
         verified = _verify_graph_reference(ctx.store, ordenes, senales, nodos)
+        if documentos and verified["ok"]:
+            extra = _verify_documents(ctx.store, documentos)
+            if not extra["ok"]:
+                verified = extra
+            else:
+                verified["nodos"] = verified["nodos"] + extra["nodos"]
         if not verified["ok"]:
             ctx.log("claim.rejected", {"text": texto, "reason": verified["motivo"]})
             ctx.rejections.append({"texto": texto, "motivo": verified["motivo"]})
@@ -415,6 +532,37 @@ def _verify_graph_reference(
     return {"ok": True, "motivo": None, "nodos": found}
 
 
+def _verify_documents(store, hashes: list[str]) -> dict[str, Any]:
+    """A claim backed by a document must name a hash that is in the graph.
+
+    This is the strongest citation the system has: the hash is over the bytes we
+    received from the official API, so a reader can re-fetch and compare. A hash that
+    does not exist in the graph is either a typo or an invention, and both are refused.
+    """
+    client = getattr(store, "client", None)
+    if client is None:
+        return {"ok": False, "motivo": "esta verificación necesita el motor MillenniumDB", "nodos": []}
+    from ..graph.schema import ONTO
+
+    found: list[str] = []
+    missing: list[str] = []
+    for digest in hashes:
+        rows = client.select(
+            f"SELECT ?s WHERE {{ ?s <{ONTO}hash_sha256> \"{digest}\" }} LIMIT 1"
+        )
+        if rows:
+            found.append(f"Documento/{digest[:12]}")
+        else:
+            missing.append(digest)
+    if missing:
+        return {
+            "ok": False,
+            "motivo": f"documento(s) no encontrados en el grafo: {', '.join(m[:12] for m in missing[:3])}",
+            "nodos": found,
+        }
+    return {"ok": True, "motivo": None, "nodos": found}
+
+
 def _terminar(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     ctx.finished = {"resumen": (args.get("resumen") or "").strip(), "vacios": list(args.get("vacios") or [])}
     ctx.observations.append("cerré la investigación")
@@ -427,6 +575,10 @@ HANDLERS: dict[str, Callable[[ToolContext, dict[str, Any]], dict[str, Any]]] = {
     "caminos": _caminos,
     "red_proveedor": _red,
     "citas": _citas,
+    "senal_detalle": _senal_detalle,
+    "senales_de": _senales_de,
+    "perfil_de_gasto": _perfil_de_gasto,
+    "documento_de_orden": _documento_de_orden,
     "buscar_en_web": _buscar_web,
     "leer_fuente": _leer_fuente,
     "afirmar": _afirmar,
@@ -490,6 +642,19 @@ def summarise(name: str, result: dict[str, Any]) -> str:
         return f"{len(peers)} empresa(s) en el mismo domicilio: {names}"
     if name == "citas":
         return f"{len(result.get('trail') or [])} cita(s)"
+    if name == "senal_detalle":
+        counts = result.get("counts") or {}
+        return (
+            f"{counts.get('orders_cited', 0)} orden(es) · "
+            f"{counts.get('orders_with_document', 0)} con documento · "
+            + ("cadena completa" if result.get("complete") else "cadena incompleta")
+        )
+    if name == "senales_de":
+        return f"{result.get('count', 0)} señal(es)"
+    if name == "perfil_de_gasto":
+        return f"{result.get('orders', 0)} órdenes · ${result.get('total_clp', 0):,}"
+    if name == "documento_de_orden":
+        return "con documento" if result.get("has_document") else "sin documento"
     if name == "buscar_en_web":
         return f"{len(result.get('candidatos') or [])} candidato(s)"
     if name == "leer_fuente":

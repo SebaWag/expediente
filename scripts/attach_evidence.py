@@ -253,6 +253,7 @@ def claim_triples(signal: dict, codes: list[str]) -> list[str]:
         f"<{node}> <{ONTO}score> {literal(signal["score"])} .",
         f"<{node}> <{ONTO}severidad> {literal(signal["severity"])} .",
         f"<{node}> <{ONTO}ordenes_citadas> {literal(len(codes))} .",
+        f"<{node}> <{relation_uri('AFIRMA')}> <{node_uri('Senal', signal['id'])}> .",
     ]
 
 

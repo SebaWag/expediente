@@ -69,6 +69,11 @@ EDGES: dict[str, tuple[str, str]] = {
     "CORRELACIONA_CON": ("Senal", "Senal"),
     # Dossier
     "CONTIENE": ("Expediente", "Afirmacion"),
+    # A claim about a signal. Runs Afirmacion -> Senal so that citation_trail(), which
+    # walks *incoming* edges from the node it is asked about, finds the claim behind a
+    # signal. Written the other way round the trail came back empty for every signal,
+    # which reads as "this case has no evidence" when it had ten documents.
+    "AFIRMA": ("Afirmacion", "Senal"),
     # Ground truth
     "CONTIENE_HALLAZGO": ("InformeContraloria", "Hallazgo"),
     "INVOLUCRA": ("Hallazgo", "Organismo"),

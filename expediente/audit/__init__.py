@@ -16,6 +16,7 @@ from .queries import (
     order_records,
     signal_pack,
     signals_for,
+    spend_profile,
 )
 
 __all__ = [
@@ -30,6 +31,7 @@ __all__ = [
     "render",
     "signal_pack",
     "signals_for",
+    "spend_profile",
     "to_csv",
     "to_json",
     "to_markdown",

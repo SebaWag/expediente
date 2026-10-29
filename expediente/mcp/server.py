@@ -441,6 +441,10 @@ def citation_trail(store, args: dict[str, Any]) -> dict[str, Any]:
                         "page": evidencia_props.get("pagina"),
                         "extract": evidencia_props.get("extracto"),
                         "document": f"{documento[0]}/{documento[1]}",
+                        # The hash is the document's identity — the same bytes we fetched.
+                        # It travels as its own field because a reader checking a citation
+                        # should not have to split a node id to find it.
+                        "document_hash": document_props.get("hash_sha256"),
                         "document_url": document_props.get("url"),
                     }
                 )
