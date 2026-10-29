@@ -62,6 +62,10 @@ EDGES: dict[str, tuple[str, str]] = {
     "SOPORTADA_POR": ("Afirmacion", "Evidencia"),
     "EN": ("Evidencia", "Documento"),
     "ACREDITA": ("Documento", "OrdenCompra"),
+    # A document that backs a tender. Separate from ACREDITA because the target is a
+    # different kind of thing: one accredits a purchase, the other accredits the
+    # procedure that gave rise to it. The auditor follows both.
+    "DOCUMENTA": ("Documento", "Licitacion"),
     "RESPALDA": ("Documento", "CompraAgil"),
     # Detection
     "SE_OBSERVA_EN": ("Senal", "OrdenCompra"),

@@ -30,6 +30,7 @@ CSV_COLUMNS = (
     ("estado", "estado"),
     ("sector", "sector"),
     ("region_compra", "region"),
+    ("codigo_licitacion", "licitacion"),
 )
 
 
@@ -54,14 +55,14 @@ def to_markdown(pack: dict[str, Any]) -> str:
         "",
         "## Órdenes",
         "",
-        "| Código | Fecha | Monto | Qué se compró | Procedencia |",
-        "|---|---|---|---|---|",
+        "| Código | Fecha | Monto | Qué se compró | Procedencia | Licitación |",
+        "|---|---|---|---|---|---|",
     ]
     for order in pack.get("orders") or []:
         description = (order.get("descripcion") or order.get("nombre") or "").replace("|", "/")[:120]
         lines.append(
             f"| `{order.get('code')}` | {(order.get('fecha') or '')[:10]} | {order.get('monto_clp')} "
-            f"| {description} | {order.get('procedencia') or '—'} |"
+            f"| {description} | {order.get('procedencia') or '—'} | {order.get('codigo_licitacion') or '—'} |"
         )
 
     if not pack.get("complete"):

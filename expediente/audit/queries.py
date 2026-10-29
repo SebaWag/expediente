@@ -35,6 +35,9 @@ ORDER_FIELDS = (
     "region_compra",
     "items",
     "rut_proveedor",
+    # The tender the order came from. Copied onto the order so a list of sixty rows is
+    # one query, not sixty traversals.
+    "codigo_licitacion",
 )
 
 

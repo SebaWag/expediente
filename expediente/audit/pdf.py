@@ -238,6 +238,7 @@ def build_pdf(pack: dict[str, Any], *, generated_at: str | None = None) -> bytes
             Paragraph("<b>Monto</b>", style["small"]),
             Paragraph("<b>Qué se compró</b>", style["small"]),
             Paragraph("<b>Procedencia</b>", style["small"]),
+            Paragraph("<b>Licitación</b>", style["small"]),
         ]
         rows = [header]
         for order in pack.get("orders") or []:
@@ -247,10 +248,11 @@ def build_pdf(pack: dict[str, Any], *, generated_at: str | None = None) -> bytes
                     Paragraph(_esc((order.get("fecha") or "")[:10]), style["cell"]),
                     Paragraph(clp(order.get("monto_clp")), style["cellr"]),
                     Paragraph(_esc((order.get("descripcion") or order.get("nombre") or "")[:150]), style["cell"]),
-                    Paragraph(_esc((order.get("procedencia") or "—")[:28]), style["cell"]),
+                    Paragraph(_esc((order.get("procedencia") or "—")[:24]), style["cell"]),
+                    Paragraph(_esc(order.get("codigo_licitacion") or "—"), style["mono"]),
                 ]
             )
-        table = Table(rows, colWidths=[26 * mm, 18 * mm, 22 * mm, 74 * mm, 28 * mm], repeatRows=1)
+        table = Table(rows, colWidths=[24 * mm, 16 * mm, 20 * mm, 60 * mm, 22 * mm, 26 * mm], repeatRows=1)
         table.setStyle(
             TableStyle(
                 [

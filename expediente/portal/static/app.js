@@ -339,6 +339,15 @@
             el("span", { class: "nombre", text: (order.descripcion || order.nombre || order.code).slice(0, 80) }),
             el("span", { class: "meta", text: order.code + " · " + shortMonto(order.monto_clp) + (order.procedencia ? " · " + order.procedencia : "") })
           ]));
+          if (order.codigo_licitacion) {
+            box.appendChild(el("button", {
+              class: "chip suave",
+              text: "Licitación " + order.codigo_licitacion,
+              onclick: function () {
+                focusOn("Licitacion/" + order.codigo_licitacion, "Licitación " + order.codigo_licitacion, "Licitacion");
+              }
+            }));
+          }
           box.appendChild(evidenceBlock(order.code));
         });
         if (data.case.orders.length > 8) {
