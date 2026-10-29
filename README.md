@@ -122,8 +122,12 @@ expediente/
   detectors/    deterministic, explainable rules
   evidence/     the gate: what a dossier is allowed to say, PDF -> page
   dossier/      the signed artifact: citations, rejections, limitations
+  agent/        the navigation agent: verbs, provider, plan/act/observe loop
+  runs/         the append-only recording of a run, and its replay
+  research/     web search, fetch, and the quote-must-exist rule
   mcp/          the graph tools, exposed over MCP for an external agent
   api/          the same tools over read-only HTTP
+  portal/       the investigation UI: map, board, agent, log
   cli.py        command line entry point
 scripts/        isolated MillenniumDB, ingest, deploy, signal materialisation
 benchmarks/     the entity-resolution set: 1,249 pairs labelled by RUT
@@ -163,8 +167,15 @@ python3 -m expediente.cli investigate --key 11111111-1 \
 
 | Surface | URL | Notes |
 |---|---|---|
+| **Investigation portal** | `https://investiga.wagnersolutionsai.com` | map, board, agent, log. Separate process: this one writes |
 | Graph API (read-only) | `https://expediente.wagnersolutionsai.com/health` | 8 endpoints, TLS, no write path in the process |
 | MillenniumDB | loopback only, inside the host | the engine speaks update; the API does not |
+
+The portal and the API are different containers on purpose. The API is read-only by
+construction — the store is only ever asked `select` — and that is what makes the
+sentence *"exposing this on the internet cannot write to the graph"* true. The portal
+writes runs, event logs and dossiers, so it cannot live there. See
+[`docs/PORTAL.md`](docs/PORTAL.md).
 
 ```bash
 curl https://expediente.wagnersolutionsai.com/stats
@@ -217,6 +228,10 @@ EXPEDIENTE_MDB_URL=http://127.0.0.1:1234 python3 -m pytest -q   # 185 passed
 | **Entity resolution — shared address / shared representative** | ✅ built **and measured** — see below |
 | **MCP server — 5 graph tools over stdio** | ✅ working, tested |
 | **Read-only HTTP API — 8 endpoints** | ✅ deployed with TLS |
+| **Navigation agent — 9 named verbs, natural language in** | ✅ live: `muse-spark-1.3`, plan/act/observe, budgets in code. A live run resolves the star case in 8 steps and 24 s, with the caveat travelling next to the claim |
+| **Web research with traceability** | ✅ a claim needs a verbatim quote found at an offset in the bytes we fetched; paraphrases are rejected with a reason |
+| **Run recording — append-only log + replay** | ✅ the dossier can be rebuilt from the recording with no model, no network and no database |
+| **Portal — map, board, agent, log** | ✅ `investiga.wagnersolutionsai.com`, no build step, no dependency |
 | Contraloría benchmark — recall against published findings | ⬜ not started |
 | Vision / OCR — Meta SAM 3.1, for pages with no text layer | ⬜ not started |
 
