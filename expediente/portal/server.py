@@ -454,6 +454,11 @@ class Portal:
         self._signals_cache: tuple[float, dict[str, Any]] | None = None
         self._profile_cache: dict[str, tuple[float, dict[str, Any]]] = {}
         self._overview_cache: tuple[float, dict[str, Any]] | None = None
+        #: The bytes we hashed, mounted read-only. Serving them is the whole point: a
+        #: citation you cannot download is a citation you have to believe.
+        self.evidence_dir = Path(os.environ.get("EXPEDIENTE_EVIDENCE_DIR", "/data/evidencia"))
+        self._fetch_cache: dict[tuple[str, str], dict[str, Any]] = {}
+        self._last_fetch: dict[tuple[str, str], float] = {}
 
     def summary(self) -> dict[str, Any]:
         stats = self.api.stats({})
@@ -882,6 +887,156 @@ class Portal:
             "o con el RUT, o escribe una pregunta y la investigo.",
         }
 
+    # -- verificación: que no nos tenga que creer ------------------------
+    def evidence_file(self, codigo: str) -> tuple[str, bytes] | None:
+        """The exact bytes we downloaded and hashed, served from disk.
+
+        This is the artefact the citation is made of. A reader who does not trust the
+        summary can take this file, run sha256sum on it, and compare it with the hash
+        printed in the dossier. If they differ, the dossier is wrong and they know it.
+        """
+        if not re.fullmatch(r"[0-9A-Za-z_.\-]{3,64}", codigo or ""):
+            return None
+        path = self.evidence_dir / f"{codigo}.json"
+        if not path.is_file():
+            return None
+        return ("application/json; charset=utf-8", path.read_bytes())
+
+    @staticmethod
+    def _content_digest(record: dict[str, Any]) -> str | None:
+        import hashlib as _hashlib
+        import json as _json
+
+        if not record:
+            return None
+        canonical = _json.dumps(record, sort_keys=True, ensure_ascii=False, default=str)
+        return _hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    def _mp_ticket(self) -> str:
+        import os as _os
+
+        return _os.environ.get("MP_TICKET", "")
+
+    def fetch_live(self, kind: str, codigo: str) -> dict[str, Any]:
+        """Ask Mercado Público right now and hash the answer.
+
+        The point is not to show the record — it is to let a reader watch the system be
+        checked. If the hash of what the API returns today equals the hash recorded when
+        we attached the evidence, the citation is intact. If it does not, the source
+        changed and the document says so.
+        """
+        import hashlib as _hashlib
+        import json as _json
+        import time as _time
+        import urllib.parse as _urlparse
+        import urllib.request as _urlrequest
+
+        if not re.fullmatch(r"[0-9A-Za-z_.\-]{3,64}", codigo or ""):
+            return {"error": "código inválido"}
+        if self._last_fetch.get((kind, codigo)) and _time.time() - self._last_fetch[(kind, codigo)] < 600:
+            return self._fetch_cache.get((kind, codigo)) or {"error": "consulta en curso"}
+
+        ticket = self._mp_ticket()
+        endpoint = (
+            "https://api.mercadopublico.cl/servicios/v1/publico/ordenesdecompra.json"
+            if kind == "orden"
+            else "https://api.mercadopublico.cl/servicios/v1/publico/licitaciones.json"
+        )
+        public = (
+            f"https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?idOC={codigo}"
+            if kind == "orden"
+            else f"{endpoint}?codigo={codigo}&ticket=<requiere ticket>"
+        )
+        if not ticket:
+            return {
+                "kind": kind,
+                "code": codigo,
+                "verified": False,
+                "note": "el portal no tiene ticket configurado para reconsultar la API",
+                "source_url": public,
+            }
+
+        url = f"{endpoint}?{_urlparse.urlencode({'codigo': codigo, 'ticket': ticket})}"
+        request = _urlrequest.Request(
+            url,
+            headers={"User-Agent": "Expediente/0.6 (verificación; sebastian@wagnersolutionsai.com)",
+                     "Accept": "application/json"},
+        )
+        try:
+            with _urlrequest.urlopen(request, timeout=25) as response:
+                raw = response.read()
+        except Exception as exc:
+            return {"kind": kind, "code": codigo, "verified": False,
+                    "error": f"no se pudo consultar la API: {type(exc).__name__}", "source_url": public}
+
+        digest = _hashlib.sha256(raw).hexdigest()
+        record: dict[str, Any] = {}
+        try:
+            payload = _json.loads(raw)
+            listing = payload.get("Listado") or []
+            record = listing[0] if listing else {}
+        except ValueError:
+            record = {}
+
+        # Hashing the raw response proves nothing: Mercado Público stamps every reply with
+        # its own FechaCreacion, so two identical records produce two different byte
+        # streams. The first version compared those and reported "the source changed" on
+        # a record that had not changed at all — the worst kind of false alarm, because it
+        # teaches the reader to ignore the check.
+        #
+        # So the comparison is over the *content* of the record: the Listado[0] object,
+        # canonicalised with sorted keys. The byte digest is still shown and still stored;
+        # it proves what file we downloaded. The content digest proves what the source says.
+        content_now = self._content_digest(record)
+
+        stored = None
+        stored_content = None
+        path = self.evidence_dir / f"{codigo}.json"
+        if path.is_file():
+            stored_bytes = path.read_bytes()
+            stored = _hashlib.sha256(stored_bytes).hexdigest()
+            try:
+                stored_payload = _json.loads(stored_bytes)
+                stored_listing = stored_payload.get("Listado") or []
+                stored_content = self._content_digest(stored_listing[0]) if stored_listing else None
+            except (ValueError, IndexError):
+                stored_content = None
+
+        same_content = bool(stored_content) and stored_content == content_now
+        result = {
+            "kind": kind,
+            "code": codigo,
+            "verified": same_content,
+            "hash_now": content_now,
+            "hash_stored": stored_content,
+            "hash_file": stored,
+            "retrieved_at": _time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            "source_url": public,
+            "record": {
+                key: record.get(key)
+                for key in ("Codigo", "CodigoExterno", "Nombre", "Descripcion", "Estado",
+                            "Total", "CodigoLicitacion", "FechaCierre", "Comprador", "Proveedor")
+                if record.get(key) not in (None, "")
+            },
+            "meaning": (
+                "El registro que la API devuelve ahora es idéntico al que se guardó al adjuntar "
+                "la evidencia: mismo contenido, misma huella."
+                if same_content else
+                "El contenido del registro NO coincide con el guardado: la fuente cambió después "
+                "de que se adjuntara la evidencia, o no hay archivo local que comparar."
+                if stored_content else
+                "No hay archivo local para comparar: se muestra el registro en vivo, sin contraste."
+            ),
+            "note": (
+                "La huella se calcula sobre el contenido del registro, no sobre los bytes de la "
+                "respuesta: Mercado Público sella cada respuesta con su propia fecha de creación, "
+                "así que los bytes cambian aunque el registro no."
+            ),
+        }
+        self._fetch_cache[(kind, codigo)] = result
+        self._last_fetch[(kind, codigo)] = _time.time()
+        return result
+
     def health_graph(self) -> dict[str, Any]:
         from ..audit import graph_health
 
@@ -1019,6 +1174,24 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, portal.summary())
             if path == "/api/roots":
                 return self._json(200, portal.roots())
+            if path.startswith("/api/evidence/"):
+                found = portal.evidence_file(path.split("/api/evidence/", 1)[1])
+                if found is None:
+                    return self._json(404, {"error": "no hay archivo guardado para ese código"})
+                content_type, body = found
+                import hashlib as _hashlib
+
+                self.send_response(200)
+                self.send_header("Content-Type", content_type)
+                self.send_header("X-Evidence-SHA256", _hashlib.sha256(body).hexdigest())
+                self.send_header("Content-Disposition", f'inline; filename="{path.rsplit("/", 1)[-1]}"')
+                self.send_header("Content-Length", str(len(body)))
+                self._cors()
+                self.end_headers()
+                return self.wfile.write(body)
+            match = re.fullmatch(r"/api/verify/(orden|licitacion)/([0-9A-Za-z_.-]+)", path)
+            if match:
+                return self._json(200, portal.fetch_live(match.group(1), match.group(2)))
             if path == "/api/overview":
                 return self._json(200, portal.overview())
             if path == "/api/profile":

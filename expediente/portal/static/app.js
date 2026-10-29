@@ -332,17 +332,30 @@
       // the evidence case, when the node is a signal
       if (data.case && data.case.orders) {
         box.appendChild(el("h3", { text: "Las órdenes del caso" }));
-        data.case.orders.slice(0, 8).forEach(function (order) {
+        data.case.orders.slice(0, 6).forEach(function (order) {
           box.appendChild(el("div", { class: "fila-item", onclick: function () {
             focusOn("OrdenCompra/" + order.code, order.code, "OrdenCompra");
           } }, [
             el("span", { class: "nombre", text: (order.descripcion || order.nombre || order.code).slice(0, 80) }),
             el("span", { class: "meta", text: order.code + " · " + shortMonto(order.monto_clp) + (order.procedencia ? " · " + order.procedencia : "") })
           ]));
+          box.appendChild(evidenceBlock(order.code));
         });
         if (data.case.orders.length > 8) {
           box.appendChild(el("p", { class: "pie", text: "… y " + (data.case.orders.length - 8) + " más en el expediente." }));
         }
+      }
+
+      if (nodeId.indexOf("Licitacion/") === 0) {
+        box.appendChild(el("h3", { text: "La licitación" }));
+        var lic = el("div", { class: "verificacion" });
+        var licOut = el("div", { class: "resultado-verificacion" });
+        lic.appendChild(el("button", {
+          class: "chip", text: "Traer la licitación desde el origen",
+          onclick: function () { verify("licitacion", nodeId.split("/")[1], licOut); }
+        }));
+        lic.appendChild(licOut);
+        box.appendChild(lic);
       }
 
       var actions = el("div", { class: "acciones" });
@@ -369,6 +382,84 @@
       box.innerHTML = "";
       box.appendChild(el("p", { class: "vacio", text: "No se pudo leer el perfil: " + error.message }));
     });
+  }
+
+  function verify(kind, code, box) {
+    box.innerHTML = "";
+    box.appendChild(el("div", { class: "cargando" }, [
+      el("span", { class: "punto" }),
+      el("span", { text: "Consultando la API de Mercado Público…" })
+    ]));
+    api("/api/verify/" + kind + "/" + encodeURIComponent(code)).then(function (data) {
+      box.innerHTML = "";
+      if (data.error) {
+        box.appendChild(el("p", { class: "pie", text: data.error }));
+        return;
+      }
+      var state_ = data.verified ? "ok" : "no";
+      box.appendChild(el("div", { class: "bandera " + (data.verified ? "media" : "alta") }, [
+        el("strong", { text: data.verified ? "coincide" : "revisar" }),
+        el("span", { text: data.meaning || data.note || "" })
+      ]));
+      var rows = [
+        ["huella ahora", (data.hash_now || "—").slice(0, 32)],
+        ["huella registrada", (data.hash_stored || "—").slice(0, 32)],
+        ["consultado", data.retrieved_at || "—"]
+      ];
+      var dl = el("dl");
+      rows.forEach(function (row) {
+        dl.appendChild(el("dt", { text: row[0] }));
+        dl.appendChild(el("dd", { text: row[1] }));
+      });
+      box.appendChild(dl);
+      if (data.record && Object.keys(data.record).length) {
+        var rec = el("div", { class: "registro-origen" });
+        Object.keys(data.record).slice(0, 6).forEach(function (key) {
+          rec.appendChild(el("div", { class: "fila-item" }, [
+            el("span", { class: "nombre", text: String(data.record[key]).slice(0, 120) }),
+            el("span", { class: "meta", text: key })
+          ]));
+        });
+        box.appendChild(rec);
+      }
+      if (data.source_url) {
+        box.appendChild(el("a", {
+          class: "chip", href: data.source_url, target: "_blank", rel: "noopener",
+          text: "Abrir la fuente oficial"
+        }));
+      }
+    }).catch(function (error) {
+      box.innerHTML = "";
+      box.appendChild(el("p", { class: "pie", text: "No se pudo verificar: " + error.message }));
+    });
+  }
+
+  function evidenceBlock(code) {
+    var wrap = el("div", { class: "verificacion" });
+    var actions = el("div", { class: "acciones" });
+    actions.appendChild(el("a", {
+      class: "chip", target: "_blank", rel: "noopener",
+      href: "https://www.mercadopublico.cl/Procurement/Modules/RFB/DetailsAcquisition.aspx?idOC=" + encodeURIComponent(code),
+      text: "Original en Mercado Público"
+    }));
+    actions.appendChild(el("a", {
+      class: "chip suave", target: "_blank", rel: "noopener",
+      href: "/api/evidence/" + encodeURIComponent(code),
+      text: "Lo que leímos"
+    }));
+    var out = el("div", { class: "resultado-verificacion" });
+    actions.appendChild(el("button", {
+      class: "chip suave", text: "Verificar ahora",
+      onclick: function () { verify("orden", code, out); }
+    }));
+    wrap.appendChild(actions);
+    wrap.appendChild(out);
+    wrap.appendChild(el("p", {
+      class: "pie",
+      text: "«Original» abre la ficha oficial. «Lo que leímos» descarga el archivo exacto que se "
+        + "guardó y del que sale la huella: puedes calcularle el sha256 y compararlo."
+    }));
+    return wrap;
   }
 
   function expand(nodeId) {
