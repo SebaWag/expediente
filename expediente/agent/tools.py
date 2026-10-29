@@ -142,11 +142,17 @@ SCHEMAS: list[dict[str, Any]] = [
     _fn(
         "afirmar",
         "Registra UNA conclusión. Es la única forma de que quede en el expediente. Toda "
-        "afirmación sobre el grafo debe traer los identificadores de los registros que la "
-        "sostienen (ordenes, senales); toda afirmación sobre la web debe traer source_id y una "
+        "afirmación sobre el grafo debe traer los identificadores de los nodos que la "
+        "sostienen (nodos como 'Proveedor/…', o bien ordenes, senales); toda afirmación sobre la web debe traer source_id y una "
         "cita textual copiada palabra por palabra del documento. Si no puedes citar, no afirmes.",
         {
             "texto": {"type": "string", "description": "La conclusión, en una frase, en español llano"},
+            "nodos": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Nodos del grafo que sostienen la afirmación, como 'Proveedor/76.264.138-0' o "
+                "'Domicilio/<geo_hash>'. Deben existir: se verifican uno por uno.",
+            },
             "ordenes": {
                 "type": "array",
                 "items": {"type": "string"},
@@ -248,9 +254,24 @@ def _caminos(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
 
 
 def _red(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    """Wraps the ``network`` tool. The keys read here are the ones it actually returns.
+
+    An earlier version counted ``shared_address``, a key this tool has never had, so
+    a supplier with a real shared address was reported to the model as "0 domicilios
+    compartidos". The agent then concluded there was nothing to see and asserted
+    nothing. A silent zero in a tool summary is the most expensive kind of bug in this
+    system: it does not fail, it changes the conclusion.
+    """
     result = network(ctx.store, {"rut": args["rut"]})
-    shared = result.get("shared_address", []) if isinstance(result, dict) else []
-    ctx.observations.append(f"revisé la red de {args['rut']}: {len(shared)} domicilio(s) compartido(s)")
+    peers = result.get("peers") or []
+    domicilio = result.get("domicilio") or {}
+    if peers:
+        where = domicilio.get("direccion") or "domicilio no registrado"
+        ctx.observations.append(
+            f"la red de {args['rut']} tiene {len(peers)} empresa(s) en el mismo domicilio ({where})"
+        )
+    else:
+        ctx.observations.append(f"la red de {args['rut']} no muestra domicilios compartidos")
     return result
 
 
@@ -317,6 +338,7 @@ def _afirmar(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     texto = (args.get("texto") or "").strip()
     ordenes = [code for code in (args.get("ordenes") or []) if str(code).strip()]
     senales = [sid for sid in (args.get("senales") or []) if str(sid).strip()]
+    nodos = [ref for ref in (args.get("nodos") or []) if str(ref).strip()]
     source_id = (args.get("source_id") or "").strip()
     cita = (args.get("cita") or "").strip()
 
@@ -340,8 +362,8 @@ def _afirmar(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
                  "url": claim.url, "source_id": claim.source_id, "sha256": claim.sha256,
                  "dominio": claim.domain, "oficial": claim.official,
                  "offset": claim.quotes[0].offset}
-    elif ordenes or senales:
-        verified = _verify_graph_reference(ctx.store, ordenes, senales)
+    elif ordenes or senales or nodos:
+        verified = _verify_graph_reference(ctx.store, ordenes, senales, nodos)
         if not verified["ok"]:
             ctx.log("claim.rejected", {"text": texto, "reason": verified["motivo"]})
             ctx.rejections.append({"texto": texto, "motivo": verified["motivo"]})
@@ -362,8 +384,14 @@ def _afirmar(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
             "total": len(ctx.claims)}
 
 
-def _verify_graph_reference(store, ordenes: list[str], senales: list[str]) -> dict[str, Any]:
-    """A graph claim must point at nodes that exist. Cheap, deterministic, no model."""
+def _verify_graph_reference(
+    store, ordenes: list[str], senales: list[str], nodos: list[str] | None = None
+) -> dict[str, Any]:
+    """A graph claim must point at nodes that exist. Cheap, deterministic, no model.
+
+    Every referenced node is looked up individually, so a claim that mixes three real
+    orders with one invented code is rejected rather than partly credited.
+    """
     found: list[str] = []
     missing: list[str] = []
     for code in ordenes:
@@ -372,6 +400,14 @@ def _verify_graph_reference(store, ordenes: list[str], senales: list[str]) -> di
     for signal_id in senales:
         node = store.node("Senal", signal_id)
         (found if node is not None else missing).append(f"Senal/{signal_id}")
+    for reference in nodos or []:
+        try:
+            label, key = _split_node(reference)
+        except ValueError:
+            missing.append(reference)
+            continue
+        node = store.node(label, key)
+        (found if node is not None else missing).append(f"{label}/{key}")
     if missing and not found:
         return {"ok": False, "motivo": f"los registros citados no existen en el grafo: {', '.join(missing[:3])}", "nodos": []}
     if missing:
@@ -445,7 +481,13 @@ def summarise(name: str, result: dict[str, Any]) -> str:
     if name == "caminos":
         return f"{len(result.get('paths') or [])} camino(s)"
     if name == "red_proveedor":
-        return f"{len(result.get('shared_address') or [])} domicilio(s) compartido(s)"
+        peers = result.get("peers") or []
+        if not result.get("found"):
+            return "RUT no encontrado"
+        if not peers:
+            return "sin domicilio compartido"
+        names = ", ".join(peer.get("razon_social", "?") for peer in peers[:2])
+        return f"{len(peers)} empresa(s) en el mismo domicilio: {names}"
     if name == "citas":
         return f"{len(result.get('trail') or [])} cita(s)"
     if name == "buscar_en_web":

@@ -68,6 +68,10 @@ pista para revisar, no una relación afirmada. Si la evidencia no alcanza, dilo.
 6. Escribe en español llano, para alguien que no es informático. Sin jerga técnica.
 7. Si tras revisar no encuentras nada sostenible, es una respuesta válida: dilo y cierra \
 con `terminar`. No rellenes.
+8. Afirma en cuanto tengas soporte, no al final. Una afirmación con su cita vale más que \
+tres exploraciones más. Si te quedan dos pasos, afirma y cierra.
+9. Si una herramienta trae un campo `not_claimed`, esa salvedad es parte de la respuesta: \
+no puedes afirmar algo que la contradiga.
 
 Orden de trabajo recomendado: ubicar la entidad en el grafo, ver qué cuelga de ella, leer \
 la cadena de evidencia de lo que parezca relevante y, solo si necesitas contexto externo \
@@ -76,9 +80,25 @@ cierras."""
 
 PLAN_PROMPT = """Pregunta del usuario: {question}
 
+Estas son las ÚNICAS herramientas que existen:
+{verbs}
+
 Escribe un plan de investigación de 3 a 5 pasos, uno por línea, sin numeración y sin \
-explicaciones. Cada línea debe nombrar una herramienta concreta de las disponibles y qué \
-esperas encontrar con ella. No respondas la pregunta todavía."""
+explicaciones. Cada línea debe nombrar una de esas herramientas, con ese nombre exacto, y \
+qué esperas encontrar con ella. No inventes herramientas. No respondas la pregunta todavía."""
+
+
+def verb_catalogue() -> str:
+    """The plan prompt names the real verbs, generated from the schemas.
+
+    A hand-written list would drift, and the first live run showed what that costs:
+    the plan said "buscar_proveedor" and "ver_vecinos_del_grafo", verbs that do not
+    exist, because the plan call had no tool list to look at.
+    """
+    return "\n".join(
+        f"- {schema['function']['name']}: {schema['function']['description'].splitlines()[0]}"
+        for schema in toolbox.SCHEMAS
+    )
 
 
 @dataclass
@@ -230,7 +250,7 @@ class Investigator:
         reply = self.provider.chat(
             [
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": PLAN_PROMPT.format(question=question)},
+                {"role": "user", "content": PLAN_PROMPT.format(question=question, verbs=verb_catalogue())},
             ],
             reasoning_effort="low",
             max_tokens=max(self.settings.plan_tokens, MIN_OUTPUT_TOKENS),
@@ -341,7 +361,20 @@ class Investigator:
                 {"n": result.steps, "tool": call.name, "summary": toolbox.summarise(call.name, payload),
                  "observation": ctx.observations[-1] if ctx.observations else None},
             )
-            messages.append({"role": "tool", "tool_call_id": call.id, "content": toolbox.render_observation(call.name, payload)})
+            remaining = self.settings.max_steps - result.steps
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": call.id,
+                    "content": toolbox.render_observation(call.name, payload)
+                    + f"\n\n[presupuesto] te quedan {remaining} paso(s). "
+                    + (
+                        "Último paso: usa `afirmar` con lo que puedas sostener, y luego `terminar`."
+                        if remaining <= 1
+                        else "Si ya tienes soporte para una conclusión, usa `afirmar` antes de seguir explorando."
+                    ),
+                }
+            )
 
             if call.name == "terminar" or ctx.finished is not None:
                 result.stopped_by = "terminar"
