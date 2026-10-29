@@ -1,11 +1,20 @@
 # Expediente
 
+[![CI](https://github.com/SebaWag/expediente/actions/workflows/ci.yml/badge.svg)](https://github.com/SebaWag/expediente/actions/workflows/ci.yml)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Dependencies: none](https://img.shields.io/badge/dependencies-none-brightgreen)](pyproject.toml)
+
 **A verifiable evidence engine for public procurement.**
 
 > Every finding in an Expediente dossier is footnoted to the exact document and page.
 > If a claim cannot be traced to a source, it is deleted, not softened.
 
 Built for the **Meta Global AI Developer Hackathon 2026** (Startup track, theme *Build for Your World*).
+
+![The investigation portal: the graph is the page, and the chat moves it](docs/images/portal.jpg)
+
+<sub>The live portal at <a href="https://investiga.wagnersolutionsai.com">investiga.wagnersolutionsai.com</a> — 922 nodes drawn from a graph of 64.8 M triples, with the real totals beside them.</sub>
 
 ---
 
@@ -199,12 +208,17 @@ python3 -m expediente.cli fetch-agil --desde 2026-10-20 --out data/agil.json
 
 ## Status
 
-Honest as of **day 4** (2026-10-29). 32 commits, **185 tests**:
+Honest as of **day 4** (2026-10-29). **51 commits, 264 tests** — and both runs are
+reproduced on every push by CI, not by a badge that only claims it:
 
 ```bash
-python3 -m pytest -q            # 178 passed, 7 skipped
-EXPEDIENTE_MDB_URL=http://127.0.0.1:1234 python3 -m pytest -q   # 185 passed
+python3 -m pytest -q            # 257 passed, 7 skipped (the engine tests need a server)
+EXPEDIENTE_MDB_URL=http://127.0.0.1:1234 python3 -m pytest -q   # 264 passed
 ```
+
+The `graph` job in [`.github/workflows/ci.yml`](.github/workflows/ci.yml) starts an
+isolated MillenniumDB and runs the second command, so the differential test — the one
+that says the in-memory adapter and the engine agree — is executed, not skipped.
 
 | Component | State |
 |---|---|
