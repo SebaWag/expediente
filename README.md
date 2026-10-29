@@ -115,14 +115,19 @@ Any `:Afirmacion` without a path to a `:Documento` with a page number is **remov
 ```
 expediente/
   domain/       pure models and normalisers (no I/O, no network)
-  ingest/       Mercado Público v1 + v2 clients, bulk loaders
-  graph/        graph schema and store interface
+  ingest/       Mercado Público v1 + v2 clients, OCDS, bulk loaders
+  graph/        graph schema, store interface, MillenniumDB adapter
+  navigate/     RPQ route expressions and the tools an agent can call
+  resolution/   entity resolution: shared address, shared representative
   detectors/    deterministic, explainable rules
-  evidence/     the gate: what a dossier is allowed to say
+  evidence/     the gate: what a dossier is allowed to say, PDF -> page
   dossier/      the signed artifact: citations, rejections, limitations
+  mcp/          the graph tools, exposed over MCP for an external agent
+  api/          the same tools over read-only HTTP
   cli.py        command line entry point
-scripts/        isolated MillenniumDB instance (start/stop/reset)
-docs/           architecture, graph schema, scope, backend notes
+scripts/        isolated MillenniumDB, ingest, deploy, signal materialisation
+benchmarks/     the entity-resolution set: 1,249 pairs labelled by RUT
+docs/           architecture, graph schema, backend dialect, findings
 tests/          unit tests, deterministic, offline
 examples/       small synthetic fixtures (fake data, clearly labelled)
 ```
@@ -154,6 +159,25 @@ python3 -m expediente.cli investigate --key 11111111-1 \
 ```
 
 
+## Where it runs
+
+| Surface | URL | Notes |
+|---|---|---|
+| Graph API (read-only) | `https://expediente.wagnersolutionsai.com/health` | 8 endpoints, TLS, no write path in the process |
+| MillenniumDB | loopback only, inside the host | the engine speaks update; the API does not |
+
+```bash
+curl https://expediente.wagnersolutionsai.com/stats
+curl https://expediente.wagnersolutionsai.com/network/76.264.138-0
+```
+
+The MCP server runs anywhere the agent runs; it speaks stdio and asks the same
+functions the HTTP API asks:
+
+```bash
+EXPEDIENTE_MDB_URL=http://127.0.0.1:1234 python3 -m expediente.mcp.server
+```
+
 Talking to Mercado Público needs a free ticket (requested at
 `api.mercadopublico.cl`, arrives by email):
 
@@ -164,26 +188,70 @@ python3 -m expediente.cli fetch-agil --desde 2026-10-20 --out data/agil.json
 
 ## Status
 
-This is a hackathon build in progress. What is honest as of **day 2**:
+Honest as of **day 4** (2026-10-29). 32 commits, **185 tests**:
+
+```bash
+python3 -m pytest -q            # 178 passed, 7 skipped
+EXPEDIENTE_MDB_URL=http://127.0.0.1:1234 python3 -m pytest -q   # 185 passed
+```
 
 | Component | State |
 |---|---|
-| Domain models + normalisers (RUT, legal name, CLP, periods) | ✅ working, tested |
-| Graph schema (nodes, edges, evidence invariant) | ✅ defined |
+| Domain models + normalisers (RUT, legal name, CLP, periods, addresses) | ✅ working, tested |
+| Graph schema (16 node labels, 23 edges, evidence invariant) | ✅ defined, and the docs are generated from it |
 | Graph store — in memory | ✅ reference adapter, used by the tests |
-| Graph store — **MillenniumDB** | ✅ working against v1.0.0: nodes, edges, per-edge provenance, native property paths |
-| Mercado Público v2 (Compra Ágil) client | ✅ working against the live API |
-| Mercado Público v1 (purchase orders) client | 🟡 list endpoint only returns 3 fields — full record needs one call per order, so historical series come from the open-data bulk downloads |
+| Graph store — **MillenniumDB** | ✅ **in production**: 64.8 M triples on v1.0.0, per-edge provenance, native property paths |
+| Ingestion — ChileCompra bulk, 5 years | ✅ **4,950,443 purchase orders** from 129 archives (13,368,668 rows). 48 orders carry two different amounts; that is kept as a data-quality finding, not smoothed away |
+| Ingestion — Compra Ágil (live API) | ✅ working, including the list of who quoted each purchase |
+| Ingestion — OCDS supplier registry | ✅ 99.9 % of suppliers expose an address the bulk does not have; 87.5 % joined to the graph once the RUT format bug was fixed |
+| Document layer — PDF → page | ✅ reads a PDF and returns the page a quote came from, so a page number is measured, never typed |
 | Detector 1 — purchase splitting | ✅ working, tested |
 | Detector 2 — spend concentration (HHI) | ✅ working, tested |
 | Detector 3 — suppliers that always quote together | ✅ working, tested |
 | Detector 4/5 — late modification and cancellation | ✅ working, tested |
-| Evidence gate (claims without a document and page are deleted) | ✅ working, tested |
+| Supplier network — shared address, as a **traversal** | ✅ 741 addresses, 754 edges, 14 shared-address pairs in production. Deliberately **not** a `:Senal`: a shared address is also what an office building looks like, so it is a path a human walks, not a finding the system asserts |
+| Evidence gate (claims without a document and a page are deleted) | ✅ working, tested |
 | Route expressions (RPQ) with inverse, concatenation and alternation | ✅ working, and evaluated natively by the engine |
 | Dossier export — markdown + JSON, content-derived id | ✅ working, tested |
-| **End-to-end pipeline** — detect → cite from the graph → gate → dossier | ✅ working, tested |
-| Entity resolution (shared address / legal representative) | ⬜ not started |
-| Contraloría benchmark | ⬜ not started |
+| End-to-end pipeline — detect → cite from the graph → gate → dossier | ✅ working, tested |
+| **Entity resolution — shared address / shared representative** | ✅ built **and measured** — see below |
+| **MCP server — 5 graph tools over stdio** | ✅ working, tested |
+| **Read-only HTTP API — 8 endpoints** | ✅ deployed with TLS |
+| Contraloría benchmark — recall against published findings | ⬜ not started |
+| Vision / OCR — Meta SAM 3.1, for pages with no text layer | ⬜ not started |
+
+### Entity resolution was not tuned. It was measured.
+
+The bulk of ChileCompra contains **no supplier address (0 %)** and **no legal
+representative (0 %)** — the two relations the resolver asserts. So the detector that
+needs them was returning zero findings, and that was not an oversight, it was an empty
+input. `api.mercadopublico.cl/…/Empresas.json` answers HTTP 500 to every variant;
+`opendata.portaltransparencia.cl` answers 403. The OCDS endpoint
+(`api.mercadopublico.cl/APISOCDS/OCDS/`) carries the address and needs no ticket.
+
+With a source in hand, the threshold question was answered with a labelled set rather
+than a guess. Labels come from the **RUT**, not from a model — two strings sharing an
+`identifier.id` are the same legal entity by definition, so there is no circularity:
+
+| Stage | Threshold | Precision | Recall |
+|---|---|---|---|
+| Embeddings only (`qwen3-embedding-8b`) | cos ≥ 0.86 | **0 of 150** hard negatives rejected — unusable alone | — |
+| Reranker (`qwen3-reranker-8b`) — candidate | 0.30 | 0.925 | 0.634 |
+| Reranker — asserted relation | 0.90 | **0.991** | 0.226 |
+
+Naming a *candidate* and asserting a *relation* are different acts with different costs.
+A false candidate costs a human two minutes. A false relation is a false accusation. So
+there are two thresholds, and the dossier only ever asserts the second.
+
+The hard case that justifies the whole pipeline:
+
+```
+cos = 0.9703    TERUMO BCT CHILE S.A.   ↔   TERUMO CHILE LTDA
+```
+
+Same corporate group, two legal entities. No similarity threshold separates them; a
+relation between them would be wrong. Full write-up in
+[`docs/ENTITY_BENCHMARK.md`](docs/ENTITY_BENCHMARK.md).
 
 ## Built during the hackathon
 
@@ -198,9 +266,9 @@ identifiable. Both are handled by the commit history rather than by a slide:
 
 | Component | License | Used for |
 |---|---|---|
-| Python standard library only | PSF | everything in this repository |
+| Python standard library only | PSF | everything except the optional PDF extractors |
 | Mercado Público open API / open data | public data | source records |
-| MillenniumDB | GPL-3.0 | property graph store (planned backend) |
+| MillenniumDB | GPL-3.0 | property graph store (in production, 64.8 M triples) |
 | Meta Model API (Muse Spark, SAM 3.1) | — | layers 1, 2a, 2b, 3 |
 
 ## Legal framing
