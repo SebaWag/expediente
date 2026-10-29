@@ -578,6 +578,8 @@ def entity_profile(store, label: str, key: str, *, top: int = 10) -> dict[str, A
         return _document_profile(store, key, props)
     elif label == "OrdenCompra":
         return _order_profile(store, key, props)
+    elif label == "Detector":
+        return _detector_profile(store, key, props)
     else:
         # Everything else is a signal or a label the map does not draw yet. Saying which
         # one is better than a generic error, and the contract test walks every label the
@@ -724,6 +726,65 @@ def entity_profile(store, label: str, key: str, *, top: int = 10) -> dict[str, A
             else f"Conté las {count} órdenes de esta entidad en el grafo, no una muestra. "
         )
         + "Las banderas son comparaciones contra un umbral declarado, no conclusiones.",
+    }
+
+
+def _detector_profile(store, key: str, props: dict[str, str]) -> dict[str, Any]:
+    """A detector opened as a profile: the rule, and every case it produced.
+
+    A detector is a hub — its whole point is the list of signals it emitted — so this
+    is the one profile where the full list is the answer rather than a sample. The
+    rule is named, not described: what the reader gets is the cases, ranked by score,
+    each one openable in turn.
+    """
+    client = store.client
+    uri = node_uri("Detector", key)
+    uris = _neighbours(client, uri, "PRODUCE", limit=1000)
+
+    collected: dict[str, dict[str, str]] = {u: {} for u in uris}
+    if uris:
+        values = " ".join(f"<{u}>" for u in uris)
+        rows = client.select(
+            f"SELECT ?s ?p ?o WHERE {{ VALUES ?s {{ {values} }} ?s ?p ?o . "
+            f"VALUES ?p {{ <{ONTO}explicacion> <{ONTO}severidad> <{ONTO}score> }} }}"
+        )
+        for row in rows:
+            subject = str(row["s"])
+            if subject in collected:
+                collected[subject].setdefault(str(row["p"]).replace(ONTO, ""), str(row["o"]))
+
+    signals = []
+    for signal_uri, values in collected.items():
+        signals.append(
+            {
+                "id": signal_uri.rsplit("/", 1)[-1],
+                "claim": values.get("explicacion"),
+                "severity": values.get("severidad"),
+                "score": values.get("score"),
+            }
+        )
+
+    def _score(item: dict[str, Any]) -> float:
+        try:
+            return float(item.get("score") or 0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    signals.sort(key=_score, reverse=True)
+    return {
+        "label": "Detector",
+        "role": "detector",
+        "key": key,
+        "name": props.get("nombre") or key,
+        "props": props,
+        "signals_count": len(uris),
+        "signals": signals,
+        "case": {"orders": [], "evidence": [], "counts": {"orders_cited": 0, "orders_with_record": 0, "orders_with_document": 0}},
+        "flags": [],
+        "note": (
+            "Un detector es una regla, no una opinión: cada caso que produjo se puede abrir, "
+            "y cada caso cita las órdenes que lo sostienen."
+        ),
     }
 
 

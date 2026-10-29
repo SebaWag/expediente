@@ -36,10 +36,11 @@ ORDER = ("OrdenCompra", f"ct-{RUN}-OC-1")
 BUYER = ("Organismo", f"ct-{RUN}-org-1")
 SUPPLIER = ("Proveedor", f"ct-{RUN}-prov-1")
 SIGNAL = ("Senal", f"ct-{RUN}-senal-1")
+DETECTOR = ("Detector", f"ct-{RUN}-det-1")
 
 #: Exactly the labels the default map view renders. A new label added to the canvas
 #: without a profile behind it is the defect this list exists to catch.
-LABELS = [ORDER, DOC, SIGNAL, BUYER, SUPPLIER]
+LABELS = [ORDER, DOC, SIGNAL, BUYER, SUPPLIER, DETECTOR]
 
 
 @pytest.fixture()
@@ -63,6 +64,8 @@ def graph():
     store.upsert_edge(ORDER, "ADJUDICADA_A", SUPPLIER)
     store.upsert_edge(DOC, "ACREDITA", ORDER)
     store.upsert_edge(SIGNAL, "SE_OBSERVA_EN", ORDER)
+    store.upsert_node(*DETECTOR, nombre="Fraccionamiento")
+    store.upsert_edge(DETECTOR, "PRODUCE", SIGNAL)
     return store
 
 
