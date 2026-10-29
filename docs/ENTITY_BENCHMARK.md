@@ -214,10 +214,13 @@ The two-stage architecture survives intact. The mapping of stage to output does 
 | `Candidate` — a human looks | rerank ≥ 0,30 | rerank ≥ 0,30 · **unchanged** |
 | `Relation` — the dossier asserts it | rerank ≥ 0,90 | **a name match is not sufficient at any threshold** |
 
-An asserted relation between two different RUTs now requires an **independent**
-corroborating edge — a shared legal representative, a shared owner, or the same RUT —
-and the name score only orders the queue. The reason is measured, not stylistic: the
-best false positive in this set scores higher than 61 % of the true positives.
+An asserted relation between two different RUTs requires an **independent** corroborating
+edge — a shared legal representative, a shared owner, or the same RUT — and the name
+score only orders the queue. That is already what `resolution/resolver.py` does:
+`_name_candidates` can only produce a `Candidate`, and `Relation` objects come from
+`_representative_relations` and `_address_relations`, which read a field rather than a
+similarity. Run 2 is the first measurement that says *why* that split is not a matter of
+taste: the best false positive in this set scores higher than 61 % of the true positives.
 
 That is the sentence this benchmark buys:
 

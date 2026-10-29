@@ -280,9 +280,10 @@ The second run found something the first could not: **raising the threshold buys
 safety.** From 0.90 to 0.97 the precision does not move (0.969 → 0.967) while recall
 falls by two thirds. A look-alike at 0.953 — `LAYNER SPA` against `LAYNER OTEC SPA`,
 same address, different RUT — outscores 61 % of the true pairs. So a name match is
-allowed to *raise* a candidate and is no longer allowed to *assert* a relation: that
-now requires an independent corroborating edge (same RUT, shared representative,
-shared owner), with the name score only ordering the queue. Full numbers and the
+allowed to *raise* a candidate and never to *assert* a relation: that requires an
+independent corroborating edge (same RUT, shared representative, shared owner), and
+the resolver already works that way — `_name_candidates` returns `Candidate`, while
+`Relation` comes from a field, not a similarity. Full numbers and the
 per-stratum breakdown in [`docs/ENTITY_BENCHMARK.md`](docs/ENTITY_BENCHMARK.md).
 
 The hard case that justifies the whole pipeline:
