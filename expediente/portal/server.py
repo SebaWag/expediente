@@ -453,6 +453,7 @@ class Portal:
         self.registry = registry
         self._signals_cache: tuple[float, dict[str, Any]] | None = None
         self._profile_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+        self._overview_cache: tuple[float, dict[str, Any]] | None = None
 
     def summary(self) -> dict[str, Any]:
         stats = self.api.stats({})
@@ -672,6 +673,215 @@ class Portal:
                 self._profile_cache.pop(old_key, None)
         return profile
 
+    # -- the landing view and the chat -------------------------------------
+    def overview(self) -> dict[str, Any]:
+        """The graph the page opens with: the whole machinery, at a size a person can see.
+
+        Detectors, every signal they produced, a sample of the orders those signals
+        observe, and the documents behind those orders. That is the evidence graph of
+        the country's procurement in one screen — and it is a *view*, capped and
+        declared, of a graph with 64.8 million triples.
+        """
+        import time as _time
+
+        now = _time.time()
+        if self._overview_cache and now - self._overview_cache[0] < 300:
+            return self._overview_cache[1]
+
+        from ..graph.millenniumdb import node_uri
+        from ..graph.schema import EDGES, NODE_PREFIX, ONTO, RDF_TYPE, relation_uri
+
+        client = self.store.client
+        nodes: dict[str, dict[str, Any]] = {}
+        edges: list[dict[str, str]] = []
+        seen_edges: set[tuple[str, str, str]] = set()
+
+        def add(uri: str, name: str, label: str, **extra: Any) -> None:
+            identifier = uri[len(NODE_PREFIX):] if uri.startswith(NODE_PREFIX) else uri
+            if identifier in nodes:
+                return
+            nodes[identifier] = {"id": identifier, "label": label, "name": name, "key": identifier.split("/", 1)[-1], **extra}
+
+        def link(source: str, rel: str, target: str) -> None:
+            signature = (source, rel, target)
+            if signature in seen_edges or source not in nodes or target not in nodes:
+                return
+            seen_edges.add(signature)
+            edges.append({"source": source, "target": target, "rel": rel})
+
+        # 1 · the detectors
+        detectors = [
+            str(row["s"])
+            for row in client.select(f"SELECT ?s WHERE {{ ?s <{RDF_TYPE}> <{ONTO}Detector> }}")
+        ]
+        for uri in detectors:
+            add(uri, uri.split("/")[-1].capitalize(), "Detector")
+
+        # 2 · every signal
+        signals = [
+            str(row["s"])
+            for row in client.select(f"SELECT ?s WHERE {{ ?s <{RDF_TYPE}> <{ONTO}Senal> }}")
+            if str(row["s"]).startswith(NODE_PREFIX)
+        ]
+        signal_values = " ".join(f"<{uri}>" for uri in signals) if signals else ""
+        if signal_values:
+            for row in client.select(
+                f"SELECT ?s ?p ?o WHERE {{ VALUES ?s {{ {signal_values} }} ?s ?p ?o . "
+                f"VALUES ?p {{ <{ONTO}explicacion> <{ONTO}severidad> <{ONTO}detector> <{ONTO}monto_clp> }} }}"
+            ):
+                uri = str(row["s"])
+                label = "Senal"
+                props = nodes.get(uri[len(NODE_PREFIX):], {})
+                predicate = str(row["p"]).replace(ONTO, "")
+                if predicate == "explicacion":
+                    props["name"] = str(row["o"])[:90]
+                elif predicate == "severidad":
+                    props["severity"] = str(row["o"])
+                elif predicate == "detector":
+                    props["detector"] = str(row["o"])
+                elif predicate == "monto_clp":
+                    try:
+                        props["monto"] = float(row["o"])
+                    except (TypeError, ValueError):
+                        pass
+                props.setdefault("id", uri[len(NODE_PREFIX):])
+                props.setdefault("label", label)
+                props.setdefault("key", uri.split("/")[-1])
+                nodes[uri[len(NODE_PREFIX):]] = props
+
+            for row in client.select(
+                f"SELECT ?d ?s WHERE {{ ?d <{relation_uri('PRODUCE')}> ?s . VALUES ?s {{ {signal_values} }} }}"
+            ):
+                link(str(row["d"])[len(NODE_PREFIX):], "PRODUCE", str(row["s"])[len(NODE_PREFIX):])
+
+        # 3 · a sample of the orders each signal observes, and their documents
+        order_uris: list[str] = []
+        for uri in signals[:60]:
+            rows = client.select(
+                f"SELECT ?o WHERE {{ <{uri}> <{relation_uri('SE_OBSERVA_EN')}> ?o FILTER(isIRI(?o)) }} LIMIT 3"
+            )
+            for row in rows:
+                order = str(row["o"])
+                if not order.startswith(NODE_PREFIX):
+                    continue
+                order_uris.append(order)
+                # The order has to exist as a node *before* the edge is recorded: link()
+                # refuses an edge with a missing endpoint, so linking first silently
+                # dropped all 177 SE_OBSERVA_EN edges and the overview came back as two
+                # disconnected clouds. Found by counting the relations in the payload.
+                order_id = order[len(NODE_PREFIX):]
+                nodes.setdefault(order_id, {"id": order_id, "label": "OrdenCompra",
+                                            "key": order_id.split("/", 1)[-1], "name": order_id.split("/", 1)[-1]})
+                link(uri[len(NODE_PREFIX):], "SE_OBSERVA_EN", order_id)
+
+        if order_uris:
+            unique = list(dict.fromkeys(order_uris))
+            order_values = " ".join(f"<{uri}>" for uri in unique)
+            for row in client.select(
+                f"SELECT ?s ?p ?o WHERE {{ VALUES ?s {{ {order_values} }} ?s ?p ?o . "
+                f"VALUES ?p {{ <{ONTO}nombre> <{ONTO}descripcion> <{ONTO}monto_clp> }} }}"
+            ):
+                uri = str(row["s"])
+                identifier = uri[len(NODE_PREFIX):]
+                entry = nodes.setdefault(identifier, {"id": identifier, "label": "OrdenCompra",
+                                                      "key": identifier.split("/", 1)[-1]})
+                predicate = str(row["p"]).replace(ONTO, "")
+                if predicate in ("nombre", "descripcion") and not entry.get("name"):
+                    entry["name"] = str(row["o"])[:70]
+                elif predicate == "monto_clp":
+                    try:
+                        entry["monto"] = float(row["o"])
+                    except (TypeError, ValueError):
+                        pass
+
+            for row in client.select(
+                f"SELECT ?d ?o WHERE {{ ?d <{relation_uri('ACREDITA')}> ?o . VALUES ?o {{ {order_values} }} "
+                f"FILTER(isIRI(?d)) }} LIMIT 200"
+            ):
+                document, order = str(row["d"]), str(row["o"])
+                if not document.startswith(NODE_PREFIX):
+                    continue
+                add(document, "Documento", "Documento")
+                link(document[len(NODE_PREFIX):], "ACREDITA", order[len(NODE_PREFIX):])
+
+        payload = {
+            "nodes": list(nodes.values()),
+            "edges": edges,
+            "seed": None,
+            "layout": "radial",
+            "truncated": True,
+            "note": (
+                f"{len(nodes)} nodos y {len(edges)} relaciones dibujadas: la maquinaria completa "
+                "(detectores, las 85 señales, una muestra de sus órdenes y los documentos que las "
+                "acreditan). El grafo real tiene 64,8 millones de tripletas."
+            ),
+        }
+        self._overview_cache = (now, payload)
+        return payload
+
+    def chat(self, message: str) -> dict[str, Any]:
+        """One message in, one action out.
+
+        The chat is not a chatbot: it is a command bar over a graph. A message either
+        names something the graph knows — and then the answer is *a place*, not a
+        paragraph — or it is a question, and then it starts an investigation. Deciding
+        which of the two it is happens here, once, instead of in the browser.
+        """
+        from ..mcp.server import search as graph_search
+
+        text = (message or "").strip()
+        if len(text) < 2:
+            return {"kind": "help", "reply": "Escribe el nombre de un organismo, de una empresa o una pregunta."}
+
+        matches: list[dict[str, Any]] = []
+        for label in ("Organismo", "Proveedor"):
+            try:
+                hits = graph_search(self.store, {"label": label, "text": text, "limit": 4})
+            except Exception:
+                hits = {}
+            for node in hits.get("results") or []:
+                matches.append(
+                    {
+                        "node": node.get("node"),
+                        "label": label,
+                        "name": node.get("match"),
+                        "matched_via": node.get("matched_via"),
+                    }
+                )
+
+        # A direct signal id is also a destination.
+        if text.startswith("Senal/"):
+            matches.insert(0, {"node": text, "label": "Senal", "name": text, "matched_via": "id"})
+
+        is_question = ("?" in text) or len(text.split()) > 6
+        if matches:
+            best = matches[0]
+            return {
+                "kind": "focus",
+                "node": best["node"],
+                "label": best["label"],
+                "name": best["name"],
+                "matches": matches,
+                "reply": f"Encontré {len(matches)} coincidencia(s). Te llevo a "
+                f"{best['name'] or best['node']}.",
+                "can_investigate": is_question,
+            }
+
+        if is_question:
+            run_id = self.registry.start(text)
+            return {
+                "kind": "run",
+                "run_id": run_id,
+                "reply": "No es el nombre de una entidad, así que lo tomo como pregunta: "
+                "el agente va a recorrer el grafo y te muestro cada paso.",
+            }
+
+        return {
+            "kind": "help",
+            "reply": "No encontré ninguna entidad con ese nombre. Prueba con el nombre completo "
+            "o con el RUT, o escribe una pregunta y la investigo.",
+        }
+
     def health_graph(self) -> dict[str, Any]:
         from ..audit import graph_health
 
@@ -809,6 +1019,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, portal.summary())
             if path == "/api/roots":
                 return self._json(200, portal.roots())
+            if path == "/api/overview":
+                return self._json(200, portal.overview())
             if path == "/api/profile":
                 return self._json(200, portal.profile(params.get("nodo") or ""))
             if path == "/api/connections":
@@ -876,6 +1088,9 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(length) or b"{}") if length else {}
         except ValueError:
             return self._json(400, {"error": "cuerpo no es JSON"})
+
+        if path == "/api/chat":
+            return self._json(200, self.portal.chat(body.get("message") or ""))
 
         if path == "/api/investigate":
             question = (body.get("question") or "").strip()

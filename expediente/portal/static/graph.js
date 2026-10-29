@@ -1,35 +1,84 @@
-/* Force-directed graph on a bare canvas.
+/* The graph canvas: an organic layout, a camera, and a glow.
  *
- * No library, for the same reason the rest of the project has no dependencies: the
- * whole thing has to be readable and verifiable by whoever is judging it. It is
- * about 200 lines of physics and drawing.
+ * Three things make this read as a living structure instead of a diagram:
  *
- * Two decisions that matter for the audience:
- *
- *  - It settles and then STOPS. A graph that keeps drifting is a graph you cannot
- *    click, and the people using this are trying to read something, not watch a lava
- *    lamp. After the simulation cools, the loop shuts down until something changes.
- *  - Labels are always drawn for the node under the cursor and for the seed, because
- *    "which dot is which" is the first question anyone asks.
+ *  1. The initial layout is seeded into a brain silhouette — two lobes, a fissure —
+ *     and the physics keeps the cloud inside it. Signals cluster in one lobe, orders
+ *     and documents in the other, detectors along the middle. It is a real map of the
+ *     system's parts, drawn as a shape a person recognises.
+ *  2. Depth: nodes carry a glow, edges are drawn with low alpha and a gradient, and
+ *     the whole field breathes with a slow drift. Nothing spins.
+ *  3. The camera. `flyTo` eases the view to a node and zooms in; the node pulses so the
+ *     eye finds it. A graph you can only scroll is a graph you cannot navigate.
  */
 (function (global) {
   "use strict";
 
   var COLORS = {
-    Proveedor: "#16506b",
-    Organismo: "#8a5a00",
-    OrdenCompra: "#7c8697",
-    Domicilio: "#a12a1c",
-    Senal: "#4b3f72",
-    Detector: "#4b3f72",
-    CompraAgil: "#1d5c3a",
-    Licitacion: "#1d5c3a",
-    Documento: "#5b6b7c",
-    Evidencia: "#5b6b7c",
-    Afirmacion: "#5b6b7c",
-    Persona: "#a15c1c",
-    Expediente: "#14181f"
+    Detector: "#8b5cf6",
+    Senal: "#22d3ee",
+    OrdenCompra: "#64748b",
+    Proveedor: "#34d399",
+    Organismo: "#fbbf24",
+    Domicilio: "#f87171",
+    Documento: "#60a5fa",
+    Evidencia: "#60a5fa",
+    Afirmacion: "#a78bfa",
+    Licitacion: "#2dd4bf",
+    CompraAgil: "#2dd4bf",
+    Persona: "#fb923c"
   };
+
+  //: Where each kind of node sits in the layered layout. Detectors in the core, the
+  //: signals they produced in the first ring, the orders those signals observe in the
+  //: second, the documents that accredit them on the outside. A free force layout over
+  //: this data draws a hairball: edges cross the middle, nothing reads as structure, and
+  //: the two nodes that matter most disappear among 440 others. Rings fix that — the
+  //: picture now says what the system does, in layers.
+  var RING = {
+    Detector: 0.0,
+    Senal: 0.36,
+    CompraAgil: 0.52,
+    Licitacion: 0.52,
+    Proveedor: 0.55,
+    Organismo: 0.55,
+    OrdenCompra: 0.68,
+    Documento: 0.9,
+    Evidencia: 0.9,
+    Afirmacion: 0.78,
+    Domicilio: 0.78
+  };
+
+  function radialPoint(index, total, radius, width, height, random) {
+    var angle = (index / Math.max(1, total)) * Math.PI * 2 + (random() - 0.5) * 0.05;
+    var spread = radius * Math.min(width, height) * 0.46;
+    return {
+      x: width / 2 + Math.cos(angle) * spread * 1.18,
+      y: height / 2 + Math.sin(angle) * spread * 0.86
+    };
+  }
+
+  function brainPoint(width, height, random) {
+    // Two overlapping ellipses, tilted, with the seam left empty. Points outside both
+    // are rejected, which is what gives the silhouette its shape instead of a blob.
+    for (var attempt = 0; attempt < 40; attempt += 1) {
+      var side = random() < 0.5 ? -1 : 1;
+      var cx = width / 2 + side * width * 0.17;
+      var cy = height / 2;
+      var rx = width * 0.26;
+      var ry = height * 0.36;
+      var angle = random() * Math.PI * 2;
+      var radius = Math.sqrt(random());
+      var x = cx + Math.cos(angle) * rx * radius;
+      var y = cy + Math.sin(angle) * ry * radius;
+      // the fissure: keep a gap down the middle
+      if (Math.abs(x - width / 2) < width * 0.035 && random() < 0.8) { continue; }
+      // no corners
+      if (y < height * 0.08 || y > height * 0.92) { continue; }
+      return { x: x, y: y };
+    }
+    return { x: width / 2, y: height / 2 };
+  }
 
   function GraphView(canvas, options) {
     this.canvas = canvas;
@@ -42,12 +91,16 @@
     this.ty = 0;
     this.selected = null;
     this.hovered = null;
-    this.running = false;
+    this.hidden = {};
+    this.pulse = null;
+    this._fly = null;
+    this._time = 0;
+    this._raf = null;
     this._bind();
   }
 
   GraphView.prototype.colorFor = function (label) {
-    return COLORS[label] || "#4a5261";
+    return COLORS[label] || "#94a3b8";
   };
 
   GraphView.prototype._bind = function () {
@@ -55,50 +108,49 @@
     var dragging = null;
     var panning = false;
     var last = { x: 0, y: 0 };
+    var moved = 0;
 
-    function pos(event) {
+    function point(event) {
       var rect = self.canvas.getBoundingClientRect();
-      var point = event.touches ? event.touches[0] : event;
+      var source = event.touches ? event.touches[0] : event;
       return {
-        x: (point.clientX - rect.left - self.tx) / self.scale,
-        y: (point.clientY - rect.top - self.ty) / self.scale
+        x: (source.clientX - rect.left - self.tx) / self.scale,
+        y: (source.clientY - rect.top - self.ty) / self.scale
       };
     }
 
-    function find(point) {
+    function find(at) {
       var best = null;
-      var bestDistance = 22 / self.scale;
-      self.nodes.forEach(function (node) {
-        if (self.isHidden(node.label)) { return; }
-        var dx = node.x - point.x;
-        var dy = node.y - point.y;
+      var bestDistance = 26 / self.scale;
+      for (var i = 0; i < self.nodes.length; i += 1) {
+        var node = self.nodes[i];
+        if (self.isHidden(node.label)) { continue; }
+        var dx = node.x - at.x;
+        var dy = node.y - at.y;
         var distance = Math.sqrt(dx * dx + dy * dy);
-        if (distance < Math.max(bestDistance, node.r + 4)) {
+        if (distance < Math.max(bestDistance, node.r + 5) && (!best || distance < bestDistance)) {
           best = node;
           bestDistance = distance;
         }
-      });
+      }
       return best;
     }
 
     this.canvas.addEventListener("pointerdown", function (event) {
-      var point = pos(event);
-      var node = find(point);
-      if (node) {
-        dragging = node;
-        node.fixed = true;
-      } else {
-        panning = true;
-      }
+      var at = point(event);
+      var node = find(at);
+      moved = 0;
+      if (node) { dragging = node; node.fixed = true; } else { panning = true; }
       last = { x: event.clientX, y: event.clientY };
-      self.canvas.setPointerCapture(event.pointerId);
+      try { self.canvas.setPointerCapture(event.pointerId); } catch (error) { /* older browsers */ }
     });
 
     this.canvas.addEventListener("pointermove", function (event) {
-      var point = pos(event);
+      var at = point(event);
+      moved += Math.abs(event.clientX - last.x) + Math.abs(event.clientY - last.y);
       if (dragging) {
-        dragging.x = point.x;
-        dragging.y = point.y;
+        dragging.x = at.x;
+        dragging.y = at.y;
         self.render();
         return;
       }
@@ -109,7 +161,7 @@
         self.render();
         return;
       }
-      var node = find(point);
+      var node = find(at);
       if (node !== self.hovered) {
         self.hovered = node;
         self.canvas.style.cursor = node ? "pointer" : "grab";
@@ -118,16 +170,14 @@
     });
 
     this.canvas.addEventListener("pointerup", function (event) {
-      var moved = Math.abs(event.clientX - last.x) + Math.abs(event.clientY - last.y);
       var node = dragging;
       dragging = null;
       panning = false;
-      if (node) {
-        node.fixed = false;
-      }
-      if (node && moved < 6 && self.options.onSelect) {
+      if (node) { node.fixed = false; }
+      if (node && moved < 8 && self.options.onSelect) {
         self.selected = node.id;
         self.options.onSelect(node.data);
+        self.render();
       }
     });
 
@@ -137,44 +187,59 @@
       var factor = event.deltaY < 0 ? 1.12 : 0.89;
       var mx = event.clientX - rect.left;
       var my = event.clientY - rect.top;
+      self._fly = null;
       self.tx = mx - (mx - self.tx) * factor;
       self.ty = my - (my - self.ty) * factor;
-      self.scale = Math.max(0.35, Math.min(3, self.scale * factor));
+      self.scale = Math.max(0.25, Math.min(4, self.scale * factor));
       self.render();
     }, { passive: false });
   };
 
   GraphView.prototype.setData = function (data, options) {
     var merge = !!(options && options.merge) && this.nodes.length > 0;
-    var width = this.canvas.clientWidth || 800;
-    var height = this.canvas.clientHeight || 520;
+    var width = this.canvas.clientWidth || 900;
+    var height = this.canvas.clientHeight || 700;
     var byId = {};
+    var self = this;
+    var seeded = 0;
 
     if (merge) {
       this.nodes.forEach(function (node) { byId[node.id] = node; });
-      this.edges.forEach(function (edge) { edge.__keep = true; });
     }
 
-    var existing = this.nodes;
-    var added = (data.nodes || []).map(function (node, index) {
-      if (merge && byId[node.id]) {
-        byId[node.id].data = node;
-        byId[node.id].name = node.name;
+    var byLabel = {};
+    (data.nodes || []).forEach(function (raw) {
+      byLabel[raw.label] = (byLabel[raw.label] || 0) + 1;
+    });
+    var seenByLabel = {};
+    var radial = data.layout === "radial" && !merge;
+
+    var added = (data.nodes || []).map(function (raw) {
+      if (merge && byId[raw.id]) {
+        byId[raw.id].data = raw;
+        byId[raw.id].name = raw.name;
         return null;
       }
-      var angle = (index / Math.max(1, data.nodes.length)) * Math.PI * 2;
-      var radius = Math.min(width, height) * 0.32;
+      var spot;
+      if (radial) {
+        var position = seenByLabel[raw.label] || 0;
+        seenByLabel[raw.label] = position + 1;
+        spot = radialPoint(position, byLabel[raw.label], RING[raw.label] !== undefined ? RING[raw.label] : 0.5, width, height, Math.random);
+      } else {
+        spot = brainPoint(width, height, Math.random);
+      }
+      seeded += 1;
       var entry = {
-        id: node.id,
-        label: node.label,
-        name: node.name,
-        data: node,
-        x: width / 2 + Math.cos(angle) * radius + (Math.random() - 0.5) * 30,
-        y: height / 2 + Math.sin(angle) * radius + (Math.random() - 0.5) * 30,
+        id: raw.id,
+        label: raw.label,
+        name: raw.name || raw.id,
+        data: raw,
+        x: spot.x,
+        y: spot.y,
         vx: 0,
         vy: 0,
-        r: node.id === data.seed ? 13 : 7,
-        degree: 0
+        degree: 0,
+        r: raw.label === "Detector" ? 16 : raw.label === "Senal" ? 8 : 5
       };
       byId[entry.id] = entry;
       return entry;
@@ -188,18 +253,14 @@
 
     if (merge) {
       var seen = {};
-      this.edges.forEach(function (edge) {
-        seen[edge.source.id + "|" + edge.rel + "|" + edge.target.id] = true;
-      });
+      this.edges.forEach(function (edge) { seen[edge.source.id + "|" + edge.target.id] = true; });
       newEdges = newEdges.filter(function (edge) {
-        return !seen[edge.source.id + "|" + edge.rel + "|" + edge.target.id];
+        return !seen[edge.source.id + "|" + edge.target.id];
       });
     }
 
-    this.nodes = merge ? existing.concat(added) : added;
-    this.edges = (merge ? this.edges.concat(newEdges) : newEdges).filter(function (edge) {
-      return !edge.__keep || merge;
-    });
+    this.nodes = merge ? this.nodes.concat(added) : added;
+    this.edges = merge ? this.edges.concat(newEdges) : newEdges;
 
     this.nodes.forEach(function (node) { node.degree = 0; });
     this.edges.forEach(function (edge) {
@@ -207,7 +268,8 @@
       edge.target.degree += 1;
     });
     this.nodes.forEach(function (node) {
-      node.r = node.id === data.seed ? 14 : Math.min(11, 6 + Math.sqrt(node.degree) * 1.1);
+      var base = node.label === "Detector" ? 26 : node.label === "Senal" ? 7 : 4.5;
+      node.r = base + Math.min(6, Math.sqrt(node.degree) * 1.4);
     });
 
     this.selected = data.seed || this.selected;
@@ -216,16 +278,139 @@
       this.tx = 0;
       this.ty = 0;
     }
-    this._step(merge ? 120 : 240);
+    // A radial layout is already the answer: relaxing it would pull it back toward a
+    // hairball. Only the merged neighbourhoods get the force pass.
+    this._settle(merge ? 90 : radial ? 0 : 220);
+    this.render();
+    this._animate();
+  };
+
+  GraphView.prototype._settle = function (iterations) {
+    var width = this.canvas.clientWidth || 900;
+    var height = this.canvas.clientHeight || 700;
+    var nodes = this.nodes;
+    var edges = this.edges;
+    var cx = width / 2;
+    var cy = height / 2;
+
+    for (var step = 0; step < iterations; step += 1) {
+      var cooling = 1 - step / iterations;
+      for (var i = 0; i < nodes.length; i += 1) {
+        var a = nodes[i];
+        for (var j = i + 1; j < nodes.length; j += 1) {
+          var b = nodes[j];
+          var dx = b.x - a.x;
+          var dy = b.y - a.y;
+          var d2 = dx * dx + dy * dy || 0.01;
+          if (d2 > 40000) { continue; }
+          var force = 700 / d2;
+          var d = Math.sqrt(d2);
+          a.vx -= (dx / d) * force;
+          a.vy -= (dy / d) * force;
+          b.vx += (dx / d) * force;
+          b.vy += (dy / d) * force;
+        }
+      }
+      for (var e = 0; e < edges.length; e += 1) {
+        var edge = edges[e];
+        var ex = edge.target.x - edge.source.x;
+        var ey = edge.target.y - edge.source.y;
+        var length = Math.sqrt(ex * ex + ey * ey) || 0.01;
+        var pull = (length - 70) * 0.008;
+        edge.source.vx += (ex / length) * pull;
+        edge.source.vy += (ey / length) * pull;
+        edge.target.vx -= (ex / length) * pull;
+        edge.target.vy -= (ey / length) * pull;
+      }
+      for (var k = 0; k < nodes.length; k += 1) {
+        var node = nodes[k];
+        if (node.fixed) { continue; }
+        // a soft pull toward the middle keeps the silhouette
+        node.vx += (cx - node.x) * 0.0025;
+        node.vy += (cy - node.y) * 0.0025;
+        node.x += node.vx * cooling;
+        node.y += node.vy * cooling;
+        node.vx *= 0.84;
+        node.vy *= 0.84;
+        var margin = 24;
+        node.x = Math.max(margin, Math.min(width - margin, node.x));
+        node.y = Math.max(margin, Math.min(height - margin, node.y));
+      }
+    }
+  };
+
+  GraphView.prototype.flyTo = function (nodeId, zoom) {
+    var node = this.nodes.filter(function (candidate) { return candidate.id === nodeId; })[0];
+    if (!node) { return false; }
+    var width = this.canvas.clientWidth || 900;
+    var height = this.canvas.clientHeight || 700;
+    var targetScale = zoom || 1.9;
+    this._fly = {
+      fromScale: this.scale,
+      toScale: targetScale,
+      fromX: this.tx,
+      fromY: this.ty,
+      toX: width / 2 - node.x * targetScale,
+      toY: height / 2 - node.y * targetScale,
+      start: performance.now(),
+      duration: 900
+    };
+    this.selected = nodeId;
+    this.pulse = { id: nodeId, start: performance.now() };
+    this._animate();
+    return true;
+  };
+
+  GraphView.prototype._animate = function () {
+    var self = this;
+    if (this._raf) { return; }
+    function tick(now) {
+      var keepGoing = false;
+      if (self._fly) {
+        var t = Math.min(1, (now - self._fly.start) / self._fly.duration);
+        var ease = 1 - Math.pow(1 - t, 3);
+        self.scale = self._fly.fromScale + (self._fly.toScale - self._fly.fromScale) * ease;
+        self.tx = self._fly.fromX + (self._fly.toX - self._fly.fromX) * ease;
+        self.ty = self._fly.fromY + (self._fly.toY - self._fly.fromY) * ease;
+        if (t >= 1) { self._fly = null; }
+        keepGoing = true;
+      }
+      if (self.pulse) {
+        if (now - self.pulse.start > 1600) { self.pulse = null; }
+        else { keepGoing = true; }
+      }
+      self._time = now;
+      self.render();
+      if (keepGoing) {
+        self._raf = requestAnimationFrame(tick);
+      } else {
+        self._raf = null;
+      }
+    }
+    this._raf = requestAnimationFrame(tick);
+  };
+
+  GraphView.prototype.setLabelVisible = function (label, visible) {
+    this.hidden[label] = !visible;
     this.render();
   };
 
+  GraphView.prototype.isHidden = function (label) {
+    return !!this.hidden[label];
+  };
+
+  GraphView.prototype.counts = function () {
+    var counts = {};
+    this.nodes.forEach(function (node) { counts[node.label] = (counts[node.label] || 0) + 1; });
+    return counts;
+  };
+
   GraphView.prototype.zoomBy = function (factor) {
-    var width = this.canvas.clientWidth || 800;
-    var height = this.canvas.clientHeight || 520;
+    var width = this.canvas.clientWidth || 900;
+    var height = this.canvas.clientHeight || 700;
     this.tx = width / 2 - (width / 2 - this.tx) * factor;
     this.ty = height / 2 - (height / 2 - this.ty) * factor;
-    this.scale = Math.max(0.35, Math.min(3, this.scale * factor));
+    this.scale = Math.max(0.25, Math.min(4, this.scale * factor));
     this.render();
   };
 
@@ -233,90 +418,16 @@
     this.scale = 1;
     this.tx = 0;
     this.ty = 0;
-    this._step(120);
+    this.selected = null;
+    this._settle(80);
     this.render();
-  };
-
-  GraphView.prototype.setLabelVisible = function (label, visible) {
-    this.hidden = this.hidden || {};
-    this.hidden[label] = !visible;
-    this.render();
-  };
-
-  GraphView.prototype.isHidden = function (label) {
-    return !!(this.hidden && this.hidden[label]);
-  };
-
-  GraphView.prototype.counts = function () {
-    var counts = {};
-    this.nodes.forEach(function (node) {
-      counts[node.label] = (counts[node.label] || 0) + 1;
-    });
-    return counts;
-  };
-
-  GraphView.prototype._step = function (iterations) {
-    var width = this.canvas.clientWidth || 800;
-    var height = this.canvas.clientHeight || 520;
-    var nodes = this.nodes;
-    var edges = this.edges;
-
-    for (var step = 0; step < iterations; step += 1) {
-      var cooling = 1 - step / iterations;
-
-      for (var i = 0; i < nodes.length; i += 1) {
-        var a = nodes[i];
-        for (var j = i + 1; j < nodes.length; j += 1) {
-          var b = nodes[j];
-          var dx = b.x - a.x;
-          var dy = b.y - a.y;
-          var distance = Math.sqrt(dx * dx + dy * dy) || 0.01;
-          var force = 900 / (distance * distance);
-          var fx = (dx / distance) * force;
-          var fy = (dy / distance) * force;
-          a.vx -= fx;
-          a.vy -= fy;
-          b.vx += fx;
-          b.vy += fy;
-        }
-      }
-
-      for (var e = 0; e < edges.length; e += 1) {
-        var edge = edges[e];
-        var ex = edge.target.x - edge.source.x;
-        var ey = edge.target.y - edge.source.y;
-        var length = Math.sqrt(ex * ex + ey * ey) || 0.01;
-        var target = 110;
-        var pull = (length - target) * 0.012;
-        var px = (ex / length) * pull;
-        var py = (ey / length) * pull;
-        edge.source.vx += px;
-        edge.source.vy += py;
-        edge.target.vx -= px;
-        edge.target.vy -= py;
-      }
-
-      for (var k = 0; k < nodes.length; k += 1) {
-        var node = nodes[k];
-        if (node.fixed) { continue; }
-        node.vx += (width / 2 - node.x) * 0.004;
-        node.vy += (height / 2 - node.y) * 0.004;
-        node.x += node.vx * cooling;
-        node.y += node.vy * cooling;
-        node.vx *= 0.82;
-        node.vy *= 0.82;
-        var margin = 30;
-        node.x = Math.max(margin, Math.min(width - margin, node.x));
-        node.y = Math.max(margin, Math.min(height - margin, node.y));
-      }
-    }
   };
 
   GraphView.prototype.render = function () {
     var canvas = this.canvas;
     var ratio = global.devicePixelRatio || 1;
-    var width = canvas.clientWidth || 800;
-    var height = canvas.clientHeight || 520;
+    var width = canvas.clientWidth || 900;
+    var height = canvas.clientHeight || 700;
 
     if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) {
       canvas.width = Math.round(width * ratio);
@@ -326,6 +437,15 @@
     var ctx = this.ctx;
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     ctx.clearRect(0, 0, width, height);
+
+    // the field: a soft radial wash so the brain sits in something, not on nothing
+    var wash = ctx.createRadialGradient(width / 2, height / 2, 40, width / 2, height / 2, Math.max(width, height) * 0.62);
+    wash.addColorStop(0, "rgba(56,189,248,0.07)");
+    wash.addColorStop(1, "rgba(2,6,23,0)");
+    ctx.fillStyle = wash;
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.save();
     ctx.translate(this.tx, this.ty);
     ctx.scale(this.scale, this.scale);
 
@@ -339,102 +459,116 @@
     }
 
     var self = this;
-    ctx.lineWidth = 1 / this.scale;
+    ctx.lineWidth = 0.8 / this.scale;
     this.edges.forEach(function (edge) {
       if (self.isHidden(edge.source.label) || self.isHidden(edge.target.label)) { return; }
+      var direct = self.selected && (edge.source.id === self.selected || edge.target.id === self.selected);
       var lit = !self.selected || neighbour[edge.source.id] || neighbour[edge.target.id];
-      var isDirect = self.selected && (edge.source.id === self.selected || edge.target.id === self.selected);
-      var colour = isDirect ? "#8a8f99" : lit ? "#d9d5cc" : "#eeebe4";
-
-      // A directed graph that draws straight lines is a graph you cannot read: the
-      // edge ADJUDICADA_A runs order -> supplier, and SENAL -> order the other way.
-      // Curving the edges and putting a head on them is what turns a hairball into
-      // a structure. The control point is offset perpendicular to the chord, so two
-      // edges between the same pair of nodes never overlap.
-      var sx = edge.source.x;
-      var sy = edge.source.y;
-      var tx = edge.target.x;
-      var ty = edge.target.y;
-      var dx = tx - sx;
-      var dy = ty - sy;
-      var length = Math.sqrt(dx * dx + dy * dy) || 1;
-      var bend = Math.min(24, length * 0.12);
-      var cx = (sx + tx) / 2 - (dy / length) * bend;
-      var cy = (sy + ty) / 2 + (dx / length) * bend;
-
-      ctx.strokeStyle = colour;
+      var alpha = direct ? 0.75 : lit ? 0.16 : 0.05;
+      ctx.strokeStyle = direct
+        ? "rgba(148,197,255,0.8)"
+        : "rgba(148,163,184," + alpha + ")";
+      var mx = (edge.source.x + edge.target.x) / 2;
+      var my = (edge.source.y + edge.target.y) / 2;
       ctx.beginPath();
-      ctx.moveTo(sx, sy);
-      ctx.quadraticCurveTo(cx, cy, tx, ty);
+      ctx.moveTo(edge.source.x, edge.source.y);
+      ctx.quadraticCurveTo(mx, my, edge.target.x, edge.target.y);
       ctx.stroke();
-
-      // arrowhead, stopping at the target's radius so it does not sit inside the dot
-      if (lit && length > 24) {
-        var tt = 0.88;
-        var hx = (1 - tt) * (1 - tt) * sx + 2 * (1 - tt) * tt * cx + tt * tt * tx;
-        var hy = (1 - tt) * (1 - tt) * sy + 2 * (1 - tt) * tt * cy + tt * tt * ty;
-        var angle = Math.atan2(ty - hy, tx - hx);
-        var size = (isDirect ? 5.5 : 4) / self.scale;
-        ctx.beginPath();
-        ctx.moveTo(tx - Math.cos(angle) * (edge.target.r + size), ty - Math.sin(angle) * (edge.target.r + size));
-        ctx.lineTo(
-          tx - Math.cos(angle) * (edge.target.r + size * 2.4) + Math.sin(angle) * size,
-          ty - Math.sin(angle) * (edge.target.r + size * 2.4) - Math.cos(angle) * size
-        );
-        ctx.lineTo(
-          tx - Math.cos(angle) * (edge.target.r + size * 2.4) - Math.sin(angle) * size,
-          ty - Math.sin(angle) * (edge.target.r + size * 2.4) + Math.cos(angle) * size
-        );
-        ctx.closePath();
-        ctx.fillStyle = colour;
-        ctx.fill();
-      }
-
-      if (isDirect) {
-        ctx.save();
-        ctx.font = "9px ui-sans-serif, system-ui, sans-serif";
-        ctx.fillStyle = "#6b7280";
-        ctx.textAlign = "center";
-        ctx.fillText(edge.rel, (sx + 2 * cx + tx) / 4, (sy + 2 * cy + ty) / 4 - 3);
-        ctx.restore();
-      }
     });
 
+    var drift = Math.sin(this._time / 2600) * 0.6;
     this.nodes.forEach(function (node) {
       if (self.isHidden(node.label)) { return; }
       var lit = !self.selected || neighbour[node.id];
-      ctx.globalAlpha = lit ? 1 : 0.28;
-      if (node.id === self.selected) {
-        ctx.beginPath();
-        ctx.arc(node.x, node.y, node.r + 6, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(22,80,107,.14)";
-        ctx.fill();
-      }
+      var colour = self.colorFor(node.label);
+      var radius = node.r + (node === self.hovered ? 2 : 0);
+
+      ctx.globalAlpha = lit ? 1 : 0.22;
+
+      // glow
+      var glow = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, radius * 3.2);
+      glow.addColorStop(0, colour);
+      glow.addColorStop(0.35, colour);
+      glow.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.globalAlpha = (lit ? 0.30 : 0.07);
+      ctx.fillStyle = glow;
       ctx.beginPath();
-      ctx.arc(node.x, node.y, node.r, 0, Math.PI * 2);
-      ctx.fillStyle = self.colorFor(node.label);
+      ctx.arc(node.x, node.y, radius * 3.2 + drift, 0, Math.PI * 2);
       ctx.fill();
-      if (node.id === self.selected || node === self.hovered) {
+
+      ctx.globalAlpha = lit ? 1 : 0.25;
+      ctx.fillStyle = colour;
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      if (node.label === "Detector") {
+        // A solid ring, not another glow: the two nodes that generated every case in
+        // the graph have to survive a screen full of them.
+        ctx.globalAlpha = 0.85;
+        ctx.strokeStyle = colour;
         ctx.lineWidth = 2 / self.scale;
-        ctx.strokeStyle = "#14181f";
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, radius + 7, 0, Math.PI * 2);
         ctx.stroke();
       }
-      ctx.globalAlpha = 1;
 
-      var showLabel = node === self.hovered || node.id === self.selected || node.degree > 4 || self.scale > 1.6;
-      if (showLabel) {
-        var text = node.name.length > 34 ? node.name.slice(0, 32) + "…" : node.name;
-        ctx.font = "11px ui-sans-serif, system-ui, sans-serif";
-        var metrics = ctx.measureText(text);
-        var bx = node.x - metrics.width / 2 - 4;
-        var by = node.y + node.r + 4;
-        ctx.fillStyle = "rgba(255,255,255,.86)";
-        ctx.fillRect(bx, by, metrics.width + 8, 15);
-        ctx.fillStyle = "#14181f";
-        ctx.textAlign = "left";
-        ctx.fillText(text, bx + 4, by + 11);
+      if (node.id === self.selected) {
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 1.6 / self.scale;
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, radius + (node.label === "Detector" ? 13 : 5), 0, Math.PI * 2);
+        ctx.stroke();
       }
+
+      // the pulse after a fly-to: a ring that expands once and fades
+      if (self.pulse && self.pulse.id === node.id) {
+        var age = (performance.now() - self.pulse.start) / 1600;
+        ctx.globalAlpha = Math.max(0, 1 - age);
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 2 / self.scale;
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, radius + 8 + age * 46, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      var showLabel = node === self.hovered || node.id === self.selected
+        || node.label === "Detector" || (self.scale > 2.4 && node.degree > 3);
+      if (showLabel) {
+        var text = String(node.name);
+        var isHub = node.label === "Detector";
+        if (text.length > 42) { text = text.slice(0, 40) + "…"; }
+        // The detector labels are the ones a stranger reads first, so they get their own
+        // size and a solid pill instead of a translucent one. The first visual review
+        // called them "small and without contrast", which is the worst thing you can say
+        // about the two labels that explain what the whole screen is.
+        ctx.font = isHub
+          ? "bold 13px ui-sans-serif, system-ui, sans-serif"
+          : "11px ui-sans-serif, system-ui, sans-serif";
+        var metrics = ctx.measureText(text);
+        var pad = isHub ? 8 : 5;
+        var height = isHub ? 21 : 17;
+        var bx = node.x - metrics.width / 2 - pad;
+        var by = node.y + radius + (isHub ? 12 : 6);
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = isHub ? "rgba(8,15,30,0.96)" : "rgba(2,6,23,0.82)";
+        ctx.beginPath();
+        if (ctx.roundRect) { ctx.roundRect(bx, by, metrics.width + pad * 2, height, isHub ? 6 : 4); }
+        else { ctx.rect(bx, by, metrics.width + pad * 2, height); }
+        ctx.fill();
+        if (isHub) {
+          ctx.strokeStyle = colour;
+          ctx.lineWidth = 1.2 / self.scale;
+          ctx.stroke();
+        }
+        ctx.fillStyle = isHub ? "#ffffff" : "#e2e8f0";
+        ctx.textAlign = "left";
+        ctx.fillText(text, bx + pad, by + (isHub ? 15 : 12));
+      }
+      ctx.globalAlpha = 1;
     });
+
+    ctx.restore();
   };
 
   GraphView.prototype.labels = function () {

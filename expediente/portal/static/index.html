@@ -3,244 +3,73 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Expediente · investigación de compras públicas</title>
-<meta name="description" content="Investiga compras públicas de Chile sobre 4,9 millones de órdenes. Cada afirmación queda con su fuente.">
+<title>Expediente · auditoría de compras públicas de Chile</title>
+<meta name="description" content="Pregunta en tus palabras y el grafo de compras públicas de Chile se mueve hasta la respuesta. Cada afirmación viene con su documento.">
 <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
 
-<a class="skip" href="#contenido">Ir al contenido</a>
+<canvas id="mapa" aria-label="Grafo de compras públicas" role="img"></canvas>
 
-<header class="top">
-  <div class="brand">
-    <span class="mark" aria-hidden="true">◧</span>
+<header class="barra-superior">
+  <div class="marca">
+    <span class="logo" aria-hidden="true">◧</span>
     <div>
       <h1>Expediente</h1>
-      <p class="tagline">Investigación de compras públicas, con la fuente al lado de cada afirmación.</p>
+      <p>Herramienta de auditoría de datos públicos · Chile</p>
     </div>
   </div>
-  <nav aria-label="Secciones">
-    <button class="tab" data-view="inicio" aria-current="page">Inicio</button>
-    <button class="tab" data-view="senales">Señales</button>
-    <button class="tab" data-view="grafo">Mapa</button>
-    <button class="tab" data-view="investigar">Investigar</button>
-    <button class="tab" data-view="registro">Registro</button>
+
+  <div class="cifras" aria-live="polite">
+    <div><b id="n-ordenes">—</b><span>órdenes</span></div>
+    <div><b id="n-proveedores">—</b><span>proveedores</span></div>
+    <div><b id="n-organismos">—</b><span>organismos</span></div>
+    <div><b id="n-documentos">—</b><span>documentos</span></div>
+  </div>
+
+  <nav class="acciones-mapa" aria-label="Controles del grafo">
+    <button type="button" id="btn-capas" class="icono" title="Mostrar u ocultar tipos de nodo" aria-expanded="false">◍</button>
+    <button type="button" data-mapa="in" class="icono" title="Acercar">+</button>
+    <button type="button" data-mapa="out" class="icono" title="Alejar">−</button>
+    <button type="button" data-mapa="reset" class="icono" title="Volver a la vista completa">⌂</button>
+    <button type="button" id="btn-registro" class="icono" title="Registro de lo que hizo el agente">▤</button>
   </nav>
 </header>
 
-<main id="contenido">
+<div id="capas" class="capas" hidden></div>
 
-  <!-- ============================================================ INICIO -->
-  <section id="view-inicio" class="view" aria-labelledby="t-inicio">
-    <h2 id="t-inicio">¿Qué es esto?</h2>
-    <p class="lead">
-      Un buscador no te dice <em>por qué</em> dos empresas aparecen juntas, ni de dónde salió esa
-      respuesta. Esto sí: recorre los registros públicos de compras de Chile y cada cosa que afirma
-      viene con el documento o el registro que la sostiene. Si no puede citar, no lo afirma.
-    </p>
+<section class="chat" aria-label="Pregunta al sistema">
+  <div class="transcripcion" id="transcripcion" aria-live="polite"></div>
+  <form id="form-chat" class="compositor" autocomplete="off">
+    <textarea id="pregunta" rows="1" placeholder="Escribe un organismo, una empresa o una pregunta…" aria-label="Tu mensaje"></textarea>
+    <button type="submit" id="btn-enviar" title="Enviar">↑</button>
+  </form>
+  <div class="sugerencias" id="sugerencias">
+    <button type="button" class="chip">Municipalidad de Santiago</button>
+    <button type="button" class="chip">Cardiotec</button>
+    <button type="button" class="chip">¿Por qué aparecen juntas las dos Cardiotec?</button>
+    <button type="button" class="chip">¿Qué patrones hay de fraccionamiento?</button>
+  </div>
+</section>
 
-    <div class="numbers" id="numeros" aria-live="polite">
-      <div class="num"><span class="n" id="n-ordenes">—</span><span class="l">órdenes de compra</span></div>
-      <div class="num"><span class="n" id="n-proveedores">—</span><span class="l">proveedores</span></div>
-      <div class="num"><span class="n" id="n-organismos">—</span><span class="l">organismos públicos</span></div>
-      <div class="num"><span class="n" id="n-senales">—</span><span class="l">señales para revisar</span></div>
-    </div>
+<aside class="tarjeta" id="tarjeta" hidden aria-label="Detalle del nodo">
+  <button class="cerrar" id="cerrar-tarjeta" aria-label="Cerrar">×</button>
+  <div id="tarjeta-cuerpo"></div>
+</aside>
 
-    <h3>Tres formas de usarlo</h3>
-    <ol class="pasos">
-      <li>
-        <strong>Mira las señales.</strong>
-        <span>Son 85 patrones que las reglas encontraron solas: compras partidas justo bajo el
-        límite, un proveedor que se lleva casi todo, empresas en la misma dirección.</span>
-        <button class="link" data-goto="senales">Ver las señales →</button>
-      </li>
-      <li>
-        <strong>Abre el mapa.</strong>
-        <span>Elige una empresa o una municipalidad y mira qué cuelga de ella: sus compras, sus
-        domicilios, las empresas que están en el mismo domicilio.</span>
-        <button class="link" data-goto="grafo">Abrir el mapa →</button>
-      </li>
-      <li>
-        <strong>Pregunta en tus palabras.</strong>
-        <span>Escribe la duda como se la contarías a un colega. El sistema la convierte en pasos
-        sobre los datos, te los muestra uno por uno y te entrega el expediente con las fuentes.</span>
-        <button class="link" data-goto="investigar">Hacer una pregunta →</button>
-      </li>
-    </ol>
+<aside class="registro" id="registro" hidden aria-label="Registro del agente">
+  <header>
+    <h2>Registro</h2>
+    <button class="cerrar" id="cerrar-registro" aria-label="Cerrar">×</button>
+  </header>
+  <label class="filtro">Investigación
+    <select id="selector-run"></select>
+  </label>
+  <label class="check"><input type="checkbox" id="solo-importantes" checked> Solo pasos importantes</label>
+  <ol class="eventos" id="eventos"></ol>
+</aside>
 
-    <h3>Últimas investigaciones</h3>
-    <ul class="runs" id="runs-recientes"></ul>
-  </section>
-
-  <!-- =========================================================== SEÑALES -->
-  <section id="view-senales" class="view" hidden aria-labelledby="t-senales">
-    <div class="view-head">
-      <div>
-        <h2 id="t-senales">Señales</h2>
-        <p class="lead small">
-          Cada tarjeta es un patrón detectado por una regla escrita, no por un modelo. La columna
-          dice <strong>qué se ha hecho con ella</strong>, y solo cambia cuando el registro de una
-          investigación lo respalda. Arrastrar no mueve nada.
-        </p>
-      </div>
-      <label class="filtro">
-        <span>Tipo de patrón</span>
-        <select id="filtro-detector">
-          <option value="">Todos</option>
-          <option value="fraccionamiento">Compras partidas</option>
-          <option value="concentracion">Concentración de gasto</option>
-          <option value="colicotizacion">Empresas que cotizan juntas</option>
-          <option value="modificaciones">Cambios después de adjudicar</option>
-        </select>
-      </label>
-    </div>
-
-    <div class="kanban" id="kanban" role="list"></div>
-
-    <aside class="detalle" id="detalle-senal" hidden>
-      <button class="cerrar" id="cerrar-detalle" aria-label="Cerrar detalle">×</button>
-      <div id="detalle-senal-cuerpo"></div>
-    </aside>
-  </section>
-
-  <!-- ============================================================= MAPA -->
-  <section id="view-grafo" class="view" hidden aria-labelledby="t-grafo">
-    <div class="view-head">
-      <div>
-        <h2 id="t-grafo">Mapa de relaciones</h2>
-        <p class="lead small">
-          Escribe el nombre de una empresa o de una municipalidad. El mapa dibuja solo lo que está
-          conectado a ella, y el número grande de abajo dice cuánto hay en total: el dibujo es una
-          ventana, no el total.
-        </p>
-      </div>
-    </div>
-
-    <div class="partida">
-      <span class="partida-titulo">Puntos de partida</span>
-      <div id="puntos-partida" class="resultados"></div>
-    </div>
-
-    <form class="buscador" id="form-buscar" role="search">
-      <label for="q-nodo">o busca por nombre</label>
-      <select id="label-nodo" aria-label="Tipo de entidad">
-        <option value="Proveedor">Empresa</option>
-        <option value="Organismo">Municipalidad u organismo</option>
-      </select>
-      <input id="q-nodo" type="search" placeholder="Ej: Cardiotec, Municipalidad de Renca" autocomplete="off">
-      <button type="submit">Buscar</button>
-    </form>
-    <div id="resultados-busqueda" class="resultados" aria-live="polite"></div>
-
-    <div class="mapa-wrap">
-      <canvas id="mapa" height="520" aria-label="Mapa de relaciones del grafo" role="img"></canvas>
-
-      <div class="mapa-controles" role="group" aria-label="Controles del mapa">
-        <button type="button" data-mapa="in" title="Acercar">+</button>
-        <button type="button" data-mapa="out" title="Alejar">−</button>
-        <button type="button" data-mapa="reset" title="Centrar">Centrar</button>
-        <button type="button" data-mapa="clear" title="Empezar de nuevo">Limpiar</button>
-      </div>
-
-      <div class="filtros-capa" id="filtros-capa" aria-label="Mostrar u ocultar tipos de nodo"></div>
-
-      <aside class="nodo-panel" id="nodo-panel" hidden>
-        <button class="cerrar" id="cerrar-nodo" aria-label="Cerrar">×</button>
-        <div id="nodo-panel-cuerpo"></div>
-      </aside>
-    </div>
-
-    <p class="pie" id="mapa-pie">Elige un punto de partida arriba: cada uno dibuja lo que cuelga de él.</p>
-  </section>
-
-  <!-- ======================================================== INVESTIGAR -->
-  <section id="view-investigar" class="view" hidden aria-labelledby="t-investigar">
-    <div class="view-head">
-      <div>
-        <h2 id="t-investigar">Investigar</h2>
-        <p class="lead small">
-          Escribe la pregunta como se la harías a una persona. El sistema va a recorrer los datos
-          paso a paso; verás cada paso mientras ocurre. Al final tendrás un expediente con lo que se
-          pudo sostener <strong>y lo que se descartó, con el motivo</strong>.
-        </p>
-      </div>
-    </div>
-
-    <form id="form-investigar" class="investigar">
-      <label for="pregunta">Tu pregunta</label>
-      <textarea id="pregunta" rows="3" placeholder="Ej: ¿Por qué la Municipalidad de Renca le compró lo mismo seis veces al mismo proveedor este año?"></textarea>
-      <div class="sugerencias">
-        <span>Ejemplos:</span>
-        <button type="button" class="chip">¿Qué relación hay entre Cardiotec Vascular Limitada y Cardiotec Vascularis SpA?</button>
-        <button type="button" class="chip">¿Qué empresa concentra más gasto en la Municipalidad de Pumanque?</button>
-      </div>
-      <button type="submit" class="primary" id="btn-investigar">Investigar</button>
-      <p class="nota">Suele tardar entre 30 y 90 segundos. No cierres la página: los pasos se van a ir escribiendo aquí.</p>
-    </form>
-
-    <div id="agente" hidden>
-      <div class="agente-grid">
-        <section class="panel">
-          <h3>Plan</h3>
-          <ol id="agente-plan" class="plan"></ol>
-          <h3>Pasos</h3>
-          <ol id="agente-pasos" class="pasos-agente"></ol>
-          <p class="estado" id="agente-estado" aria-live="polite"></p>
-        </section>
-
-        <section class="panel">
-          <h3>Lo que se pudo sostener</h3>
-          <div id="agente-afirmaciones"></div>
-          <h3>Lo que se descartó</h3>
-          <div id="agente-descartes"></div>
-          <h3>Fuentes consultadas</h3>
-          <div id="agente-fuentes"></div>
-          <div class="acciones">
-            <button class="link" id="ver-registro">Ver el registro completo →</button>
-            <button class="link" id="descargar-expediente">Descargar expediente (.md)</button>
-          </div>
-        </section>
-      </div>
-    </div>
-  </section>
-
-  <!-- ========================================================== REGISTRO -->
-  <section id="view-registro" class="view" hidden aria-labelledby="t-registro">
-    <div class="view-head">
-      <div>
-        <h2 id="t-registro">Registro</h2>
-        <p class="lead small">
-          Todo lo que hizo el sistema, en orden, con la hora. Este registro es la razón por la que
-          una conclusión se puede revisar: se puede volver a leer sin el modelo, sin internet y sin
-          la base de datos.
-        </p>
-      </div>
-      <label class="filtro">
-        <span>Investigación</span>
-        <select id="selector-run"></select>
-      </label>
-    </div>
-
-    <div class="logs-tools">
-      <label class="check"><input type="checkbox" id="seguir-vivo" checked> Seguir en vivo</label>
-      <label class="check"><input type="checkbox" id="solo-importantes"> Solo pasos importantes</label>
-      <span class="pie" id="log-resumen"></span>
-    </div>
-
-    <table class="logs" id="tabla-logs">
-      <thead>
-        <tr><th scope="col">#</th><th scope="col">Hora</th><th scope="col">Qué pasó</th><th scope="col">Detalle</th></tr>
-      </thead>
-      <tbody id="logs-cuerpo"></tbody>
-    </table>
-  </section>
-
-</main>
-
-<p class="aviso">
-  Expediente no acusa a nadie. Describe relaciones que están en datos públicos y cita el registro
-  del que salen. El resultado está pensado para que una persona lo revise y lo firme.
-</p>
+<p class="letra-chica" id="letra-chica"></p>
 
 <script src="/static/graph.js"></script>
 <script src="/static/app.js"></script>
