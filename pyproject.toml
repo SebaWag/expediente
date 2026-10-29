@@ -16,7 +16,10 @@ dependencies = []
 dev = ["pytest>=8.0"]
 # PDF support is optional on purpose: the core install stays dependency-free.
 # pypdf is BSD. pymupdf is faster but AGPL — it is never installed by default.
-pdf = ["pypdf>=5.0"]
+# reportlab writes the signed dossier; without it the export module cannot even be
+# imported, which is why CI installs this extra and the unit job would otherwise stop
+# at collection time. Declared, not assumed: the first CI run found it.
+pdf = ["pypdf>=5.0", "reportlab>=4.0"]
 
 [project.scripts]
 expediente = "expediente.cli:main"

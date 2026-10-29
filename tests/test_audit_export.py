@@ -10,6 +10,12 @@ import json
 
 import pytest
 
+# reportlab is optional on purpose: the core of this repository installs with no
+# dependencies at all, and `pytest` is documented to work on a bare clone. The PDF
+# writer is the one place that needs it, so this module skips instead of failing at
+# collection time. CI installs `.[dev,pdf]`, which is what makes these run.
+pytest.importorskip("reportlab")
+
 from expediente.audit import (
     EXPORTS,
     case_id,

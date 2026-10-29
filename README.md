@@ -296,7 +296,9 @@ identifiable. Both are handled by the commit history rather than by a slide:
 
 | Component | License | Used for |
 |---|---|---|
-| Python standard library only | PSF | everything except the optional PDF extractors |
+| Python standard library | PSF | the deterministic core, the graph client, the agent runtime |
+| pypdf | BSD | reading a PDF to find the page a quote came from (`pip install .[pdf]`), optional |
+| reportlab | BSD | writing the signed dossier PDF (`pip install .[pdf]`), optional |
 | Mercado Público open API / open data | public data | source records |
 | MillenniumDB | GPL-3.0 | property graph store (in production, 64.8 M triples) |
 | Meta Model API (Muse Spark, SAM 3.1) | — | layers 1, 2a, 2b, 3 |

@@ -10,6 +10,9 @@ import hashlib
 
 import pytest
 
+# pypdf is the default reader and lives behind an extra, for the same reason.
+pytest.importorskip("pypdf")
+
 from expediente.evidence.gate import Rejection, evaluate
 from expediente.evidence.models import Claim, Evidence
 from expediente.evidence.pdf import (
