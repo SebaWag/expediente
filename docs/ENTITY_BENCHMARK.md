@@ -186,6 +186,11 @@ are not noise. They are the ceiling of the signal:
 0.953   LAYNER SPA                             |  LAYNER OTEC SPA          ← same address, different RUT
 ```
 
+Run 3 (the human audit, below) read the third pair differently: a person says LAYNER SPA
+and LAYNER OTEC SPA are the **same business**, and the RUT is the one that disagrees.
+That does not make the threshold safe — it makes the label imperfect, which is the next
+finding.
+
 And raising the threshold does not remove them:
 
 | rerank threshold | precision | recall | false positives kept |
@@ -228,3 +233,81 @@ That is the sentence this benchmark buys:
 > made the positives hard on purpose, and found that the signal saturates: a look-alike
 > at 0,953 outscores six of every ten true pairs. A name can raise a candidate. It
 > cannot, at any cutoff, be allowed to assert one.
+
+---
+
+# Run 3 — a person read 60 pairs blind
+
+Runs 1 and 2 score against the RUT. The RUT is definitional, not infallible: it says two
+names are the same entity because they share `identifier.id`, and it says nothing about
+whether a *person* would sign that. So 60 pairs were drawn stratified toward the
+boundary, and one person labelled them without seeing the RUT, the stratum or the
+truth. Two were left as `DUDOSO` and are excluded from the rates.
+
+## Where a person and the RUT disagree
+
+| Stratum | Answered | Agrees with the RUT |
+|---|---|---|
+| hard_negative | 15 | **15 / 15** (100 %) |
+| easy_negative | 5 | **5 / 5** (100 %) |
+| positive | 10 | 9 / 10 (90 %) |
+| address_negative | 10 | 8 / 10 (80 %) |
+| hard_positive | 18 | **12 / 18 (67 %)** |
+| **total** | **58** | **49 / 58 (84,5 %)** |
+
+The negatives are clean: **a person never called two different companies the same.** Every
+disagreement is in the positive or the address stratum, and they are two different
+phenomena:
+
+**1 · A brand is not a name (7 cases, `hard_positive` / `positive`).** The OCDS `name`
+field joins the legal name and the trade name with `|`, so a "positive" pair can be
+`SERVICIO DE EFICIENCIA ENERGETICA LIMITADA` against `I-Energy Limitada`, or
+`LIVISTER CHILE SPA` against `IFX`. Same RUT, and no person can tell from the strings.
+A name-only system *cannot* pass these; the benchmark scores them as misses anyway.
+
+**2 · Two RUTs, one business (2 cases, `address_negative`).** `CARDIOTEC VASCULAR
+LIMITADA` against `Cardiotec Vascularis SpA`, and `LAYNER SPA` against `LAYNER OTEC
+SPA`: same address, different RUT, and a person says same business. The RUT answers a
+legal question; the auditor is asking a commercial one.
+
+## What that does to the two thresholds
+
+Judged by a person, on the same 58 pairs:
+
+| Threshold | TP | FP | FN | Precision | Recall |
+|---|---|---|---|---|---|
+| 0.30 — candidate | 22 | 8 | 1 | 0.733 | **0.957** |
+| 0.90 — asserted | **9** | **0** | 14 | **1.000** | 0.391 |
+
+Judged by the RUT, as in run 2:
+
+| Threshold | TP | FP | FN | Precision | Recall |
+|---|---|---|---|---|---|
+| 0.30 | 22 | 8 | 6 | 0.733 | 0.786 |
+| 0.90 | 8 | 1 | 20 | 0.889 | 0.286 |
+
+The assert threshold made **nine assertions and a person rejected none of them.** That is
+the strongest result the pipeline has, and it rests on nine cases — enough to keep the
+split, not enough to quote a rate.
+
+The two yardsticks also disagree against each other, and that is the finding: run 2's
+"one false assertion at 0.90" (`LAYNER`) is a pair a human calls the same business. The
+label was wrong, not the model. Conversely, two pairs the model gets right by the RUT
+(`Q4 INGENIEROS LIMITADA` / `Q4 INGENIEROS`, `SERVICIO DE EFICIENCIA...` / `I-Energy`)
+are pairs a person refuses, because a brand is not a name.
+
+## What the audit changed
+
+1. **The 0.90 threshold survives human judgment** on this sample: 9 asserts, 0 rejected.
+2. **The RUT-derived recall is a lower bound, not an estimate.** Seven of the eighteen
+   hard positives require knowing a brand, not comparing two strings.
+3. **`DUDOSO` is the third answer and it is the honest one.** Two pairs were undecidable
+   from the sheet, and a resolver should return them as candidates rather than decide.
+
+## Reproduce
+
+```bash
+python3 benchmarks/make_audit_sample.py   # same 60 pairs, fixed seed
+# a person fills benchmarks/audit/hoja_60.csv, blind
+python3 benchmarks/score_audit.py
+```

@@ -34,6 +34,21 @@ def load_sheet(path: Path) -> dict[str, dict]:
         return {row["id"]: row for row in csv.DictReader(handle)}
 
 
+def score(raw: str) -> float | None:
+    """Read a 0–1 score, surviving a spreadsheet that used "." as a thousands mark.
+
+    Filling the sheet in LibreOffice or Excel with a Spanish locale turns ``0.893``
+    into ``893``, because the dot is read as a group separator. The arithmetic then
+    runs on values a thousand times too large and every threshold comparison is
+    silently wrong — which is worse than refusing to run.
+    """
+    text = (raw or "").strip().replace(",", ".")
+    if not text:
+        return None
+    value = float(text)
+    return value / 1000 if value > 1 else value
+
+
 def verdict(raw: str) -> bool | None:
     text = (raw or "").strip().upper()
     if not text:
@@ -80,10 +95,10 @@ def main() -> int:
                 f"{row['nombre_a']} | {row['nombre_b']}"
             )
 
-        score = float(row["rerank"]) if row.get("rerank") else None
-        if score is not None:
+        value = score(row.get("rerank", ""))
+        if value is not None:
             for threshold in rerank_vs_human:
-                predicted = score >= threshold
+                predicted = value >= threshold
                 rerank_vs_human[threshold][1] += 1
                 if predicted == human:
                     rerank_vs_human[threshold][0] += 1
