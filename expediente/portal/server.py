@@ -1,0 +1,694 @@
+"""The investigation portal: one process, five surfaces, one graph.
+
+Why this is a separate process from the API
+-------------------------------------------
+
+``expediente.api.server`` is read-only **by construction** — the store is only ever
+asked ``select`` — and that property is load-bearing for the security argument
+(*"exposing this on the internet cannot write to the graph"*). The portal writes:
+runs, event logs, dossiers. Mixing the two would quietly falsify a sentence the
+README makes.
+
+So: same graph, same tool functions, different process. The portal reads the graph
+through the same functions the MCP server and the API use, and its writes go to a
+run directory, never to the graph.
+
+What it serves
+--------------
+
+    GET  /                          the single-page portal
+    GET  /static/*                  its assets
+    GET  /api/summary               totals + recent runs
+    GET  /api/search                find a supplier or a buyer
+    GET  /api/subgraph              a small graph around one node, for the canvas
+    GET  /api/signals               the shortlist, as kanban cards
+    GET  /api/kanban                signals grouped by what has been done to them
+    GET  /api/network               shared-address network for a RUT
+    POST /api/investigate           start a run in the background -> run_id
+    GET  /api/runs                  recent runs
+    GET  /api/runs/{id}             one run: plan, claims, sources, dossier
+    GET  /api/runs/{id}/events      the event log, from ?since=
+    GET  /api/runs/{id}/stream      the same, as server-sent events
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import mimetypes
+import os
+import re
+import sys
+import threading
+import time
+import urllib.parse
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from typing import Any
+
+from ..agent import Investigator, MetaProvider, ProviderError, Settings
+from ..api.server import Api
+from ..graph.millenniumdb import MillenniumDBStore
+from ..mcp.server import network, search
+from ..runs import RunStore, replay
+
+STATIC_DIR = Path(__file__).parent / "static"
+MAX_NODES = 70
+#: How many purchase orders one expansion may add. Orders are the evidence, not the
+#: structure; a canvas full of them answers no question a reader has.
+ORDER_CAP = 3
+SIGNAL_CACHE_S = 120
+
+
+# --------------------------------------------------------------------- subgraph
+def _display_name(label: str, key: str, props: dict[str, Any]) -> str:
+    for field in ("razon_social", "nombre", "direccion", "titulo", "codigo", "texto"):
+        value = props.get(field)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return key
+
+
+def subgraph(store, label: str, key: str, *, depth: int = 2, limit_per_node: int = 10, max_nodes: int = MAX_NODES) -> dict[str, Any]:
+    """A small, honest view of a large graph.
+
+    Four point nine million orders cannot be drawn and must not be sampled as if the
+    sample were the whole. So the canvas shows the neighbourhood the user asked for,
+    one or two hops out, and the UI puts the real totals next to it.
+
+    Two implementations, and the reason is measured. The first version walked the
+    graph node by node through the store port: correct, and **18.4 s for one hop**,
+    because each node costs a round trip and a demo cannot ship a graph you wait for.
+    The batched version below issues two queries per hop regardless of how wide the
+    hop is — outgoing edges for the whole frontier, then incoming edges — which is
+    what the engine is actually good at. The port-based walk stays as the fallback so
+    the in-memory adapter and the tests keep working.
+    """
+    client = getattr(store, "client", None)
+    if client is not None:
+        try:
+            return _subgraph_batched(store, client, label, key, depth, max_nodes, limit_per_node)
+        except Exception:
+            pass  # a partially drawn map is better than an error page
+    return _subgraph_walk(store, label, key, depth, max_nodes, limit_per_node)
+
+
+#: Lower is drawn first. Structural relations before volume.
+_LABEL_RANK = {
+    "Domicilio": 0,
+    "Persona": 0,
+    "Proveedor": 1,
+    "Organismo": 1,
+    "Senal": 1,
+    "Expediente": 1,
+    "Documento": 2,
+    "Evidencia": 2,
+    "Afirmacion": 2,
+    "Licitacion": 2,
+    "CompraAgil": 2,
+    "Contrato": 2,
+    "OrdenCompra": 3,
+}
+
+
+def _label_from_uri(uri: str) -> str:
+    """The node label, which is the path segment right after the prefix."""
+    rest = _node_id_from_uri(uri)
+    return rest.split("/", 1)[0] if "/" in rest else rest
+
+
+def _subgraph_batched(store, client, label: str, key: str, depth: int, max_nodes: int, limit_per_node: int) -> dict[str, Any]:
+    from ..graph.millenniumdb import node_uri
+    from ..graph.schema import EDGES, ONTO, relation_uri
+
+    seed_uri = node_uri(label, key)
+    if not client.select(f"SELECT ?p WHERE {{ <{seed_uri}> ?p ?o }} LIMIT 1"):
+        return {"nodes": [], "edges": [], "error": f"no existe {label}/{key}", "truncated": False}
+
+    relations = " ".join(f"<{relation_uri(name)}>" for name in EDGES)
+    seen: dict[str, str] = {seed_uri: label}  # uri -> label
+    edges: list[dict[str, str]] = []
+    seen_edges: set[tuple[str, str, str]] = set()
+    frontier = [seed_uri]
+
+    for _hop in range(max(1, depth)):
+        if not frontier or len(seen) >= max_nodes:
+            break
+        values = " ".join(f"<{uri}>" for uri in frontier[:24])
+
+        outgoing = client.select(
+            f"SELECT ?s ?p ?o WHERE {{ VALUES ?s {{ {values} }} VALUES ?p {{ {relations} }} ?s ?p ?o }} "
+            f"LIMIT {max_nodes * 12}"
+        )
+        incoming = client.select(
+            f"SELECT ?s ?p ?o WHERE {{ VALUES ?o {{ {values} }} VALUES ?p {{ {relations} }} ?s ?p ?o }} "
+            f"LIMIT {max_nodes * 12}"
+        )
+
+        per_source: dict[str, int] = {}
+        next_frontier: list[str] = []
+
+        def consider(owner_uri: str, other_uri: str, rel_uri: str, reverse: bool) -> None:
+            """Add one edge discovered while expanding ``owner_uri``.
+
+            The cap is keyed by the node being expanded, not by the row's subject. The
+            first version keyed it by the subject, which for an incoming edge *is* the
+            order itself — so every order got its own counter and a supplier with 2,044
+            of them filled the canvas anyway.
+            """
+            if len(seen) >= max_nodes:
+                return
+            label = _label_from_uri(other_uri)
+            # Structural nodes first. A supplier with 2,044 orders otherwise fills the
+            # whole canvas with orders and the one thing worth seeing — the address it
+            # shares with another company — never gets drawn. The map is for relations,
+            # not for volume; the volume is in the numbers above it.
+            cap = ORDER_CAP if label == "OrdenCompra" else limit_per_node
+            slot = f"{owner_uri}|{label}"
+            count = per_source.get(slot, 0)
+            if count >= cap:
+                return
+            per_source[slot] = count + 1
+            for uri in (owner_uri, other_uri):
+                if uri not in seen:
+                    seen[uri] = _label_from_uri(uri)
+                    if uri not in frontier:
+                        next_frontier.append(uri)
+            source, target = (owner_uri, other_uri) if not reverse else (other_uri, owner_uri)
+            rel_name = rel_uri.replace(ONTO, "").replace("rel/", "")
+            signature = (source, rel_name, target)
+            if signature in seen_edges:
+                return
+            seen_edges.add(signature)
+            edges.append({"source": source, "target": target, "rel": rel_name})
+
+        def rank(row, reverse: bool) -> int:
+            other = str(row["s"]) if reverse else str(row["o"])
+            return _LABEL_RANK.get(_label_from_uri(other), 5)
+
+        for row in sorted(outgoing, key=lambda r: rank(r, False)):
+            consider(str(row["s"]), str(row["o"]), str(row["p"]), False)
+        for row in sorted(incoming, key=lambda r: rank(r, True)):
+            consider(str(row["o"]), str(row["s"]), str(row["p"]), True)
+
+        frontier = next_frontier[:24]
+
+    # One query for every property of every collected node. Doing this per node was
+    # the other half of the 18 seconds.
+    values = " ".join(f"<{uri}>" for uri in seen)
+    props: dict[str, dict[str, Any]] = {uri: {} for uri in seen}
+    if values:
+        for row in client.select(f"SELECT ?s ?p ?o WHERE {{ VALUES ?s {{ {values} }} ?s ?p ?o }}"):
+            uri = str(row["s"])
+            predicate = str(row["p"]).replace(ONTO, "")
+            if predicate.startswith("rel/") or predicate == "type":
+                continue
+            if uri in props and predicate not in props[uri]:
+                props[uri][predicate] = row["o"]
+
+    nodes = []
+    for uri, node_label in seen.items():
+        node_key = _node_id_from_uri(uri).split("/", 1)[-1]
+        nodes.append(
+            {
+                "id": _node_id_from_uri(uri),
+                "label": node_label,
+                "key": node_key,
+                "name": _display_name(node_label, node_key, props.get(uri, {})),
+                "props": {k: v for k, v in list(props.get(uri, {}).items())[:8]},
+            }
+        )
+    for edge in edges:
+        edge["source"] = _node_id_from_uri(edge["source"])
+        edge["target"] = _node_id_from_uri(edge["target"])
+
+    return {
+        "nodes": nodes,
+        "edges": edges,
+        "truncated": len(seen) >= max_nodes,
+        "seed": f"{label}/{key}",
+    }
+
+
+def _node_id_from_uri(uri: str) -> str:
+    """``urn:expediente:node/Proveedor/76.264.138-0`` -> ``Proveedor/76.264.138-0``.
+
+    The prefix is ``NODE_PREFIX`` from the schema, and it contains a **colon** before
+    ``node``, not a slash. Splitting on ``"/node/"`` silently returned the whole URI,
+    which the UI then drew as a label reading ``urn:expediente:node`` — a reminder
+    that a prefix written twice is a prefix that will be written wrong once.
+    """
+    from ..graph.schema import NODE_PREFIX
+
+    return uri[len(NODE_PREFIX):] if uri.startswith(NODE_PREFIX) else uri
+
+
+def _subgraph_walk(store, label: str, key: str, depth: int, max_nodes: int, limit_per_node: int) -> dict[str, Any]:
+    """Neighbour-by-neighbour fallback, for the in-memory adapter."""
+    nodes: dict[str, dict[str, Any]] = {}
+    edges: list[dict[str, Any]] = []
+    seen_edges: set[tuple[str, str, str]] = set()
+
+    def node_id(node_key: tuple[str, str]) -> str:
+        return f"{node_key[0]}/{node_key[1]}"
+
+    def add_node(node_key: tuple[str, str]) -> None:
+        identifier = node_id(node_key)
+        if identifier in nodes:
+            return
+        props = store.node(*node_key) or {}
+        nodes[identifier] = {
+            "id": identifier,
+            "label": node_key[0],
+            "key": node_key[1],
+            "name": _display_name(node_key[0], node_key[1], props),
+            "props": {k: v for k, v in list(props.items())[:8]},
+        }
+
+    seed = (label, key)
+    if store.node(*seed) is None:
+        return {"nodes": [], "edges": [], "error": f"no existe {label}/{key}", "truncated": False}
+
+    add_node(seed)
+    frontier = [seed]
+    for _hop in range(max(1, depth)):
+        next_frontier: list[tuple[str, str]] = []
+        for current in frontier:
+            if len(nodes) >= max_nodes:
+                break
+            try:
+                neighbours = store.adjacent_directed(current, "both", limit=limit_per_node)
+            except Exception:
+                continue
+            for rel, other, _props, reversed_ in neighbours:
+                if len(nodes) >= max_nodes:
+                    break
+                other_id = node_id(other)
+                add_node(other)
+                source, target = (node_id(current), other_id) if not reversed_ else (other_id, node_id(current))
+                signature = (source, rel, target)
+                if signature in seen_edges:
+                    continue
+                seen_edges.add(signature)
+                edges.append({"source": source, "target": target, "rel": rel})
+                if other not in frontier and other not in next_frontier:
+                    next_frontier.append(other)
+        frontier = next_frontier[:24]
+        if not frontier:
+            break
+
+    return {"nodes": list(nodes.values()), "edges": edges, "truncated": len(nodes) >= max_nodes, "seed": f"{label}/{key}"}
+
+
+# ------------------------------------------------------------------------- runs
+class RunRegistry:
+    """Active and finished runs, and the only place a run is started.
+
+    One run per question, started in a thread, with a lock around the map. The portal
+    is a single-user demo; pretending to be a job queue would be the wrong kind of
+    engineering for nine days.
+    """
+
+    def __init__(self, store, provider_factory, runs: RunStore, settings: Settings) -> None:
+        self.store = store
+        self._provider_factory = provider_factory
+        self.runs = runs
+        self.settings = settings
+        self._lock = threading.Lock()
+        self._active: dict[str, dict[str, Any]] = {}
+
+    def start(self, question: str, subject: str | None = None) -> str:
+        run = self.runs.create(question=question, subject=subject)
+        with self._lock:
+            self._active[run.id] = {"question": question, "started": time.time(), "state": "corriendo"}
+
+        def work() -> None:
+            try:
+                provider = self._provider_factory()
+                investigator = Investigator(self.store, provider, run=run, settings=self.settings)
+                investigator.investigate(question, subject=subject)
+            except ProviderError as exc:
+                run.events.append("run.failed", {"error": f"modelo no disponible: {exc}"})
+            except Exception as exc:  # a run must always close
+                run.events.append("run.failed", {"error": f"{type(exc).__name__}: {exc}"})
+            finally:
+                with self._lock:
+                    self._active.pop(run.id, None)
+
+        threading.Thread(target=work, name=f"run-{run.id}", daemon=True).start()
+        return run.id
+
+    def active(self) -> dict[str, dict[str, Any]]:
+        with self._lock:
+            return dict(self._active)
+
+
+# ----------------------------------------------------------------------- kanban
+SIGNAL_STATES = ("sin_revisar", "en_analisis", "con_evidencia", "descartada")
+
+
+def kanban(api: Api, runs: RunStore, active: dict[str, dict[str, Any]], *, limit: int = 100) -> dict[str, Any]:
+    """Signals grouped by what has actually been done to them.
+
+    The board is a view over the run log, not a second database. A card moves because
+    a run touched it and the recording says so — never because someone dragged it.
+    That is the difference between a kanban that reports work and a kanban that
+    performs it.
+
+    States, all derived:
+
+    * ``sin_revisar``  — no run has cited it
+    * ``en_analisis``  — a run is executing right now
+    * ``con_evidencia``— a claim citing it was accepted
+    * ``descartada``   — a claim citing it was rejected, or the run closed without one
+    """
+    payload = api.signals({"limit": str(limit)})
+    signals = payload.get("signals", [])
+
+    touched: dict[str, dict[str, Any]] = {}
+    for summary in runs.list(limit=60):
+        try:
+            run = runs.open(summary["id"])
+        except FileNotFoundError:
+            continue
+        state = replay(run.events.events())
+        for claim in state["claims_accepted"]:
+            for signal_id in claim.get("senales") or []:
+                touched[signal_id] = {
+                    "state": "con_evidencia",
+                    "run": summary["id"],
+                    "text": claim.get("texto"),
+                    "at": summary.get("created"),
+                }
+        for rejection in state["claims_rejected"]:
+            for signal_id in rejection.get("senales") or []:
+                touched.setdefault(
+                    signal_id,
+                    {
+                        "state": "descartada",
+                        "run": summary["id"],
+                        # The event payload uses "reason"; an earlier version read
+                        # "motivo" and every discarded card silently lost its motive.
+                        "text": rejection.get("reason") or rejection.get("motivo"),
+                        "at": summary.get("created"),
+                    },
+                )
+
+    for run_id, info in active.items():
+        # A run in flight marks its subject; the log will confirm it when it asserts.
+        subject = None
+        try:
+            subject = runs.open(run_id).meta().get("subject")
+        except FileNotFoundError:
+            pass
+        if subject:
+            touched.setdefault(subject, {"state": "en_analisis", "run": run_id, "text": info.get("question"), "at": None})
+
+    board: dict[str, list[dict[str, Any]]] = {state: [] for state in SIGNAL_STATES}
+    for signal in signals:
+        entry = dict(signal)
+        mark = touched.get(signal["id"] or "", {})
+        entry["state"] = mark.get("state", "sin_revisar")
+        entry["run"] = mark.get("run")
+        entry["note"] = mark.get("text")
+        board[entry["state"]].append(entry)
+
+    return {
+        "columns": [
+            {"state": state, "cards": board[state], "count": len(board[state])} for state in SIGNAL_STATES
+        ],
+        "total": len(signals),
+        "active_runs": len(active),
+    }
+
+
+# ----------------------------------------------------------------------- server
+class Portal:
+    """Dispatch. Holds the caches, owns nothing else."""
+
+    def __init__(self, store, api: Api, runs: RunStore, registry: RunRegistry) -> None:
+        self.store = store
+        self.api = api
+        self.runs = runs
+        self.registry = registry
+        self._signals_cache: tuple[float, dict[str, Any]] | None = None
+
+    def summary(self) -> dict[str, Any]:
+        stats = self.api.stats({})
+        return {
+            "stats": stats,
+            "runs": self.runs.list(limit=8),
+            "active": self.registry.active(),
+        }
+
+    def signals(self, params: dict[str, str]) -> dict[str, Any]:
+        now = time.time()
+        if self._signals_cache and now - self._signals_cache[0] < SIGNAL_CACHE_S:
+            return self._signals_cache[1]
+        payload = self.api.signals({"limit": params.get("limit") or "100"})
+        self._signals_cache = (now, payload)
+        return payload
+
+    def kanban(self, params: dict[str, str]) -> dict[str, Any]:
+        return kanban(self.api, self.runs, self.registry.active(), limit=int(params.get("limit") or 100))
+
+    def search(self, params: dict[str, str]) -> dict[str, Any]:
+        return search(self.store, {"label": params.get("label") or "Proveedor", "text": params.get("texto") or "", "limit": params.get("limit") or "10"})
+
+    def subgraph(self, params: dict[str, str]) -> dict[str, Any]:
+        nodo = params.get("nodo") or ""
+        if "/" not in nodo:
+            return {"nodes": [], "edges": [], "error": "nodo debe ser 'Label/id'"}
+        label, key = nodo.split("/", 1)
+        depth = max(1, min(3, int(params.get("saltos") or 2)))
+        return subgraph(self.store, label, key, depth=depth)
+
+    def network(self, params: dict[str, str]) -> dict[str, Any]:
+        return network(self.store, {"rut": params.get("rut") or ""})
+
+    def run_detail(self, run_id: str) -> dict[str, Any]:
+        run = self.runs.open(run_id)
+        events = run.events.events()
+        state = replay(events)
+        return {
+            "id": run.id,
+            "meta": run.meta(),
+            "state": state,
+            "dossier": run.read_artifact("expediente.md"),
+            "events": [event.to_json() for event in events],
+            "digest": run.events.digest(),
+        }
+
+    def run_events(self, run_id: str, since: int) -> dict[str, Any]:
+        run = self.runs.open(run_id)
+        return {"events": [event.to_json() for event in run.events.since(since)]}
+
+
+class Handler(BaseHTTPRequestHandler):
+    portal: Portal
+    server_version = "ExpedientePortal/0.4"
+
+    # -- plumbing ----------------------------------------------------------
+    def log_message(self, fmt: str, *args: Any) -> None:
+        sys.stderr.write("%s %s\n" % (self.address_string(), fmt % args))
+
+    def _cors(self) -> None:
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+
+    def _json(self, status: int, payload: Any) -> None:
+        body = json.dumps(payload, ensure_ascii=False, default=str).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self._cors()
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _file(self, path: Path) -> None:
+        if not path.is_file() or not path.resolve().is_relative_to(STATIC_DIR.resolve()):
+            self._json(404, {"error": "no encontrado"})
+            return
+        body = path.read_bytes()
+        content_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+        if path.suffix == ".js":
+            content_type = "text/javascript; charset=utf-8"
+        if path.suffix in {".html", ".css"}:
+            content_type += "; charset=utf-8"
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_OPTIONS(self) -> None:  # noqa: N802
+        self.send_response(204)
+        self._cors()
+        self.end_headers()
+
+    # -- routing -----------------------------------------------------------
+    def do_GET(self) -> None:  # noqa: N802
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path.rstrip("/") or "/"
+        params = {k: v[0] for k, v in urllib.parse.parse_qs(parsed.query).items()}
+        portal = self.portal
+
+        if path == "/":
+            return self._file(STATIC_DIR / "index.html")
+        if path.startswith("/static/"):
+            return self._file(STATIC_DIR / path.split("/static/", 1)[1])
+
+        try:
+            if path == "/api/health":
+                return self._json(200, {"status": "ok"})
+            if path == "/api/summary":
+                return self._json(200, portal.summary())
+            if path == "/api/signals":
+                return self._json(200, portal.signals(params))
+            if path == "/api/kanban":
+                return self._json(200, portal.kanban(params))
+            if path == "/api/search":
+                return self._json(200, portal.search(params))
+            if path == "/api/subgraph":
+                return self._json(200, portal.subgraph(params))
+            if path == "/api/network":
+                return self._json(200, portal.network(params))
+            if path == "/api/runs":
+                return self._json(200, {"runs": portal.runs.list(limit=int(params.get("limit") or 20)), "active": portal.registry.active()})
+            if path == "/api/tools":
+                from ..agent.tools import SCHEMAS
+
+                return self._json(200, {"tools": SCHEMAS})
+
+            match = re.fullmatch(r"/api/runs/([A-Za-z0-9_-]+)", path)
+            if match:
+                return self._json(200, portal.run_detail(match.group(1)))
+            match = re.fullmatch(r"/api/runs/([A-Za-z0-9_-]+)/events", path)
+            if match:
+                return self._json(200, portal.run_events(match.group(1), int(params.get("since") or 0)))
+            match = re.fullmatch(r"/api/runs/([A-Za-z0-9_-]+)/stream", path)
+            if match:
+                return self._stream(match.group(1), int(params.get("since") or 0))
+        except FileNotFoundError:
+            return self._json(404, {"error": "run no encontrado"})
+        except ValueError as exc:
+            return self._json(400, {"error": str(exc)})
+        except Exception as exc:
+            return self._json(500, {"error": f"{type(exc).__name__}: {exc}"})
+
+        return self._json(404, {"error": "ruta desconocida"})
+
+    def do_POST(self) -> None:  # noqa: N802
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path.rstrip("/")
+        length = int(self.headers.get("Content-Length") or 0)
+        try:
+            body = json.loads(self.rfile.read(length) or b"{}") if length else {}
+        except ValueError:
+            return self._json(400, {"error": "cuerpo no es JSON"})
+
+        if path == "/api/investigate":
+            question = (body.get("question") or "").strip()
+            subject = (body.get("subject") or "").strip() or None
+            if len(question) < 8:
+                return self._json(400, {"error": "la pregunta es demasiado corta"})
+            try:
+                run_id = self.portal.registry.start(question, subject)
+            except ProviderError as exc:
+                return self._json(503, {"error": f"modelo no disponible: {exc}"})
+            return self._json(202, {"run_id": run_id, "question": question})
+        return self._json(404, {"error": "ruta desconocida"})
+
+    def _stream(self, run_id: str, since: int) -> None:
+        """Server-sent events. The log panel is the point of this endpoint.
+
+        Polling the file rather than subscribing to a queue means the stream survives
+        the browser reconnecting, and works when the run started in another process.
+        """
+        try:
+            run = self.portal.runs.open(run_id)
+        except FileNotFoundError:
+            return self._json(404, {"error": "run no encontrado"})
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Accel-Buffering", "no")
+        self._cors()
+        self.end_headers()
+        try:
+            for event in run.events.tail(since=since, timeout_s=600):
+                chunk = f"data: {json.dumps(event.to_json(), ensure_ascii=False)}\n\n"
+                self.wfile.write(chunk.encode("utf-8"))
+                self.wfile.flush()
+                if event.type in {"run.finished", "run.failed"}:
+                    break
+            self.wfile.write(b"data: {\"type\": \"stream.end\"}\n\n")
+            self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError):
+            return
+
+
+def build_server(
+    store,
+    runs: RunStore,
+    settings: Settings,
+    host: str,
+    port: int,
+    provider_factory=None,
+    api=None,
+) -> ThreadingHTTPServer:
+    """``api`` is injectable so the portal can be tested without a graph engine.
+
+    The signals view is written against the MillenniumDB client, not against the store
+    port — it needs two queries with a VALUES clause the in-memory adapter has no
+    reason to implement. Injecting the view keeps the HTTP and board tests honest
+    without pretending the port and the engine are interchangeable.
+    """
+    if api is None:
+        api = Api(store)
+    if provider_factory is None:
+        def provider_factory():
+            return MetaProvider()
+
+    registry = RunRegistry(store, provider_factory, runs, settings)
+    portal = Portal(store, api, runs, registry)
+    handler = type("BoundHandler", (Handler,), {"portal": portal})
+    server = ThreadingHTTPServer((host, port), handler)
+    server.daemon_threads = True
+
+    def warm() -> None:
+        try:
+            api.warm()
+            portal.signals({})
+        except Exception as exc:
+            print(f"warm failed: {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
+
+    threading.Thread(target=warm, daemon=True).start()
+    return server
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Expediente investigation portal")
+    parser.add_argument("--host", default=os.environ.get("EXPEDIENTE_PORTAL_HOST", "0.0.0.0"))
+    parser.add_argument("--port", type=int, default=int(os.environ.get("EXPEDIENTE_PORTAL_PORT", "8080")))
+    parser.add_argument("--runs", default=os.environ.get("EXPEDIENTE_RUNS_DIR", "/opt/expediente/runs"))
+    parser.add_argument("--no-warm", action="store_true")
+    args = parser.parse_args(argv)
+
+    store = MillenniumDBStore.from_env()
+    runs = RunStore(args.runs)
+    settings = Settings()
+    server = build_server(store, runs, settings, args.host, args.port)
+    print(f"portal on http://{args.host}:{args.port} · runs in {args.runs}", flush=True)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
