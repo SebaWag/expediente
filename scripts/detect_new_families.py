@@ -100,7 +100,14 @@ def scan(path: Path) -> dict:
             except (TypeError, ValueError):
                 monto = 0
             procedencia = (row.get("procedencia") or "").strip()
-            descripcion = (row.get("descripcion") or row.get("nombre") or "").strip()
+            # Both fields, not just the first non-empty one. The benchmark found that 7 of
+            # 8 findings in this family had the object spelled out in `nombre` while
+            # `descripcion` was short — the detector was flagging a field, not a purchase.
+            descripcion = max(
+                (row.get("descripcion") or "").strip(),
+                (row.get("nombre") or "").strip(),
+                key=len,
+            )
 
             pairs[(org, prov)] += 1
             if org not in names and row.get("organismo"):

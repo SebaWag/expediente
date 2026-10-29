@@ -232,7 +232,8 @@ EXPEDIENTE_MDB_URL=http://127.0.0.1:1234 python3 -m pytest -q   # 185 passed
 | **Web research with traceability** | ✅ a claim needs a verbatim quote found at an offset in the bytes we fetched; paraphrases are rejected with a reason |
 | **Run recording — append-only log + replay** | ✅ the dossier can be rebuilt from the recording with no model, no network and no database |
 | **Portal — map, board, agent, log** | ✅ `investiga.wagnersolutionsai.com`, no build step, no dependency |
-| Contraloría benchmark — recall against published findings | ⬜ not started |
+| Contraloría benchmark — recall against published findings | ⬜ **not started**, and the reason is recorded: that corpus is not machine-readable (Liferay portlet over AJAX, no dataset on datos.gob.cl — checked 2026-10-29) |
+| **Detector desk check — 48 findings, re-derived** | ✅ **{int(79)}% actionable, 100% reproduce their own definition, 83% with complete evidence**. Three rule defects found and fixed. See [`docs/BENCHMARK.md`](docs/BENCHMARK.md) |
 | Vision / OCR — Meta SAM 3.1, for pages with no text layer | ⬜ not started |
 
 ### Entity resolution was not tuned. It was measured.

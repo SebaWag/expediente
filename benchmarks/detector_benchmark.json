@@ -1,0 +1,518 @@
+{
+  "generated_at": "2026-10-29T15:42:14-0300",
+  "method": "desk check: re-derivation + benign explanation + evidence completeness",
+  "note": "No es el benchmark contra Contraloría que promete el README: ese corpus no es legible por máquina (portlet AJAX, sin dataset en datos.gob.cl, verificado el 2026-10-29). Esto es una revisión de mesa reproducible sobre nuestras propias afirmaciones, que es lo que sí se puede medir hoy.",
+  "families": {
+    "concentracion": {
+      "stats": {
+        "sampled": 8,
+        "reproduce": 8,
+        "benign": 0,
+        "actionable": 8,
+        "with_evidence": 8
+      },
+      "cases": [
+        {
+          "signal": "f2fca2d7fe270819",
+          "claim": "FUND NACIONAL DE ORQUESTAS JUVENILES E INFANTILES DE CHILE concentra el 75% de $2.942.361.351 en TELEVISION NACIONAL DE CHILE: HHI 5636 sobre un umbral de 2500, con 221 proveedores en 2435 órdenes.",
+          "orders": 20,
+          "reproduces": true,
+          "reproduces_reason": "se verifica por la cuota del proveedor en el perfil",
+          "benign_explanation": null,
+          "evidence_complete": true
+        },
+        {
+          "signal": "720ea8991ba9b159",
+          "claim": "I MUNICIPALIDAD DE PUMANQUE concentra el 82% de $1.009.928.255 en JOSE LUIS PAVEZ VARGAS: HHI 6764 sobre un umbral de 2500, con 7 proveedores en 8 órdenes.",
+          "orders": 2,
+          "reproduces": true,
+          "reproduces_reason": "se verifica por la cuota del proveedor en el perfil",
+          "benign_explanation": null,
+          "evidence_complete": true
+        },
+        {
+          "signal": "b206c231f870c3fc",
+          "claim": "SERVICIO DE SALUD METROPOLITANO SUR ORIENTE concentra el 49% de $19.639.336.031 en INTERNATIONAL CLINICS S A: HHI 3289 sobre un umbral de 2500, con 13 proveedores en 21 órdenes.",
+          "orders": 1,
+          "reproduces": true,
+          "reproduces_reason": "se verifica por la cuota del proveedor en el perfil",
+          "benign_explanation": null,
+          "evidence_complete": true
+        },
+        {
+          "signal": "cfd311f088d81162",
+          "claim": "Corporación Cultural Municipalidad del Maule concentra el 53% de $1.360.934.510 en mauricio sebastian lobos vega eventos E.I.R.L: HHI 2920 sobre un umbral de 2500, con 118 proveedores en 205 órdenes.",
+          "orders": 15,
+          "reproduces": true,
+          "reproduces_reason": "se verifica por la cuota del proveedor en el perfil",
+          "benign_explanation": null,
+          "evidence_complete": true
+        },
+        {
+          "signal": "a7479e7ae5e5c759",
+          "claim": "FUNDACIÓN GG concentra el 51% de $2.757.253.706 en ABASTIBLE S.A.: HHI 5003 sobre un umbral de 2500, con 3 proveedores en 60 órdenes.",
+          "orders": 20,
+          "reproduces": true,
+          "reproduces_reason": "se verifica por la cuota del proveedor en el perfil",
+          "benign_explanation": null,
+          "evidence_complete": true
+        },
+        {
+          "signal": "6a1b2e6575038b45",
+          "claim": "SERVICIO DE SALUD ANTOFAGASTA DIRECCION concentra el 40% de $7.445.713.110 en OXIGENO MEDICINAL DOMICILIARIO LTDA: HHI 2592 sobre un umbral de 2500, con 35 proveedores en 68 órdenes.",
+          "orders": 3,
+          "reproduces": true,
+          "reproduces_reason": "se verifica por la cuota del proveedor en el perfil",
+          "benign_explanation": null,
+          "evidence_complete": true
+        },
+        {
+          "signal": "6e12c41260a216d6",
+          "claim": "SERVICIO DE SALUD METROPOLITANO CENTRAL concentra el 59% de $163.943.332.228 en SACYR CHILE S A: HHI 3645 sobre un umbral de 2500, con 283 proveedores en 797 órdenes.",
+          "orders": 2,
+          "reproduces": true,
+          "reproduces_reason": "se verifica por la cuota del proveedor en el perfil",
+          "benign_explanation": null,
+          "evidence_complete": true
+        },
+        {
+          "signal": "494905846237aa0e",
+          "claim": "SERVICIO DE SALUD MAGALLANES concentra el 66% de $1.168.924.779 en DISTRIBUIDORA MAGALLANES LIMITADA: HHI 4442 sobre un umbral de 2500, con 58 proveedores en 1792 órdenes.",
+          "orders": 4,
+          "reproduces": true,
+          "reproduces_reason": "se verifica por la cuota del proveedor en el perfil",
+          "benign_explanation": null,
+          "evidence_complete": true
+        }
+      ]
+    },
+    "descripcion_insuficiente": {
+      "stats": {
+        "sampled": 8,
+        "reproduce": 8,
+        "benign": 7,
+        "actionable": 1,
+        "with_evidence": 8
+      },
+      "cases": [
+        {
+          "signal": "c8c24e6d6dcb924e",
+          "claim": "3 compra(s) de SERVICIO DE SALUD OCCIDENTE HOSPITAL SAN JUAN DE DIOS a HEMISFERIO SUR S.A. sobre $50,000,000 con una descripción de menos de 25 caracteres (ej: «PNP 84218.»), por $196,350,000. Una com",
+          "orders": 3,
+          "reproduces": true,
+          "reproduces_reason": "todas sobre el umbral y con descripción corta",
+          "benign_explanation": "el campo «nombre» sí especifica el objeto: «MVU - PNP 84218 VALVULA AORTICA BALONEXPANDIBLE (K»",
+          "evidence_complete": true
+        },
+        {
+          "signal": "8b01fc02da38e906",
+          "claim": "1 compra(s) de FUNDACIÓN GG a GASCO GLP S A sobre $50,000,000 con una descripción de menos de 25 caracteres (ej: « »), por $364,092,400. Una compra grande sin objeto identificable no se puede auditar ",
+          "orders": 1,
+          "reproduces": true,
+          "reproduces_reason": "todas sobre el umbral y con descripción corta",
+          "benign_explanation": "el campo «nombre» sí especifica el objeto: «Orden de Compra generada por la Gran Compra: 82776»",
+          "evidence_complete": true
+        },
+        {
+          "signal": "3806e16ae83a2fa1",
+          "claim": "1 compra(s) de SERVICIO NACIONAL DE SALUD HOSPITAL DE P a SODEXO SOLUCIONES DE MOTIVACION CHILE S.A. sobre $50,000,000 con una descripción de menos de 25 caracteres (ej: « »), por $191,200,037. Una co",
+          "orders": 1,
+          "reproduces": true,
+          "reproduces_reason": "todas sobre el umbral y con descripción corta",
+          "benign_explanation": "el campo «nombre» sí especifica el objeto: «GC TARJETAS ELECTRONICAS PARA ALIMENTACIÓN DE FUNC»",
+          "evidence_complete": true
+        },
+        {
+          "signal": "da82db9cf83d7e57",
+          "claim": "2 compra(s) de FONDO HOSPITAL DE LA DIRECCION DE PREVISION DE CARABINEROS DE CHILE a MAGO CHIC ASEO INDUSTRIAL SOCIEDAD ANONIMA sobre $50,000,000 con una descripción de menos de 25 caracteres (ej: «94",
+          "orders": 2,
+          "reproduces": true,
+          "reproduces_reason": "todas sobre el umbral y con descripción corta",
+          "benign_explanation": null,
+          "evidence_complete": true
+        },
+        {
+          "signal": "19336d3f607404e0",
+          "claim": "2 compra(s) de SERVICIO DE SALUD ARAUCANIA SUR a OFTAMEDICA S.A. sobre $50,000,000 con una descripción de menos de 25 caracteres (ej: «resol 17986 autoriza TD»), por $1,869,060,000. Una compra grande ",
+          "orders": 2,
+          "reproduces": true,
+          "reproduces_reason": "todas sobre el umbral y con descripción corta",
+          "benign_explanation": "el campo «nombre» sí especifica el objeto: «Resol 530 TD Retinopatia Diabetica»",
+          "evidence_complete": true
+        },
+        {
+          "signal": "7f4bf0898595ebee",
+          "claim": "2 compra(s) de HOSPITAL PUERTO MONTT SERVICIO DE SALUD DEL RELONCAVI a PFIZER CHILE S.A. sobre $50,000,000 con una descripción de menos de 25 caracteres (ej: «axitinib»), por $127,609,436. Una compra ",
+          "orders": 2,
+          "reproduces": true,
+          "reproduces_reason": "todas sobre el umbral y con descripción corta",
+          "benign_explanation": "el campo «nombre» sí especifica el objeto: «Orden de Compra generada por Trato Directo ID 1058»",
+          "evidence_complete": true
+        },
+        {
+          "signal": "89d0de4b2e74be9d",
+          "claim": "4 compra(s) de I MUNICIPALIDAD DE CALBUCO a alejandro andres mansilla miranda sobre $50,000,000 con una descripción de menos de 25 caracteres (ej: «Dom sp/99»), por $954,980,097. Una compra grande sin",
+          "orders": 4,
+          "reproduces": true,
+          "reproduces_reason": "todas sobre el umbral y con descripción corta",
+          "benign_explanation": "el campo «nombre» sí especifica el objeto: «Const.Portal Acceso y Cierre Perimetral Parque Mun»",
+          "evidence_complete": true
+        },
+        {
+          "signal": "d3709f1959e1a755",
+          "claim": "1 compra(s) de I MUNICIPALIDAD DE MARIA PINTO a DEMARCO S.A. sobre $50,000,000 con una descripción de menos de 25 caracteres (ej: «Según Decreto 487/2026»), por $359,880,000. Una compra grande sin obj",
+          "orders": 1,
+          "reproduces": true,
+          "reproduces_reason": "todas sobre el umbral y con descripción corta",
+          "benign_explanation": "el campo «nombre» sí especifica el objeto: «Orden de Compra generada por Trato Directo ID 4099»",
+          "evidence_complete": true
+        }
+      ]
+    },
+    "fraccionamiento": {
+      "stats": {
+        "sampled": 8,
+        "reproduce": 8,
+        "benign": 0,
+        "actionable": 8,
+        "with_evidence": 8
+      },
+      "cases": [
+        {
+          "signal": "a9e911b58818cda1",
+          "claim": "24 órdenes de compra de COMPLEJO ASISTENCIAL DR.VICTOR RIOS RUIZ a VANTIVE LABORATORIOS LIMITADA en 2025-02, ninguna por sobre $1.000.000, suman $15.858.869 (15.9× el umbral).",
+          "orders": 20,
+          "reproduces": true,
+          "reproduces_reason": "todas bajo el umbral y la suma es material",
+          "benign_explanation": null,
+          "evidence_complete": true
+        },
+        {
+          "signal": "02364ad73e83013f",
+          "claim": "59 órdenes de compra de SERVICIO SALUD ARAUCANIA SUR HOSPITAL PITRUFQUEN a TECNOMEDICAL S A en 2026-01, ninguna por sobre $1.000.000, suman $37.023.875 (37.0× el umbral).",
+          "orders": 20,
+          "reproduces": true,
+          "reproduces_reason": "todas bajo el umbral y la suma es material",
+          "benign_explanation": null,
+          "evidence_complete": true
+        },
+        {
+          "signal": "011467f3919b718b",
+          "claim": "35 órdenes de compra de HOSPITAL DOCTOR HERNAN HENRIQUEZ ARAVENA a UNIVERSIDAD DE CHILE en 2022-07, ninguna por sobre $1.000.000, suman $18.908.360 (18.9× el umbral).",
+          "orders": 20,
+          "reproduces": true,
+          "reproduces_reason": "todas bajo el umbral y la suma es material",
+          "benign_explanation": null,
+          "evidence_complete": true
+        },
+        {
+          "signal": "5689d2922934e510",
+          "claim": "43 órdenes de compra de HOSPITAL PUERTO MONTT SERVICIO DE SALUD DEL RELONCAVI a INDUSTRIAL Y COMERCIAL BAXTER DE CHILE LTDA en 2022-09, ninguna por sobre $1.000.000, suman $33.232.303 (33.2× el umbral",
+          "orders": 20,
+          "reproduces": true,
+          "reproduces_reason": "todas bajo el umbral y la suma es material",
+          "benign_explanation": null,
+          "evidence_complete": true
+        },
+        {
+          "signal": "78a94312f96db383",
+          "claim": "48 órdenes de compra de HOSPITAL PUERTO MONTT SERVICIO DE SALUD DEL RELONCAVI a INDUSTRIAL Y COMERCIAL BAXTER DE CHILE LTDA en 2021-11, ninguna por sobre $1.000.000, suman $34.177.478 (34.2× el umbral",
+          "orders": 20,
+          "reproduces": true,
+          "reproduces_reason": "todas bajo el umbral y la suma es material",
+          "benign_explanation": null,
+          "evidence_complete": true
+        },
+        {
+          "signal": "e4cd345cc2b16ce7",
+          "claim": "25 órdenes de compra de COMPLEJO ASISTENCIAL DR.VICTOR RIOS RUIZ a VANTIVE LABORATORIOS LIMITADA en 2024-12, ninguna por sobre $1.000.000, suman $16.486.267 (16.5× el umbral).",
+          "orders": 20,
+          "reproduces": true,
+          "reproduces_reason": "todas bajo el umbral y la suma es material",
+          "benign_explanation": null,
+          "evidence_complete": true
+        },
+        {
+          "signal": "844c96f73960c5de",
+          "claim": "24 órdenes de compra de SERVICIO DE SALUD VALDIVIA HOSPITAL BASE a INDUSTRIAL Y COMERCIAL BAXTER DE CHILE LTDA en 2022-02, ninguna por sobre $1.000.000, suman $16.286.208 (16.3× el umbral).",
+          "orders": 20,
+          "reproduces": true,
+          "reproduces_reason": "todas bajo el umbral y la suma es material",
+          "benign_explanation": null,
+          "evidence_complete": true
+        },
+        {
+          "signal": "dcf5def0448c904f",
+          "claim": "82 órdenes de compra de SERVICIO DE SALUD VALDIVIA HOSPITAL BASE a CLINICA ALEMANA DE VALDIVIA S.A. en 2024-01, ninguna por sobre $1.000.000, suman $53.222.150 (53.2× el umbral).",
+          "orders": 20,
+          "reproduces": true,
+          "reproduces_reason": "todas bajo el umbral y la suma es material",
+          "benign_explanation": null,
+          "evidence_complete": true
+        }
+      ]
+    },
+    "ordenes_gemelas": {
+      "stats": {
+        "sampled": 8,
+        "reproduce": 8,
+        "benign": 3,
+        "actionable": 5,
+        "with_evidence": 8
+      },
+      "cases": [
+        {
+          "signal": "66f419f066daa3ce",
+          "claim": "2 órdenes de HOSPITAL DOCTOR HERNAN HENRIQUEZ ARAVENA a INTEGRAL SERVICE HOME & ENTERPRISES LIMITADA por el mismo monto exacto ($238,408,450) el mismo día 2-03-6--20. Puede ser un fraccionamiento o un",
+          "orders": 2,
+          "reproduces": true,
+          "reproduces_reason": "mismo monto exacto y misma fecha",
+          "benign_explanation": null,
+          "evidence_complete": true
+        },
+        {
+          "signal": "ad370f10ec63522c",
+          "claim": "2 órdenes de I MUNICIPALIDAD DE IQUIQUE a DESARROLLOS Y PROYECTOS DE INGENIERIA INGETECH S A por el mismo monto exacto ($249,842,880) el mismo día 2025-06-09. Puede ser un fraccionamiento o una duplic",
+          "orders": 2,
+          "reproduces": true,
+          "reproduces_reason": "mismo monto exacto y misma fecha",
+          "benign_explanation": "las descripciones difieren: son compras distintas, no duplicados",
+          "evidence_complete": true
+        },
+        {
+          "signal": "a8a1c9b303c78db6",
+          "claim": "2 órdenes de COMPLEJO ASISTENCIAL DR.VICTOR RIOS RUIZ a ASEOS SAN FRANCISCO LIMITADA por el mismo monto exacto ($352,240,000) el mismo día 2025-01-07. Puede ser un fraccionamiento o una duplicación de",
+          "orders": 2,
+          "reproduces": true,
+          "reproduces_reason": "mismo monto exacto y misma fecha",
+          "benign_explanation": null,
+          "evidence_complete": true
+        },
+        {
+          "signal": "f9774967984ee58b",
+          "claim": "2 órdenes de I MUNICIPALIDAD DE IQUIQUE a CONSTRUCCIONES Y SERVICIOS SIGLO VERDE S A por el mismo monto exacto ($284,060,822) el mismo día 2025-06-09. Puede ser un fraccionamiento o una duplicación de",
+          "orders": 2,
+          "reproduces": true,
+          "reproduces_reason": "mismo monto exacto y misma fecha",
+          "benign_explanation": "las descripciones difieren: son compras distintas, no duplicados",
+          "evidence_complete": true
+        },
+        {
+          "signal": "0523935ce6b9e152",
+          "claim": "3 órdenes de SERVICIO DE SALUD DEL MAULE HOSPITAL DE CURICO a SEGURIVI LIMITADA por el mismo monto exacto ($116,625,826) el mismo día 6-03-6--20. Puede ser un fraccionamiento o una duplicación de regi",
+          "orders": 3,
+          "reproduces": true,
+          "reproduces_reason": "mismo monto exacto y misma fecha",
+          "benign_explanation": null,
+          "evidence_complete": true
+        },
+        {
+          "signal": "c6158fdb154b75cc",
+          "claim": "2 órdenes de I MUNICIPALIDAD DE ANTOFAGASTA a DEMARCO S.A. por el mismo monto exacto ($220,454,020) el mismo día 2022-02-24. Puede ser un fraccionamiento o una duplicación de registro; los códigos son",
+          "orders": 2,
+          "reproduces": true,
+          "reproduces_reason": "mismo monto exacto y misma fecha",
+          "benign_explanation": null,
+          "evidence_complete": true
+        },
+        {
+          "signal": "ea5ddad0bc27d8bd",
+          "claim": "2 órdenes de I MUNICIPALIDAD DE ANTOFAGASTA a DEMARCO S.A. por el mismo monto exacto ($253,000,000) el mismo día 1-09-2--20. Puede ser un fraccionamiento o una duplicación de registro; los códigos son",
+          "orders": 2,
+          "reproduces": true,
+          "reproduces_reason": "mismo monto exacto y misma fecha",
+          "benign_explanation": null,
+          "evidence_complete": true
+        },
+        {
+          "signal": "0b2a09ca8fd891f0",
+          "claim": "3 órdenes de I MUNICIPALIDAD DE PUENTE ALTO a STARCO S A por el mismo monto exacto ($498,848,000) el mismo día 2024-08-29. Puede ser un fraccionamiento o una duplicación de registro; los códigos son l",
+          "orders": 3,
+          "reproduces": true,
+          "reproduces_reason": "mismo monto exacto y misma fecha",
+          "benign_explanation": "las descripciones difieren: son compras distintas, no duplicados",
+          "evidence_complete": true
+        }
+      ]
+    },
+    "proveedor_nuevo_grande": {
+      "stats": {
+        "sampled": 8,
+        "reproduce": 8,
+        "benign": 0,
+        "actionable": 8,
+        "with_evidence": 8
+      },
+      "cases": [
+        {
+          "signal": "5bee148dc4fa13d9",
+          "claim": "LIMTEC  SPA aparece por primera vez en la serie con una orden de $3,705,602,894 a ILUSTRE MUNICIPALIDAD DE CHILLAN VIEJO el 9-01-6--20 — sobre 20,000,000 pesos en su primera operación registrada.",
+          "orders": 1,
+          "reproduces": true,
+          "reproduces_reason": "la primera operación supera el mínimo de la familia",
+          "benign_explanation": null,
+          "evidence_complete": true
+        },
+        {
+          "signal": "8cea0ff6d309ac4e",
+          "claim": "COSEMAR S A aparece por primera vez en la serie con una orden de $5,253,232,620 a I MUNICIPALIDAD DE PUERTO MONTT el 0-03-2--20 — sobre 20,000,000 pesos en su primera operación registrada.",
+          "orders": 1,
+          "reproduces": true,
+          "reproduces_reason": "la primera operación supera el mínimo de la familia",
+          "benign_explanation": null,
+          "evidence_complete": true
+        },
+        {
+          "signal": "826ccfbd2c156c83",
+          "claim": "CENTRO DE DIALISIS CURICO LIMITADA aparece por primera vez en la serie con una orden de $3,747,129,984 a FONDO NACIONAL DE SALUD el 2022-04-06 — sobre 20,000,000 pesos en su primera operación registra",
+          "orders": 1,
+          "reproduces": true,
+          "reproduces_reason": "la primera operación supera el mínimo de la familia",
+          "benign_explanation": null,
+          "evidence_complete": true
+        },
+        {
+          "signal": "87fa8223aa2b272a",
+          "claim": "CONSTRUCTORA REYES Y REYES S.A. aparece por primera vez en la serie con una orden de $3,444,356,431 a I MUNICIPALIDAD DE EL TABO el 0-02-5--20 — sobre 20,000,000 pesos en su primera operación registra",
+          "orders": 3,
+          "reproduces": true,
+          "reproduces_reason": "la primera operación supera el mínimo de la familia",
+          "benign_explanation": null,
+          "evidence_complete": true
+        },
+        {
+          "signal": "d1ae68e951dfd304",
+          "claim": "SERVICIOS INTEGRALES AMBIENTE VERDE SPA aparece por primera vez en la serie con una orden de $4,643,856,000 a I MUNICIPALIDAD DE LAMPA el 2025-02-19 — sobre 20,000,000 pesos en su primera operación re",
+          "orders": 1,
+          "reproduces": true,
+          "reproduces_reason": "la primera operación supera el mínimo de la familia",
+          "benign_explanation": null,
+          "evidence_complete": true
+        },
+        {
+          "signal": "e2d62150738e2537",
+          "claim": "CONSTRUCTORA ANDES Y COMPANIA LTDA aparece por primera vez en la serie con una orden de $14,770,280,000 a SERVICIO SALUD DEL RELONCAVI el 0-12-2--20 — sobre 20,000,000 pesos en su primera operación re",
+          "orders": 1,
+          "reproduces": true,
+          "reproduces_reason": "la primera operación supera el mínimo de la familia",
+          "benign_explanation": null,
+          "evidence_complete": true
+        },
+        {
+          "signal": "57820addeaff4ef4",
+          "claim": "CLINICA DE DIALISIS LAJA SOCIEDAD ANONIMA aparece por primera vez en la serie con una orden de $3,799,173,456 a FONDO NACIONAL DE SALUD el 2022-04-05 — sobre 20,000,000 pesos en su primera operación r",
+          "orders": 2,
+          "reproduces": true,
+          "reproduces_reason": "la primera operación supera el mínimo de la familia",
+          "benign_explanation": null,
+          "evidence_complete": true
+        },
+        {
+          "signal": "327fd6659d1872e2",
+          "claim": "CONSTRUCTORA CUATRO REINOS SPA aparece por primera vez en la serie con una orden de $4,392,791,713 a COMANDO DE APOYO A LA FUERZA el 2023-08-07 — sobre 20,000,000 pesos en su primera operación registr",
+          "orders": 2,
+          "reproduces": true,
+          "reproduces_reason": "la primera operación supera el mínimo de la familia",
+          "benign_explanation": null,
+          "evidence_complete": true
+        }
+      ]
+    },
+    "trato_directo_reiterado": {
+      "stats": {
+        "sampled": 8,
+        "reproduce": 8,
+        "benign": 0,
+        "actionable": 8,
+        "with_evidence": 0
+      },
+      "cases": [
+        {
+          "signal": "2688adefff21c399",
+          "claim": "49 órdenes por Trato Directo de SUBSECRETARIA DE SALUD PUBLICA a GO SERVICIOS DE ATENCION DOMICILIARIA S.A. — el 100% de lo que ese comprador le adjudicó, por $7,041,351,468. Un trato directo tiene ca",
+          "orders": 12,
+          "reproduces": true,
+          "reproduces_reason": "todas son trato directo y superan el mínimo",
+          "benign_explanation": null,
+          "evidence_complete": false
+        },
+        {
+          "signal": "970731727eb901e8",
+          "claim": "131 órdenes por Trato Directo de SERVICIO DE SALUD VINA DEL MAR QUILLOTA a SERVINTEGRAL LIMITADA — el 73% de lo que ese comprador le adjudicó, por $2,426,213,158. Un trato directo tiene causales legal",
+          "orders": 12,
+          "reproduces": true,
+          "reproduces_reason": "todas son trato directo y superan el mínimo",
+          "benign_explanation": null,
+          "evidence_complete": false
+        },
+        {
+          "signal": "e8918680eb454d56",
+          "claim": "57 órdenes por Trato Directo de I MUNICIPALIDAD DE SANTIAGO a EMPRESA DE CORREOS DE CHILE — el 93% de lo que ese comprador le adjudicó, por $8,784,781,470. Un trato directo tiene causales legales; el ",
+          "orders": 12,
+          "reproduces": true,
+          "reproduces_reason": "todas son trato directo y superan el mínimo",
+          "benign_explanation": null,
+          "evidence_complete": false
+        },
+        {
+          "signal": "cbd1e372349add05",
+          "claim": "487 órdenes por Trato Directo de SERVICIO NACIONAL DE SALUD HOSPITAL DE C a TECNOMEDICAL S A — el 68% de lo que ese comprador le adjudicó, por $574,019,472. Un trato directo tiene causales legales; el",
+          "orders": 12,
+          "reproduces": true,
+          "reproduces_reason": "todas son trato directo y superan el mínimo",
+          "benign_explanation": null,
+          "evidence_complete": false
+        },
+        {
+          "signal": "25a1028cce444987",
+          "claim": "66 órdenes por Trato Directo de DIRECCION DE LOGISTICA DE CARABINEROS a SALINAS Y FABRES SOCIEDAD ANONIMA — el 65% de lo que ese comprador le adjudicó, por $7,760,557,270. Un trato directo tiene causa",
+          "orders": 12,
+          "reproduces": true,
+          "reproduces_reason": "todas son trato directo y superan el mínimo",
+          "benign_explanation": null,
+          "evidence_complete": false
+        },
+        {
+          "signal": "228ce2612f272f57",
+          "claim": "158 órdenes por Trato Directo de SERVICIO DE SALUD COQUIMBO HOSPITAL LA SERENA a JOHNSON Y JOHNSON DE CHILE S A — el 63% de lo que ese comprador le adjudicó, por $1,653,336,787. Un trato directo tiene",
+          "orders": 12,
+          "reproduces": true,
+          "reproduces_reason": "todas son trato directo y superan el mínimo",
+          "benign_explanation": null,
+          "evidence_complete": false
+        },
+        {
+          "signal": "5777e505c51df68f",
+          "claim": "564 órdenes por Trato Directo de SERVICIO DE SALUD ARICA HOSP DR JUAN NOE CREVANI a BIOMET CHILE S A — el 76% de lo que ese comprador le adjudicó, por $859,821,330. Un trato directo tiene causales leg",
+          "orders": 12,
+          "reproduces": true,
+          "reproduces_reason": "todas son trato directo y superan el mínimo",
+          "benign_explanation": null,
+          "evidence_complete": false
+        },
+        {
+          "signal": "6d890742ebfe2020",
+          "claim": "2172 órdenes por Trato Directo de SERVICIO DE SALUD VALDIVIA HOSPITAL BASE a DIAGNOSTICO CLINICA ALEMANA DE VALDIVIA LIMITADA — el 100% de lo que ese comprador le adjudicó, por $316,496,481. Un trato ",
+          "orders": 12,
+          "reproduces": true,
+          "reproduces_reason": "todas son trato directo y superan el mínimo",
+          "benign_explanation": null,
+          "evidence_complete": false
+        }
+      ]
+    }
+  },
+  "totals": {
+    "sampled": 48,
+    "reproduce": 48,
+    "benign": 10,
+    "actionable": 38,
+    "with_evidence": 40
+  },
+  "rates": {
+    "reproduce": 1.0,
+    "benign": 0.2083,
+    "actionable": 0.7917,
+    "evidence_complete": 0.8333
+  }
+}
