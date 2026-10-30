@@ -311,3 +311,75 @@ python3 benchmarks/make_audit_sample.py   # same 60 pairs, fixed seed
 # a person fills benchmarks/audit/hoja_60.csv, blind
 python3 benchmarks/score_audit.py
 ```
+
+---
+
+# Run 4 — taking out the pairs nobody could answer
+
+Run 3 found that many "positives" are not two spellings of one name. They are the legal
+name against the trade name, because the OCDS `name` field joins them with `|`:
+
+```
+LIVISTER CHILE SPA                        |  IFX
+SERVICIO DE EFICIENCIA ENERGETICA LTDA    |  I-Energy Limitada.
+INGENIERÍA Y GESTIÓN JUAN ROJAS E.I.R.L.  |  ROGEIN
+```
+
+Same RUT. No string comparison reaches it: knowing that IFX is LIVISTER's brand is world
+knowledge, not similarity. Scoring those as model misses measures the dataset.
+
+So the set now carries a `resolvable` flag, decided by a rule rather than by the audit's
+seven examples: two names are **unresolvable** when they share no significant token after
+dropping legal forms and stop words (`SPA`, `LIMITADA`, `E.I.R.L.`, `SOCIEDAD`, `DE`, …).
+The rule reproduces five of the seven pairs the person flagged; the two it does not
+(`Q4 INGENIEROS LIMITADA` / `Q4 INGENIEROS`, `BERNARDO PILQUINAO ÑANCULAF` / `Bernardo`)
+share their name and are resolvable — the auditor rejected them for a different reason,
+recorded below.
+
+## How much of the set was undecidable
+
+| Stratum | Pairs | Unresolvable | Share |
+|---|---|---|---|
+| positive (run 1) | 952 | 290 | 30 % |
+| hard_positive (run 2) | 627 | 202 | **32 %** |
+| **total** | 1.579 | **492** | **31 %** |
+
+A third. The first two runs scored the model against a task a third of which was
+impossible from the inputs.
+
+## The curve, before and after
+
+Against the same 313 negatives, positives = 425 resolvable pairs:
+
+| rerank threshold | Precision | Recall (resolvable) | Recall (all positives) |
+|---|---|---|---|
+| 0.30 | 0.871 | **0.812** | 0.606 |
+| 0.50 | 0.880 | 0.689 | 0.512 |
+| 0.70 | 0.924 | 0.518 | 0.372 |
+| 0.85 | 0.964 | 0.311 | 0.222 |
+| **0.90** | **0.967** | **0.205** | 0.150 |
+| 0.95 | 0.940 | 0.111 | 0.080 |
+| 0.97 | 0.964 | 0.064 | 0.046 |
+
+Precision barely moves — it was never the contaminated number. Recall was: at the
+candidate threshold it goes from 0.606 to **0.812**. The model was being charged for a
+third of the task it could not see.
+
+## The caveat this does not fix
+
+The audit instruction said *"un nombre más corto no es la misma entidad"*, and gave
+`Bernardo` against `BERNARDO PILQUINAO ÑANCULAF` as the example. Two of the auditor's
+rejections — that one and `Q4 INGENIEROS LIMITADA` / `Q4 INGENIEROS` — look like that
+rule applied literally. **A blind audit is only as blind as its instructions**, and this
+one leaked a prior. The honest reading is that the person↔RUT agreement of 84.5 % is a
+floor, not an estimate, and the next sheet should state the legal-form rule without an
+example that resolves a real pair.
+
+## What the four runs add up to
+
+> 1.892 pairs, labels from the RUT. The positives were made hard on purpose, and 31 % of
+> them turned out to be undecidable from the strings — a trade name is not a name. On the
+> 425 that are decidable, the candidate threshold reaches 81 % of the true pairs at 0.871
+> precision, and the assert threshold asserts one pair in five at 0.967. A person reading
+> 60 blind rejected none of the assertions. The threshold was never the problem: the
+> label was doing two jobs, and one of them was not about names at all.

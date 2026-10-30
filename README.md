@@ -264,14 +264,17 @@ than a guess. Labels come from the **RUT**, not from a model — two strings sha
 `identifier.id` are the same legal entity by definition, so there is no circularity:
 
 1,892 pairs, of which **627 are hard positives** — the same RUT with genuinely
-different names. Measured against all 313 negatives:
+different names. **31 % of the positives turned out to be undecidable from the strings**
+(OCDS joins the legal name and the trade name with `|`: `LIVISTER CHILE SPA` against
+`IFX`), so they carry a `resolvable` flag and are excluded from the recall. Against the
+313 negatives and the **425 resolvable positives**:
 
 | Stage | Threshold | Precision | Recall |
 |---|---|---|---|
 | Embeddings only (`qwen3-embedding-8b`) | cos ≥ 0.86 | **0 of 150** hard negatives rejected — unusable alone | — |
-| Reranker (`qwen3-reranker-8b`) — candidate | 0.30 | 0.882 | 0.606 |
-| Reranker — asserted relation | 0.90 | 0.969 | 0.150 |
-| same, raised | 0.97 | 0.967 | 0.046 |
+| Reranker (`qwen3-reranker-8b`) — candidate | 0.30 | 0.871 | **0.812** |
+| Reranker — asserted relation | 0.90 | **0.967** | 0.205 |
+| same, raised | 0.97 | 0.964 | 0.064 |
 
 Naming a *candidate* and asserting a *relation* are different acts with different costs.
 A false candidate costs a human two minutes. A false relation is a false accusation.

@@ -36,6 +36,7 @@ import argparse
 import json
 import os
 import random
+import re
 import sys
 import time
 import unicodedata
@@ -54,6 +55,43 @@ def normalise(text: str) -> str:
     """Fold accents, drop punctuation, collapse whitespace. Comparison only."""
     folded = unicodedata.normalize("NFKD", text or "").encode("ascii", "ignore").decode()
     return " ".join("".join(c if c.isalnum() else " " for c in folded).split()).upper()
+
+
+#: Legal forms and stop words: they do not distinguish one company from another.
+LEGAL_FORMS = {
+    "SPA", "SA", "LTDA", "LIMITADA", "EIRL", "CIA", "SOCIEDAD", "COMANDITA", "POR",
+    "ACCIONES", "ANONIMA", "Y", "DE", "DEL", "LA", "EL", "LOS", "LAS", "EMPRESA",
+    "INVERSIONES", "COMERCIAL", "SERVICIOS",
+}
+
+
+def significant_tokens(text: str) -> set[str]:
+    folded = unicodedata.normalize("NFKD", text or "").encode("ascii", "ignore").decode().upper()
+    return {
+        token
+        for token in re.findall(r"[A-Z0-9]+", folded)
+        if token not in LEGAL_FORMS and len(token) > 1
+    }
+
+
+def brand_like(legal: str, variant: str) -> bool:
+    """True when the pair cannot be resolved by comparing the two strings.
+
+    The OCDS ``name`` field joins the legal name and the trade name with ``|``, so a
+    "positive" pair can be ``LIVISTER CHILE SPA`` against ``IFX``. Same RUT, and no
+    string comparison reaches it: knowing that IFX is LIVISTER's brand is world
+    knowledge, not similarity. Scoring those as model misses measures the dataset, not
+    the model.
+
+    The rule is lexical overlap after dropping legal forms: five of the seven pairs a
+    person flagged in the audit are caught by it, and the two it does not catch
+    (``Q4 INGENIEROS LIMITADA`` / ``Q4 INGENIEROS``) share their whole name and are
+    resolvable — the auditor rejected them for another reason, recorded in run 3.
+    """
+    left, right = significant_tokens(legal), significant_tokens(variant)
+    if not left or not right:
+        return True
+    return not (left & right)
 
 
 def load_index() -> tuple[dict[str, int], np.ndarray]:
@@ -95,6 +133,10 @@ def hard_positives() -> list[dict]:
                     "name_b": variant,
                     "stratum": "hard_positive",
                     "truth": "same",
+                    # False means the pair is undecidable from the strings alone, so it
+                    # is excluded from the resolvable recall rather than counted as an
+                    # error nobody could have avoided.
+                    "resolvable": not brand_like(legal, variant),
                 }
             )
     pairs.sort(key=lambda p: (p["rut_a"], p["name_b"]))
@@ -173,7 +215,23 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--workers", type=int, default=4)
     parser.add_argument("--out", default=str(HERE / "pairs_final.json"))
+    parser.add_argument(
+        "--retag-only",
+        action="store_true",
+        help="add the `resolvable` flag to an existing file; no API calls",
+    )
     args = parser.parse_args()
+
+    if args.retag_only:
+        path = Path(args.out)
+        rows = json.loads(path.read_text(encoding="utf-8"))
+        for row in rows:
+            if row["stratum"] in ("hard_positive", "positive"):
+                row["resolvable"] = not brand_like(row["name_a"], row["name_b"])
+        path.write_text(json.dumps(rows, ensure_ascii=False, indent=1), encoding="utf-8")
+        flagged = sum(1 for r in rows if r.get("resolvable") is False)
+        print(f"retagged {path}: {flagged} pairs marked unresolvable")
+        return 0
 
     lookup, matrix = load_index()
 
