@@ -27,8 +27,14 @@ Para cada fila, una sola pregunta:
 - **`DUDOSO`** — no se puede decidir con lo que hay en la fila. Es una respuesta válida
   y **es la más informativa**: significa que el sistema tampoco debería decidir.
 
-Regla que importa: **un nombre más corto no es la misma entidad.** «Bernardo» no es
-«BERNARDO PILQUINAO ÑANCULAF» hasta que alguien lo confirma.
+Regla que importa: **que un nombre contenga al otro no basta.** El sufijo societario
+(`SPA`, `LIMITADA`, `E.I.R.L.`) no cambia la identidad; el resto del nombre sí, y un
+nombre que se corta pierde información que nadie repuso.
+
+> Nota de la ronda 1: la instrucción anterior daba un par concreto como ejemplo, y dos
+> respuestas parecen haber aplicado la regla literalmente en vez de juzgar el par. Una
+> auditoría ciega es tan ciega como sus instrucciones; esta versión no resuelve ningún
+> par real.
 
 ## Qué se calcula después
 
