@@ -130,6 +130,7 @@ expediente/
   resolution/   entity resolution: shared address, shared representative
   detectors/    deterministic, explainable rules
   evidence/     the gate: what a dossier is allowed to say, PDF -> page
+  extract/      fields with a page, or a named absence — never a finding
   dossier/      the signed artifact: citations, rejections, limitations
   agent/        the navigation agent: verbs, provider, plan/act/observe loop
   runs/         the append-only recording of a run, and its replay
@@ -139,7 +140,7 @@ expediente/
   portal/       the investigation UI: map, board, agent, log
   cli.py        command line entry point
 scripts/        isolated MillenniumDB, ingest, deploy, signal materialisation
-benchmarks/     the entity-resolution set: 1,249 pairs labelled by RUT
+benchmarks/     entity resolution (1,249 pairs labelled by RUT) + the extraction harness
 docs/           architecture, graph schema, backend dialect, findings
 tests/          unit tests, deterministic, offline
 examples/       small synthetic fixtures (fake data, clearly labelled)
