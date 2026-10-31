@@ -1,0 +1,26 @@
+{
+  "n": 60,
+  "base": {
+    "valor_pagina": 59,
+    "cita_exacta": 48
+  },
+  "tuned": {
+    "valor_pagina": 60,
+    "cita_exacta": 60
+  },
+  "nota": "El grader del cookbook compara extracto como string exacto; este archivo re-gradua las mismas respuestas por valor+pagina.",
+  "tokens": {
+    "base_sampled": 42121,
+    "tuned_sampled": 5585
+  },
+  "cookbook_summary": {
+    "base_exact": 0.7833333333333333,
+    "tuned_exact": 1.0,
+    "paired": {
+      "only_tuned_correct": 13,
+      "only_base_correct": 0,
+      "p_value": 0.000244140625
+    },
+    "steps": 37
+  }
+}

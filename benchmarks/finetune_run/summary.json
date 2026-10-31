@@ -1,0 +1,40 @@
+{
+  "steps": 37,
+  "base": {
+    "label": "base",
+    "exact_match": 0.7833333333333333,
+    "unterminated": 0,
+    "prompt_tokens": 30200,
+    "sampled_tokens": 42121,
+    "field_accuracy": {
+      "campos": 0.7833333333333333
+    }
+  },
+  "tuned": {
+    "label": "tuned",
+    "exact_match": 1.0,
+    "unterminated": 0,
+    "prompt_tokens": 30200,
+    "sampled_tokens": 5585,
+    "field_accuracy": {
+      "campos": 1.0
+    }
+  },
+  "promoted_model": "accounts/sebastian-0nn9xupp8l/models/muse-starter-sl-r20261031-193318",
+  "exact_match_delta": 0.2167,
+  "paired": {
+    "only_tuned_correct": 13,
+    "only_base_correct": 0,
+    "p_value": 0.000244140625
+  },
+  "session": "ts-0ac4ed0f28354ac196ac2d97494d083c",
+  "log": "muse_starter_logs/r20261031-193318",
+  "cost": {
+    "training": "$0 (promotional)",
+    "evaluation_sampling": {
+      "prompt_tokens": 60400,
+      "sampled_tokens": 47706,
+      "note": "billed separately from training at published per-token rates"
+    }
+  }
+}
