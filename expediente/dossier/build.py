@@ -11,6 +11,7 @@ from typing import Any, Iterable, Mapping
 
 from ..evidence.gate import GateReport
 from ..evidence.models import Document
+from .control import PlaceboControl
 from .models import Citation, Dossier, DossierClaim, RejectedClaim
 
 
@@ -27,6 +28,7 @@ def build_dossier(
     generado_en: str,
     thresholds: Mapping[str, Any] | None = None,
     detectors: Iterable[str] = (),
+    control: PlaceboControl | None = None,
 ) -> Dossier:
     """Turn a gate report into a signable dossier.
 
@@ -67,4 +69,5 @@ def build_dossier(
         rejected=tuple(rejected),
         thresholds=dict(thresholds or {}),
         detectors=tuple(sorted(detectors)),
+        control=control,
     )

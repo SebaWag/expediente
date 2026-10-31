@@ -13,6 +13,8 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
+from .control import PlaceboControl
+
 
 @dataclass(frozen=True, slots=True)
 class Citation:
@@ -61,6 +63,10 @@ class Dossier:
     rejected: tuple[RejectedClaim, ...]
     thresholds: dict[str, Any] = field(default_factory=dict)
     detectors: tuple[str, ...] = field(default_factory=tuple)
+    #: The counterfactual behind any claim about a threshold, measured on this same
+    #: population. Part of the dossier's identity: a document whose control differs is a
+    #: document that asserts something different about what its own numbers mean.
+    control: PlaceboControl | None = None
 
     @property
     def id(self) -> str:
@@ -92,6 +98,7 @@ class Dossier:
             "rejected": [{"id": item.id, "reason": item.reason} for item in self.rejected],
             "thresholds": self.thresholds,
             "detectors": list(self.detectors),
+            "control": self.control.to_dict() if self.control else None,
         }
 
     def to_dict(self) -> dict[str, Any]:
@@ -105,6 +112,7 @@ class Dossier:
             "counts": {"claims": len(self.claims), "rejected": len(self.rejected)},
             "thresholds": self.thresholds,
             "detectors": list(self.detectors),
+            "control": self.control.to_dict() if self.control else None,
             "claims": [claim.to_dict() for claim in self.claims],
             "rejected": [item.to_dict() for item in self.rejected],
         }
@@ -158,6 +166,30 @@ def _render_markdown(dossier: Dossier) -> str:
         for item in dossier.rejected:
             lines += [f"- `{item.id}` — **{item.reason}** · {item.detail}"]
         lines.append("")
+
+    if dossier.control:
+        control = dossier.control
+        real = control.real
+        lines += ["## Control de placebo", ""]
+        lines += [f"*{control.reading()}*", ""]
+        lines += [
+            "| factor del tope | cadenas | órdenes citadas | monto (CLP) | % de las reales |",
+            "|---:|---:|---:|---:|---:|",
+        ]
+        for point in control.points:
+            share = (point.chains / real.chains) if real and real.chains else None
+            share_text = f"{share:.0%}" if share is not None else "—"
+            lines.append(
+                f"| {point.factor:.2f}x | {point.chains:,} | {point.orders_cited:,} "
+                f"| {point.total_clp:,} | {share_text} |"
+            )
+        lines += [
+            "",
+            f"*Población: {control.population} · {control.orders_examined:,} órdenes examinadas. "
+            "El control corre la misma regla con topes falsos: si la cuenta no se mueve, la regla "
+            "mide repetición y no un incentivo.*",
+            "",
+        ]
 
     lines += [
         "## Limitaciones",

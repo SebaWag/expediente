@@ -27,6 +27,7 @@ from .detectors.fraccionamiento import (
     DEFAULT_MIN_ORDERS,
 )
 from .dossier.build import build_dossier
+from .dossier.control import placebo_control
 from .dossier.models import Dossier
 from .domain.models import CompraAgil, OrdenCompra
 from .evidence.gate import GateReport, evaluate
@@ -67,9 +68,17 @@ def investigate(
     compras: Sequence[CompraAgil] = (),
     route_pattern: str = "red_oculta",
     route_from: NodeKey | None = None,
+    placebo: bool = True,
 ) -> Investigation:
-    """Run the whole chain: detect, cite, gate, assemble."""
+    """Run the whole chain: detect, cite, gate, assemble.
+
+    ``placebo`` also runs the splitting rule against fake caps over the same orders, so the
+    dossier can state what its own threshold claim is worth. It is on by default because a
+    dossier that omits it invites the reader to supply their own counterfactual, and theirs
+    will not be flattering. Turning it off is a choice a caller has to make explicitly.
+    """
     findings = tuple(run_all(orders, compras))
+    control = placebo_control(orders) if placebo and orders else None
 
     claims, evidence, documents = _claims_from_findings(store, findings)
     report = evaluate(claims, evidence, documents)
@@ -92,6 +101,7 @@ def investigate(
             "min_ordenes": min_orders,
         },
         detectors=tuple(sorted({finding.detector for finding in findings})),
+        control=control,
     )
     return Investigation(findings=findings, routes=routes, report=report, dossier=dossier)
 
