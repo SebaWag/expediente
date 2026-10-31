@@ -1,0 +1,34 @@
+{
+  "finding": {
+    "organismo": "SERVICIO DE SALUD LIBERTADOR BDO OHIGGINS",
+    "proveedor": "UNIVERSIDAD DE O´HIGGINS",
+    "period": "2021-11",
+    "total_clp": 370756900,
+    "ceiling_clp": 53476000,
+    "factor": 6.933145710225148
+  },
+  "codes": [
+    "1398-1257-SE21",
+    "1398-1459-SE21",
+    "1398-1460-SE21",
+    "1398-1461-SE21",
+    "1398-1469-SE21",
+    "1398-1475-SE21",
+    "1398-1476-SE21",
+    "1398-1478-SE21",
+    "1398-1479-SE21"
+  ],
+  "lines": {
+    "1398-1257-SE21": 36451,
+    "1398-1459-SE21": 765954,
+    "1398-1460-SE21": 768089,
+    "1398-1461-SE21": 768378,
+    "1398-1469-SE21": 787916,
+    "1398-1475-SE21": 867937,
+    "1398-1476-SE21": 868360,
+    "1398-1478-SE21": 885309,
+    "1398-1479-SE21": 886128
+  },
+  "archive": "https://transparenciachc.blob.core.windows.net/oc-da/2021-11.zip",
+  "member": "2021-11.csv"
+}

@@ -69,6 +69,7 @@ def investigate(
     route_pattern: str = "red_oculta",
     route_from: NodeKey | None = None,
     placebo: bool = True,
+    notas: Sequence[str] = (),
 ) -> Investigation:
     """Run the whole chain: detect, cite, gate, assemble.
 
@@ -102,6 +103,8 @@ def investigate(
         },
         detectors=tuple(sorted({finding.detector for finding in findings})),
         control=control,
+        notas=notas,
+        evidence=evidence,
     )
     return Investigation(findings=findings, routes=routes, report=report, dossier=dossier)
 

@@ -35,9 +35,21 @@ class DossierClaim:
     id: str
     texto: str
     citation: Citation
+    #: Every traceable citation for this claim, not just the first one the gate accepted.
+    #: A statement about nine orders that shows one line reads as if one line proves nine;
+    #: the reviewer has to be able to check each one.
+    citations: tuple[Citation, ...] = ()
+
+    @property
+    def supporting(self) -> tuple[Citation, ...]:
+        """All citations, with a single-citation claim collapsing to its one citation."""
+        return self.citations or (self.citation,)
 
     def to_dict(self) -> dict[str, Any]:
-        return {"id": self.id, "texto": self.texto, "citation": self.citation.to_dict()}
+        payload = {"id": self.id, "texto": self.texto, "citation": self.citation.to_dict()}
+        if len(self.supporting) > 1:
+            payload["citations"] = [citation.to_dict() for citation in self.supporting]
+        return payload
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,6 +79,11 @@ class Dossier:
     #: population. Part of the dossier's identity: a document whose control differs is a
     #: document that asserts something different about what its own numbers mean.
     control: PlaceboControl | None = None
+    #: How to read this document's citations when they are not PDF pages. A citation to a
+    #: row of an official dataset is checkable, but "page 36451" only means something if the
+    #: document says so. Part of the identity: a dossier that explains its citations
+    #: differently is asserting something different about its own evidence.
+    notas: tuple[str, ...] = ()
 
     @property
     def id(self) -> str:
@@ -92,13 +109,14 @@ class Dossier:
         """
         return {
             "claims": [
-                {"id": claim.id, "texto": claim.texto, **claim.citation.to_dict()}
+                _claim_payload(claim)
                 for claim in self.claims
             ],
             "rejected": [{"id": item.id, "reason": item.reason} for item in self.rejected],
             "thresholds": self.thresholds,
             "detectors": list(self.detectors),
             "control": self.control.to_dict() if self.control else None,
+            "notas": list(self.notas),
         }
 
     def to_dict(self) -> dict[str, Any]:
@@ -113,6 +131,7 @@ class Dossier:
             "thresholds": self.thresholds,
             "detectors": list(self.detectors),
             "control": self.control.to_dict() if self.control else None,
+            "notas": list(self.notas),
             "claims": [claim.to_dict() for claim in self.claims],
             "rejected": [item.to_dict() for item in self.rejected],
         }
@@ -122,6 +141,18 @@ class Dossier:
 
     def to_markdown(self) -> str:
         return _render_markdown(self)
+
+
+def _claim_payload(claim: DossierClaim) -> dict[str, Any]:
+    """Canonical form of a claim, stable for single-citation dossiers.
+
+    The extra list only appears when there is more than one citation, so adding this
+    capability did not change the id of any dossier that already had one.
+    """
+    entry: dict[str, Any] = {"id": claim.id, "texto": claim.texto, **claim.citation.to_dict()}
+    if len(claim.supporting) > 1:
+        entry["citations"] = [citation.to_dict() for citation in claim.supporting]
+    return entry
 
 
 def _content_digest(payload: dict[str, Any]) -> str:
@@ -149,12 +180,26 @@ def _render_markdown(dossier: Dossier) -> str:
 
     lines += ["## Afirmaciones", ""]
     for number, claim in enumerate(dossier.claims, start=1):
-        citation = claim.citation
-        lines += [
-            f"{number}. {claim.texto}  ",
-            f"   *Fuente:* `{citation.documento_id}` p.{citation.pagina} — {citation.url}",
-            "",
-        ]
+        supporting = claim.supporting
+        lines += [f"{number}. {claim.texto}  "]
+        if len(supporting) == 1:
+            citation = supporting[0]
+            lines += [f"   *Fuente:* `{citation.documento_id}` p.{citation.pagina} — {citation.url}"]
+        else:
+            by_document: dict[tuple[str, str], list[int]] = {}
+            for citation in supporting:
+                by_document.setdefault((citation.documento_id, citation.url), []).append(citation.pagina)
+            rendered = [
+                f"`{document_id}` " + ", ".join(f"p.{page}" for page in sorted(pages)) + f" — {url}"
+                for (document_id, url), pages in by_document.items()
+            ]
+            lines += [f"   *Fuentes ({len(supporting)}):* " + " · ".join(rendered)]
+        lines.append("")
+
+    if dossier.notas:
+        lines += ["## Cómo leer las citas", ""]
+        lines += [f"- {nota}" for nota in dossier.notas]
+        lines.append("")
 
     if dossier.rejected:
         lines += ["## Afirmaciones eliminadas", ""]

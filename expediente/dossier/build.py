@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any, Iterable, Mapping
 
 from ..evidence.gate import GateReport
-from ..evidence.models import Document
+from ..evidence.models import Document, Evidence
 from .control import PlaceboControl
 from .models import Citation, Dossier, DossierClaim, RejectedClaim
 
@@ -29,6 +29,8 @@ def build_dossier(
     thresholds: Mapping[str, Any] | None = None,
     detectors: Iterable[str] = (),
     control: PlaceboControl | None = None,
+    notas: Iterable[str] = (),
+    evidence: Iterable[Evidence] = (),
 ) -> Dossier:
     """Turn a gate report into a signable dossier.
 
@@ -36,6 +38,7 @@ def build_dossier(
     twice produces the same bytes — a test can then assert it.
     """
     by_id = {document.id: document for document in documents}
+    evidence_by_id = {item.id: item for item in evidence}
 
     claims: list[DossierClaim] = []
     for kept in report.kept:
@@ -44,15 +47,28 @@ def build_dossier(
             raise DossierError(
                 f"claim {kept.claim.id} cites {kept.document_id}, which is not in the document set"
             )
+        primary = Citation(documento_id=document.id, url=document.url, pagina=kept.pagina)
+
+        # Every citation the claim can actually support, not only the one the gate needed to
+        # keep it alive. A claim about nine orders must let a reviewer open all nine.
+        supporting: list[Citation] = []
+        for evidence_id in kept.claim.evidence_ids:
+            item = evidence_by_id.get(evidence_id)
+            if item is None or item.document_id is None or item.pagina is None:
+                continue
+            source = by_id.get(item.document_id)
+            if source is None:
+                continue
+            supporting.append(Citation(documento_id=source.id, url=source.url, pagina=item.pagina))
+        if not supporting:
+            supporting = [primary]
+
         claims.append(
             DossierClaim(
                 id=kept.claim.id,
                 texto=kept.claim.texto,
-                citation=Citation(
-                    documento_id=document.id,
-                    url=document.url,
-                    pagina=kept.pagina,
-                ),
+                citation=primary,
+                citations=tuple(supporting),
             )
         )
 
@@ -70,4 +86,5 @@ def build_dossier(
         thresholds=dict(thresholds or {}),
         detectors=tuple(sorted(detectors)),
         control=control,
+        notas=tuple(notas),
     )
