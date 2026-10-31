@@ -44,8 +44,17 @@ def main(argv: list[str]) -> int:
     stats = AggregateStats()
     started = time.monotonic()
 
+    sin_miembros: list[str] = []
+
     for archive in archives:
-        for member in members(archive):
+        encontrados = members(archive)
+        if wanted and not any(any(t in m for t in wanted) for m in encontrados):
+            # Un archivo sin miembros que coincidan es la falla más cara de este script: el
+            # corpus queda publicado y completo de aspecto, con un sector o un semestre
+            # ausente. Se acumula y se imprime al final, no se pasa por alto.
+            sin_miembros.append(f"{archive.parent.parent.name}/{archive.parent.name}/{archive.stem}")
+            continue
+        for member in encontrados:
             if wanted and not any(token in member for token in wanted):
                 continue
             member_started = time.monotonic()
@@ -60,11 +69,19 @@ def main(argv: list[str]) -> int:
 
     total = time.monotonic() - started
     print()
+    if sin_miembros:
+        print(f"ADVERTENCIA: {len(sin_miembros)} archivos sin miembros que coincidan con {wanted}:")
+        for nombre in sin_miembros:
+            print(f"  {nombre}")
+        print("  (el corpus NO está completo: revisar los nombres dentro del archivo)")
     print(f"total: {stats.rows:,} filas → {stats.orders:,} órdenes en {total:.0f}s")
     print(f"montos inconsistentes: {stats.inconsistent}")
     print(f"salida: {destination} ({destination.stat().st_size / 1024 / 1024:.1f} MB)")
+    stats_dict = stats.to_dict()
+    if sin_miembros:
+        stats_dict["archivos_sin_miembros"] = sin_miembros
     (destination.parent / "aggregate_stats.json").write_text(
-        json.dumps(stats.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8"
+        json.dumps(stats_dict, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     return 0
 

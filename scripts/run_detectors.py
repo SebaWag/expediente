@@ -44,7 +44,6 @@ from expediente.detectors.concentracion import (
 )
 from expediente.detectors.fraccionamiento import (
     DIRECT_AWARD_PROCEDENCIAS,
-    DEFAULT_CEILING_CLP,
     DEFAULT_FLOOR_CLP,
     DEFAULT_MIN_ORDERS as FRAC_MIN_ORDERS,
     detect_fraccionamiento,
@@ -151,7 +150,12 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--hhi", type=float, default=DEFAULT_HHI_UMBRAL)
     parser.add_argument("--min-orders", type=int, default=FRAC_MIN_ORDERS)
     parser.add_argument("--floor", type=int, default=DEFAULT_FLOOR_CLP)
-    parser.add_argument("--ceiling", type=int, default=DEFAULT_CEILING_CLP)
+    parser.add_argument(
+        "--ceiling",
+        type=int,
+        default=None,
+        help="tope fijo en CLP; por defecto, el vigente a la fecha de cada OC",
+    )
     parser.add_argument(
         "--all-procedencias",
         action="store_true",

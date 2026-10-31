@@ -78,6 +78,8 @@ class ExportStats:
     skipped_no_code: int = 0
     skipped_no_org: int = 0
     skipped_no_supplier: int = 0
+    compras_agiles: int = 0
+    cotizantes: int = 0
     chunks: list[dict] = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -184,6 +186,7 @@ def main(argv: list[str]) -> int:
     stats = ExportStats()
     seen_org: set[str] = set()
     seen_sup: set[str] = set()
+    seen_agil: set[str] = set()
     started = time.monotonic()
 
     def emit(line: str) -> None:
@@ -255,6 +258,44 @@ def main(argv: list[str]) -> int:
         else:
             stats.skipped_no_supplier += 1
 
+        # --- the Compra Ágil process behind this order, and everyone who quoted on it
+        cotizacion = (record.get("cotizacion") or "").strip()
+        if cotizacion:
+            agil_uri = node_uri("CompraAgil", cotizacion)
+            if cotizacion not in seen_agil:
+                seen_agil.add(cotizacion)
+                stats.compras_agiles += 1
+                emit(f"<{agil_uri}> <{RDF_TYPE}> <{ONTO}CompraAgil> .\n")
+                emit(f"<{agil_uri}> <{ONTO}codigo> {literal(cotizacion)} .\n")
+                for prop in ("cotizacion_publicada", "cotizacion_cierre"):
+                    if record.get(prop):
+                        emit(f"<{agil_uri}> <{ONTO}{prop}> {literal(record[prop])} .\n")
+                if record.get("unidad_compra"):
+                    emit(f"<{agil_uri}> <{ONTO}unidad_compra> {literal(record['unidad_compra'])} .\n")
+                if org_rut:
+                    emit(
+                        f"<{node_uri('Organismo', org_rut)}> <{relation_uri('PUBLICA')}> "
+                        f"<{agil_uri}> .\n"
+                    )
+            emit(f"<{agil_uri}> <{relation_uri('GENERA')}> <{order_uri}> .\n")
+            for cotizante in record.get("cotizantes") or ():
+                rut_cot = (cotizante.get("rut") or "").strip()
+                if not rut_cot:
+                    continue
+                cot_uri = node_uri("Proveedor", rut_cot)
+                if rut_cot not in seen_sup:
+                    seen_sup.add(rut_cot)
+                    stats.proveedores += 1
+                    emit(f"<{cot_uri}> <{RDF_TYPE}> <{ONTO}Proveedor> .\n")
+                    emit(f"<{cot_uri}> <{ONTO}rut_norm> {literal(rut_cot)} .\n")
+                    if cotizante.get("nombre"):
+                        emit(
+                            f"<{cot_uri}> <{ONTO}razon_social> "
+                            f"{literal(cotizante['nombre'])} .\n"
+                        )
+                stats.cotizantes += 1
+                emit(f"<{cot_uri}> <{relation_uri('COTIZA_EN')}> <{agil_uri}> .\n")
+
         stats.orders += 1
         if stats.orders % 500_000 == 0:
             elapsed = time.monotonic() - started
@@ -284,6 +325,7 @@ def main(argv: list[str]) -> int:
     print()
     print(f"total: {stats.orders:,} órdenes → {stats.triples:,} tripletas en {elapsed:.0f}s")
     print(f"organismos: {stats.organismos:,} · proveedores: {stats.proveedores:,}")
+    print(f"compras ágiles: {stats.compras_agiles:,} · cotizaciones emitidas: {stats.cotizantes:,}")
     print(f"chunks: {len(writer.chunks)} · crudo {raw / 1e9:.2f} GB · zstd {comp / 1e9:.2f} GB "
           f"({raw / comp if comp else 0:.1f}×)")
     print(f"manifest: {outdir / 'manifest.json'}")

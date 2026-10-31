@@ -38,6 +38,9 @@ ALIASES: dict[str, tuple[str, ...]] = {
     "moneda": ("MonedaOC", "Moneda", "moneda"),
     "monto_total": ("MontoTotalOC", "MontoTotal", "monto_total"),
     "monto_neto_clp": ("MontoNetoOC_CLP", "MontoNetoCLP"),
+    #: Impuestos ya convertidos a pesos. Juntos con el neto en CLP reconstruyen el total de
+    #: una orden emitida en otra moneda, sin necesidad de traer una serie de tipo de cambio.
+    "impuestos_clp": ("ImpuestosOC_CLP", "ImpuestosCLP"),
     "unidad": ("UnidadCompra", "unidad"),
     "organismo_rut": ("UnidadCompraRUT", "RutUnidad", "organismo_rut"),
     "region_compra": ("RegionUnidadCompra", "Region", "region_compra"),
@@ -52,6 +55,16 @@ ALIASES: dict[str, tuple[str, ...]] = {
     "producto_onu": ("ONUProducto", "producto_onu"),
     "item_descripcion": ("DescripcionItem", "item_descripcion"),
     "item_monto_clp": ("MontoTotalItem", "MontoNetoItemCLP"),
+    # Compra Ágil carries its own process alongside the order: the quotation it came from
+    # and every supplier that quoted on it. Reading the order but not these fields produces
+    # a dataset of purchases that cannot be related to each other, which is the opposite of
+    # what this ingestion is for.
+    "cotizacion": ("CodigoCotizacion", "codigoCotizacion"),
+    "cotizacion_publicada": ("FechaPublicacionCotizacion",),
+    "cotizacion_cierre": ("FechaCierreCotizacion",),
+    "cotizante_rut": ("RUTProveedorCotizacion", "RutProveedorCotizacion"),
+    "cotizante": ("ProveedorCotizacion",),
+    "unidad_compra": ("UnidadCompra",),
 }
 
 MEMBER_HINTS = {
@@ -74,6 +87,12 @@ class OrderAggregate:
     procedencia: str = ""
     moneda: str = ""
     monto_total_clp: float = 0.0
+    #: Cuando la orden se emitió en otra moneda, ``monto_total_clp`` es la conversión que el
+    #: propio archivo trae (neto + impuestos en CLP) y estos dos campos guardan lo original.
+    #: Sin esto, una orden de 1.200 UF se leería como "$1.200": 38.000 veces menos, por
+    #: debajo de cualquier piso, invisible para todos los detectores.
+    moneda_original: str = ""
+    monto_original: float = 0.0
     organismo_rut: str = ""
     organismo: str = ""
     region_compra: str = ""
@@ -85,10 +104,24 @@ class OrderAggregate:
     rubro: str = ""
     items: int = 0
     monto_inconsistente: bool = False
+    #: Unidad compradora, que en Compra Ágil es más fina que la institución.
+    unidad_compra: str = ""
+    #: El proceso de Compra Ágil del que salió esta orden, y quiénes cotizaron en él.
+    #: ``cotizantes`` va como dict rut -> nombre porque el mismo proveedor repite una fila
+    #: por ítem, y una lista con el mismo RUT diecisiete veces no es una red de cotizantes.
+    cotizacion: str = ""
+    cotizacion_publicada: str = ""
+    cotizacion_cierre: str = ""
+    cotizantes: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         payload = self.__dict__.copy()
         payload["monto_total_clp"] = round(self.monto_total_clp)
+        payload["cotizantes"] = [
+            {"rut": rut, "nombre": nombre}
+            for rut, nombre in sorted(self.cotizantes.items())
+        ]
+        payload["n_cotizantes"] = len(payload["cotizantes"])
         return payload
 
 
@@ -223,13 +256,13 @@ def aggregate(archive: Path, member: str, stats: AggregateStats) -> dict[str, Or
         if current is None:
             current = OrderAggregate(
                 codigo=code,
-                fecha=row.get("fecha", ""),
+                fecha=_fecha(row.get("fecha")),
                 nombre=row.get("nombre", "")[:300],
                 descripcion=row.get("descripcion", "")[:500],
                 estado=row.get("estado", ""),
                 procedencia=row.get("procedencia", ""),
                 moneda=row.get("moneda", ""),
-                monto_total_clp=_amount(row.get("monto_total")),
+                monto_total_clp=_total_en_clp(row),
                 organismo_rut=row.get("organismo_rut", ""),
                 organismo=row.get("institucion", "")[:200],
                 region_compra=row.get("region_compra", ""),
@@ -239,22 +272,71 @@ def aggregate(archive: Path, member: str, stats: AggregateStats) -> dict[str, Or
                 proveedor_tamano=row.get("proveedor_tamano", ""),
                 region_proveedor=row.get("region_proveedor", ""),
                 rubro=row.get("rubro", "")[:120],
+                unidad_compra=row.get("unidad_compra", "")[:200],
+                cotizacion=row.get("cotizacion", ""),
+                cotizacion_publicada=_fecha(row.get("cotizacion_publicada")),
+                cotizacion_cierre=_fecha(row.get("cotizacion_cierre")),
             )
             orders[code] = current
         elif not current.monto_inconsistente:
-            repeated = _amount(row.get("monto_total"))
+            # La comparación tiene que usar la misma función que el alta. Con
+            # ``_amount(monto_total)`` una orden en USD nunca coincidía con su propio total
+            # convertido y quedaba marcada como inconsistente: 20.820 falsos positivos en una
+            # corrida, todos órdenes en moneda extranjera con más de un ítem.
+            repeated = _total_en_clp(row)
             if repeated and current.monto_total_clp and abs(repeated - current.monto_total_clp) > 1:
                 # the same order reporting two different totals is a data-quality
                 # finding, not something to average away silently
                 current.monto_inconsistente = True
                 stats.inconsistent += 1
 
+        if current.moneda_original == "" and (row.get("moneda") or "").upper() not in ("", "CLP"):
+            current.moneda_original = row.get("moneda", "")
+            current.monto_original = _amount(row.get("monto_total"))
+
         current.items += 1
+        cotizante_rut = row.get("cotizante_rut", "")
+        if cotizante_rut:
+            current.cotizantes.setdefault(cotizante_rut, row.get("cotizante", "")[:200])
 
     stats.files += 1
     stats.orders += len(orders)
     stats.by_member[member] = stats.by_member.get(member, 0) + len(orders)
     return orders
+
+
+def _fecha(value: str | None) -> str:
+    """Coerce a published date to ISO ``YYYY-MM-DD``, or keep it verbatim if it will not.
+
+    The archives write ``dd-mm-yyyy 0:00:00`` in some members and ``yyyy-mm-dd`` in others.
+    Storing both in one column makes a third of the corpus look undated to every consumer
+    that expects one format, and an unreadable date reads exactly like an absent one. The
+    normalisers downstream already understand ISO; nothing else here should have to guess.
+    """
+    from ..domain.normalizers import parse_date
+
+    texto = (value or "").strip()
+    parsed = parse_date(texto)
+    return parsed.isoformat() if parsed else texto
+
+
+def _total_en_clp(row: dict[str, str]) -> float:
+    """The order total in pesos, converting when the publisher already did.
+
+    ``MontoTotalOC`` is in the order's own currency. For the 1.7% of orders issued in USD,
+    UF, EUR or UTM that number is not pesos, and treating it as pesos is how a UF purchase
+    lands 38,000 times below its real value and under every window without a warning. The
+    same row carries ``MontoNetoOC_CLP`` and ``ImpuestosOC_CLP``; their sum is the total in
+    pesos at the rate ChileCompra itself applied. No exchange series is invented here and
+    none is needed.
+    """
+    total = _amount(row.get("monto_total"))
+    moneda = (row.get("moneda") or "").strip().upper()
+    if moneda and moneda != "CLP":
+        neto_clp = _amount(row.get("monto_neto_clp"))
+        if neto_clp:
+            return neto_clp + _amount(row.get("impuestos_clp"))
+    return total
 
 
 def _amount(value: str | None) -> float:

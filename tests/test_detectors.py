@@ -18,11 +18,15 @@ def prov(rut: str) -> Proveedor:
 
 def order(code: str, monto: int, supplier: str = "11111111-1", *,
           organismo: Organismo = MUNICIPIO, day: int = 10,
-          modificada: date | None = None, cancelada: date | None = None) -> OrdenCompra:
+          modificada: date | None = None, cancelada: date | None = None,
+          procedencia: str | None = "Trato Directo") -> OrdenCompra:
+    """A synthetic order. The mechanism defaults to a direct award because that is the
+    population the splitting rule measures; without one there is no regime to apply."""
     return OrdenCompra(
         codigo=code, organismo=organismo, proveedor=prov(supplier), monto_clp=monto,
         fecha=date(2026, 10, day),
         fecha_ultima_modificacion=modificada, fecha_cancelacion=cancelada,
+        procedencia=procedencia,
     )
 
 

@@ -53,6 +53,9 @@ EDGES: dict[str, tuple[str, str]] = {
     "OFERTA_EN": ("Proveedor", "Licitacion"),
     "GENERA": ("CompraAgil", "OrdenCompra"),
     "PUBLICA": ("Organismo", "CompraAgil"),
+    # Who else quoted on the process. The winner gets ADJUDICADA_A; everybody who lost the
+    # bid only exists here, and losing bidders are how a rigged market is seen.
+    "COTIZA_EN": ("Proveedor", "CompraAgil"),
     "EJECUTA": ("Contrato", "Licitacion"),
     # Corporate structure
     "SOCIO_DE": ("Persona", "Proveedor"),

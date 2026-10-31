@@ -16,7 +16,6 @@ from pathlib import Path
 
 from . import __version__
 from .detectors.fraccionamiento import (
-    DEFAULT_CEILING_CLP,
     DEFAULT_FLOOR_CLP,
     DEFAULT_MIN_ORDERS,
     detect_fraccionamiento,
@@ -50,7 +49,12 @@ def build_parser() -> argparse.ArgumentParser:
         "detect", help="run the purchase-splitting detector over a JSON file"
     )
     detect_cmd.add_argument("--input", required=True, help="path to a JSON array of order records")
-    detect_cmd.add_argument("--ceiling", type=int, default=DEFAULT_CEILING_CLP)
+    detect_cmd.add_argument(
+        "--ceiling",
+        type=int,
+        default=None,
+        help="tope fijo en CLP para todas las órdenes; por defecto, el vigente a la fecha de cada OC",
+    )
     detect_cmd.add_argument("--floor", type=int, default=DEFAULT_FLOOR_CLP)
     detect_cmd.add_argument("--min-orders", type=int, default=DEFAULT_MIN_ORDERS)
     detect_cmd.add_argument("--json", action="store_true", help="emit JSON instead of text")

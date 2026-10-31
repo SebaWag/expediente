@@ -23,7 +23,6 @@ from typing import Iterable, Sequence
 
 from .detectors import DetectedPattern, run_all
 from .detectors.fraccionamiento import (
-    DEFAULT_CEILING_CLP,
     DEFAULT_FLOOR_CLP,
     DEFAULT_MIN_ORDERS,
 )
@@ -62,7 +61,7 @@ def investigate(
     titulo: str,
     sujeto: str,
     generado_en: str,
-    ceiling_clp: int = DEFAULT_CEILING_CLP,
+    ceiling_clp: int | None = None,
     floor_clp: int = DEFAULT_FLOOR_CLP,
     min_orders: int = DEFAULT_MIN_ORDERS,
     compras: Sequence[CompraAgil] = (),
@@ -86,7 +85,9 @@ def investigate(
         sujeto=sujeto,
         generado_en=generado_en,
         thresholds={
-            "umbral_clp": ceiling_clp,
+            "umbral_clp": ceiling_clp
+            if ceiling_clp is not None
+            else "el vigente a la fecha de cada OC (ver expediente/domain/umbral.py)",
             "piso_clp": floor_clp,
             "min_ordenes": min_orders,
         },

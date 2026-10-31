@@ -77,6 +77,10 @@ def order_from_dict(item: dict[str, Any], index: int = 0) -> OrdenCompra:
         licitacion_codigo=item.get("licitacion_codigo"),
         fecha_ultima_modificacion=parse_date(item.get("fecha_ultima_modificacion")),
         fecha_cancelacion=parse_date(item.get("fecha_cancelacion")),
+        # El mecanismo de adjudicación decide qué umbral aplica: un loader que lo descarta deja
+        # al detector sin régimen y el registro se ve igual. Se copia, con o sin tilde.
+        procedencia=item.get("procedencia"),
+        items=tuple(item.get("items") or ()),
     )
 
 

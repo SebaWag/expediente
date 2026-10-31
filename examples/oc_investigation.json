@@ -12,7 +12,8 @@
       "razon_social": "Proveedor Sintético A SpA"
     },
     "monto_clp": 912400,
-    "fecha": "2026-10-03"
+    "fecha": "2026-10-03",
+    "procedencia": "Trato Directo"
   },
   {
     "codigo": "OC-3102",
@@ -27,7 +28,8 @@
       "razon_social": "Proveedor Sintético A SpA"
     },
     "monto_clp": 878900,
-    "fecha": "2026-10-09"
+    "fecha": "2026-10-09",
+    "procedencia": "Trato Directo"
   },
   {
     "codigo": "OC-3103",
@@ -42,7 +44,8 @@
       "razon_social": "Proveedor Sintético A SpA"
     },
     "monto_clp": 995000,
-    "fecha": "2026-10-17"
+    "fecha": "2026-10-17",
+    "procedencia": "Trato Directo"
   },
   {
     "codigo": "OC-3104",
@@ -57,7 +60,8 @@
       "razon_social": "Proveedor Sintético A SpA"
     },
     "monto_clp": 940000,
-    "fecha": "2026-10-22"
+    "fecha": "2026-10-22",
+    "procedencia": "Trato Directo"
   },
   {
     "codigo": "OC-3201",
@@ -72,7 +76,8 @@
       "razon_social": "Proveedor Sintético D Ltda"
     },
     "monto_clp": 880000,
-    "fecha": "2026-10-04"
+    "fecha": "2026-10-04",
+    "procedencia": "Trato Directo"
   },
   {
     "codigo": "OC-3202",
@@ -87,7 +92,8 @@
       "razon_social": "Proveedor Sintético D Ltda"
     },
     "monto_clp": 910000,
-    "fecha": "2026-10-12"
+    "fecha": "2026-10-12",
+    "procedencia": "Trato Directo"
   },
   {
     "codigo": "OC-3203",
@@ -102,7 +108,8 @@
       "razon_social": "Proveedor Sintético D Ltda"
     },
     "monto_clp": 930000,
-    "fecha": "2026-10-20"
+    "fecha": "2026-10-20",
+    "procedencia": "Trato Directo"
   },
   {
     "codigo": "OC-3301",
@@ -117,6 +124,7 @@
       "razon_social": "Proveedor Sintético B Ltda"
     },
     "monto_clp": 1450000,
-    "fecha": "2026-10-14"
+    "fecha": "2026-10-14",
+    "procedencia": "Trato Directo"
   }
 ]

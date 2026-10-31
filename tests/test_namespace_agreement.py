@@ -90,10 +90,21 @@ def test_the_splitting_rule_ignores_framework_purchases():
 
     assert len(detect_fraccionamiento(orders("Trato Directo"))) == 1
     assert detect_fraccionamiento(orders("Convenio Marco")) == []
-    # unknown procedencia is kept: an unproven exemption is not an exemption
-    assert len(detect_fraccionamiento(orders(None))) == 1
-    # and the old behaviour is still reachable deliberately
-    assert len(detect_fraccionamiento(orders("Convenio Marco"), procedencias=None)) == 1
+    # Sin mecanismo no hay régimen que elegir: antes se dejaba pasar ("una exención no
+    # probada no es una exención"), pero elegir el régimen del trato directo por defecto es
+    # regalarle a la orden el tope más generoso. Se cuenta como SIN_REGLA y se reporta.
+    assert detect_fraccionamiento(orders(None)) == []
+    # El comportamiento viejo sigue siendo alcanzable, pero hay que pedirlo entero: un techo
+    # fijo impuesto a mano es la única forma de medir Convenio Marco, porque el calendario no
+    # le da regla (no hay tope que un convenio marco esté evitando).
+    from expediente.detectors.fraccionamiento import LEGACY_CEILING_CLP
+
+    assert len(
+        detect_fraccionamiento(
+            orders("Convenio Marco"), ceiling_clp=LEGACY_CEILING_CLP, procedencias=None
+        )
+    ) == 1
+    assert detect_fraccionamiento(orders("Convenio Marco"), procedencias=None) == []
 
 
 def test_the_shape_of_a_group_separates_splitting_from_a_programme():
