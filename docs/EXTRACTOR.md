@@ -124,3 +124,42 @@ truncated — that exist only to exercise the report. It is not a benchmark.
 The extractor fills cells. It never decides whether something is an anomaly — that
 stays in `detectors/`, deterministic and citable. A tuned model that decided would
 break the one promise the product makes.
+
+## The gold set
+
+`benchmarks/build_extract_gold.py` builds labelled documents from the structured
+corpus: the label **is** the row (`codigo`, `monto_total_clp`, `proveedor_rut`, …) and
+the page text is a rendering of that same row. No model produces the label, so the
+thing being scored and the thing scoring it share nothing.
+
+```bash
+python3 benchmarks/build_extract_gold.py --n 800        # → benchmarks/extract_gold.jsonl
+python3 -m pytest tests/test_extract_gold.py -q          # 10 assertions on the invariant
+python3 benchmarks/extract_bench.py --examples benchmarks/extract_gold.jsonl --efforts low,high
+```
+
+Current set: **800 documents**, stratified by mechanism — Compra Ágil 310,
+Licitación Pública 304, Trato Directo 96, Convenio Marco 90. Two layouts per
+mechanism, 35 % split across two pages so the citation must name a page,
+**39 % with no net/VAT breakdown** so `monto_neto_clp` is a legitimate
+`MISSING_FIELD` instead of a guess the extractor is rewarded for inventing.
+
+### The invariant that keeps it honest
+
+`tests/test_extract_gold.py` asserts that **every label is literally present in the
+page text it renders** — code, RUT, unit, amounts, date. A label the document never
+prints would make the benchmark unanswerable, and an unanswerable benchmark is
+indistinguishable from a bad extractor. The date test caught a real bug during
+development; the "no net" test caught `alimnetos` containing `neto`.
+
+### What this number does NOT measure
+
+These are **rendered** documents, not scans: no OCR, no skew, no stamps, no
+handwriting. The result measures reading comprehension and citation discipline over
+clean text. Document capture is a separate problem and this set does not touch it.
+
+### Writing new layouts
+
+A layout is a function `(row, fecha, total, neto) -> list[page]`. It must print every
+value it expects to be labelled. If it does not, `test_extract_gold` fails — which is
+the point.
