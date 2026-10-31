@@ -4,6 +4,42 @@
 **Corpus:** 800 labelled documents, `benchmarks/extract_gold.jsonl` · **fields:** 8
 **Harness:** `benchmarks/extract_bench.py --resume --journal out/journal_<effort>.jsonl`
 
+---
+
+## Correction (2026-10-31, later the same day)
+
+Everything below was measured against a gold set that had **194 labels wrong**, and the
+error was not diffuse: it was concentrated in two layouts whose page contradicted the
+label.
+
+| What the page said | Labelled | Documents |
+|---|---|---:|
+| `COMPRA ÁGIL — FICHA DE ADJUDICACIÓN` | `orden_compra` | 147 |
+| `CONVENIO MARCO — ORDEN DE COMPRA` | the record's procedencia (43 of them `trato_directo`) | 47 |
+
+The label followed the source row instead of the rendered document, so no extractor
+could answer it. `benchmarks/fix_gold_labels.py` corrects the labels and
+`ficha_compra_agil` was added to the enum — the page needed a word, not a gradient step.
+
+Re-grading the **same journalled predictions** against the corrected labels (no API
+call, no new tokens):
+
+| effort | exacto | no verificado | truncados |
+|---|---:|---:|---:|
+| **low** | **0,800** | 0,03 % | 0 |
+| medium | 0,730 | 10,43 % | 50 |
+| high | 0,095 | 90,40 % | 620 |
+
+`tipo_documento` for `low`: 1,000 on every document that is not a ficha, and 0,000 on
+the 147 that are — the class the schema did not name. `procedencia`: 0,995.
+
+**The conclusion of this page does not change**: `low` remains the production setting by
+a wide margin, and the truncation finding gets *sharper*, not weaker (the higher efforts
+lose documents outright, which no label fix can excuse). What changes is the headline
+number — 0,760 → 0,800 — and the reason it changed: we fixed the yardstick, not the
+model. See `docs/FINETUNE.md` for what happened when the same mistake was made in the
+opposite direction.
+
 ## The question
 
 `reasoning_effort` is the cheapest parameter to have an opinion about and the most

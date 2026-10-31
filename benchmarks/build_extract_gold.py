@@ -170,11 +170,16 @@ def _t_convenio(row: dict, fecha: str, total: str, neto: int | None) -> list[dic
 #: the mechanism instead was a real bug: a third of the licitaciones were rendered as
 #: purchase orders and labelled as adjudication resolutions, so 156 of 800 labels were
 #: unanswerable while the report blamed the model.
+#: Third element = the procedencia the *page* declares, when it differs from the
+#: record's. ``_t_convenio`` never prints a "Procedimiento:" line: its only cue is the
+#: title, so a document rendered with it is ``convenio_marco`` whatever the record says.
+#: Same defect as the one above, opposite direction: 43 ``trato_directo`` documents were
+#: labelled by the row while their first line read "CONVENIO MARCO".
 PLANTILLAS = {
-    "Compra Agil": [(_t_agil, "orden_compra"), (_t_orden, "orden_compra")],
-    "Licitacion Publica": [(_t_resolucion, "resolucion_adjudicacion"), (_t_orden, "orden_compra")],
-    "Trato Directo": [(_t_orden, "orden_compra"), (_t_convenio, "orden_compra")],
-    "Convenio Marco": [(_t_convenio, "orden_compra"), (_t_orden, "orden_compra")],
+    "Compra Agil": [(_t_agil, "ficha_compra_agil", None), (_t_orden, "orden_compra", None)],
+    "Licitacion Publica": [(_t_resolucion, "resolucion_adjudicacion", None), (_t_orden, "orden_compra", None)],
+    "Trato Directo": [(_t_orden, "orden_compra", None), (_t_convenio, "orden_compra", "Convenio Marco")],
+    "Convenio Marco": [(_t_convenio, "orden_compra", "Convenio Marco"), (_t_orden, "orden_compra", None)],
 }
 
 
@@ -197,7 +202,7 @@ def build_example(row: dict, idx: int, rng: random.Random) -> dict | None:
     con_neto = rng.random() > SIN_NETO
     neto = _split_monto(total_int)[0] if con_neto else None
 
-    plantilla, tipo_documento = rng.choice(PLANTILLAS[proc])
+    plantilla, tipo_documento, procedencia_visible = rng.choice(PLANTILLAS[proc])
     paginas = plantilla(row, fecha, total, neto)
 
     if rng.random() > DOS_PAGINAS and len(paginas) > 1:
@@ -208,7 +213,7 @@ def build_example(row: dict, idx: int, rng: random.Random) -> dict | None:
     gold = {
         "orden_compra_id": row["codigo"],
         "tipo_documento": tipo_documento,
-        "procedencia": PROCEDENCIA[proc],
+        "procedencia": PROCEDENCIA[procedencia_visible or proc],
         "monto_total_clp": str(total_int),
         "rut_proveedor": row["proveedor_rut"],
         "unidad_compradora": row["unidad_compra"],

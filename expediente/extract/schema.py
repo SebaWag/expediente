@@ -50,7 +50,11 @@ PROCUREMENT_FIELDS: tuple[FieldSpec, ...] = (
         nombre="tipo_documento",
         tipo="enum",
         descripcion="Qué documento es.",
-        choices=("orden_compra", "resolucion_adjudicacion", "bases_licitacion", "contrato", "otro"),
+        # ``ficha_compra_agil`` was added after a measured 140-error cluster: documents
+        # whose first line reads "COMPRA ÁGIL — FICHA DE ADJUDICACIÓN" were labelled
+        # ``orden_compra`` from the source record, so the label contradicted the page
+        # and no extractor could answer it. The class names what the document says.
+        choices=("orden_compra", "ficha_compra_agil", "resolucion_adjudicacion", "bases_licitacion", "contrato", "otro"),
     ),
     FieldSpec(
         nombre="procedencia",

@@ -297,6 +297,8 @@ def main(argv: list[str]) -> int:
                         help="append-only per-document journal (default out/journal_<effort>.jsonl)")
     parser.add_argument("--resume", action="store_true",
                         help="skip documents already in the journal instead of paying for them twice")
+    parser.add_argument("--regrade", action="store_true",
+                        help="re-score the journal against the current labels, with no API call")
     parser.add_argument("--progress-every", type=int, default=25,
                         help="print progress every N documents (0 disables)")
     args = parser.parse_args(argv[1:])
@@ -337,6 +339,27 @@ def main(argv: list[str]) -> int:
             else:
                 journal_path = Path(f"out/journal_{effort}.jsonl")
             journal = Journal(journal_path)
+
+            if args.regrade:
+                # Labels change; predictions do not have to be bought again. Re-scoring
+                # the journal against corrected gold is free, and it is the only way to
+                # compare a fix to the number it replaced without paying twice for the
+                # same 800 documents.
+                merged = journal.load()
+                if not merged:
+                    print(f"  sin diario en {journal_path}: nada que re-calificar", file=sys.stderr, flush=True)
+                    continue
+                regraded = [(ex, merged[ex.id]) for ex in examples if ex.id in merged]
+                report = score(regraded, specs)
+                report["journal"] = str(journal_path)
+                report["reanudado"] = len(merged)
+                report["pendientes_sin_resultado"] = len(examples) - len(regraded)
+                report["recalificado"] = True
+                print_report(f"{backend.name} (re-calificado sin API)", report, specs)
+                runs[backend.name] = report
+                payload["runs"][backend.name] = report  # type: ignore[index]
+                continue
+
             already = journal.load() if args.resume else {}
             pending = [ex for ex in examples if ex.id not in already]
 
