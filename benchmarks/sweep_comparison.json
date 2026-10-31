@@ -1,0 +1,199 @@
+{
+  "runs": {
+    "low": {
+      "exacto": 0.76,
+      "exactos": 608,
+      "exactos_evaluados": 800,
+      "tasa_no_verificado": 0.00032862306933946765,
+      "truncados": 0,
+      "causas": {
+        "MISSING_FIELD": 316
+      },
+      "tokens": {
+        "prompt": 624245,
+        "completion": 554084,
+        "reasoning": 296118
+      },
+      "por_campo": {
+        "orden_compra_id": {
+          "ok": 798,
+          "graded": 800,
+          "unverified": 2
+        },
+        "tipo_documento": {
+          "ok": 660,
+          "graded": 800,
+          "unverified": 0
+        },
+        "procedencia": {
+          "ok": 757,
+          "graded": 800,
+          "unverified": 0
+        },
+        "monto_total_clp": {
+          "ok": 800,
+          "graded": 800,
+          "unverified": 0
+        },
+        "monto_neto_clp": {
+          "ok": 486,
+          "graded": 486,
+          "unverified": 0
+        },
+        "rut_proveedor": {
+          "ok": 800,
+          "graded": 800,
+          "unverified": 0
+        },
+        "unidad_compradora": {
+          "ok": 775,
+          "graded": 800,
+          "unverified": 0
+        },
+        "fecha_orden": {
+          "ok": 800,
+          "graded": 800,
+          "unverified": 0
+        }
+      }
+    },
+    "medium": {
+      "exacto": 0.6875,
+      "exactos": 550,
+      "exactos_evaluados": 800,
+      "tasa_no_verificado": 0.10433782451528097,
+      "truncados": 50,
+      "causas": {
+        "TRUNCATED": 400,
+        "INVALID_JSON": 280,
+        "MISSING_FIELD": 269
+      },
+      "tokens": {
+        "prompt": 624245,
+        "completion": 1108010,
+        "reasoning": 867295
+      },
+      "por_campo": {
+        "orden_compra_id": {
+          "ok": 712,
+          "graded": 800,
+          "unverified": 88
+        },
+        "tipo_documento": {
+          "ok": 645,
+          "graded": 800,
+          "unverified": 85
+        },
+        "procedencia": {
+          "ok": 672,
+          "graded": 800,
+          "unverified": 85
+        },
+        "monto_total_clp": {
+          "ok": 715,
+          "graded": 800,
+          "unverified": 85
+        },
+        "monto_neto_clp": {
+          "ok": 449,
+          "graded": 486,
+          "unverified": 37
+        },
+        "rut_proveedor": {
+          "ok": 715,
+          "graded": 800,
+          "unverified": 85
+        },
+        "unidad_compradora": {
+          "ok": 649,
+          "graded": 800,
+          "unverified": 85
+        },
+        "fecha_orden": {
+          "ok": 715,
+          "graded": 800,
+          "unverified": 85
+        }
+      }
+    },
+    "high": {
+      "exacto": 0.08625,
+      "exactos": 69,
+      "exactos_evaluados": 800,
+      "tasa_no_verificado": 0.9040420637528754,
+      "truncados": 620,
+      "causas": {
+        "TRUNCATED": 4960,
+        "INVALID_JSON": 824,
+        "MISSING_FIELD": 32
+      },
+      "tokens": {
+        "prompt": 624245,
+        "completion": 1621160,
+        "reasoning": 1577788
+      },
+      "por_campo": {
+        "orden_compra_id": {
+          "ok": 77,
+          "graded": 800,
+          "unverified": 723
+        },
+        "tipo_documento": {
+          "ok": 77,
+          "graded": 800,
+          "unverified": 723
+        },
+        "procedencia": {
+          "ok": 69,
+          "graded": 800,
+          "unverified": 723
+        },
+        "monto_total_clp": {
+          "ok": 77,
+          "graded": 800,
+          "unverified": 723
+        },
+        "monto_neto_clp": {
+          "ok": 45,
+          "graded": 486,
+          "unverified": 441
+        },
+        "rut_proveedor": {
+          "ok": 77,
+          "graded": 800,
+          "unverified": 723
+        },
+        "unidad_compradora": {
+          "ok": 76,
+          "graded": 800,
+          "unverified": 723
+        },
+        "fecha_orden": {
+          "ok": 77,
+          "graded": 800,
+          "unverified": 723
+        }
+      }
+    }
+  },
+  "pairs": {
+    "low_vs_medium": {
+      "only_left": 62,
+      "only_right": 4,
+      "mcnemar_p": 2.0835438409305684e-14,
+      "n": 800
+    },
+    "low_vs_high": {
+      "only_left": 539,
+      "only_right": 0,
+      "mcnemar_p": 1.1113793747425387e-162,
+      "n": 800
+    },
+    "medium_vs_high": {
+      "only_left": 482,
+      "only_right": 1,
+      "mcnemar_p": 3.8760328722744834e-143,
+      "n": 800
+    }
+  }
+}
