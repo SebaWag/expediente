@@ -31,8 +31,10 @@ import argparse
 import json
 import math
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -193,11 +195,52 @@ def print_report(label: str, report: dict, specs: list[FieldSpec]) -> None:
         )
 
 
+class Journal:
+    """Append-only record of one document's result, written as it lands.
+
+    A benchmark that writes only at the end does not write at all. Three runs of
+    this script died after paying for the API calls and left nothing on disk but a
+    single log line, because stdout was block-buffered and the report was written
+    once, at the end. One JSON object per document means a killed process costs one
+    document instead of eight hundred.
+
+    Each line is flushed immediately. A line torn in half by a kill is skipped when
+    reading, not fatal: a journal that cannot be loaded because of its last byte is
+    worse than useless, since it invites paying for the work a second time.
+    """
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+
+    def append(self, example_id: str, result: ExtractionResult) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        row = json.dumps({"id": example_id, "result": result.to_dict()}, ensure_ascii=False)
+        with self.path.open("a", encoding="utf-8") as handle:
+            handle.write(row + "\n")
+            handle.flush()
+
+    def load(self) -> dict[str, ExtractionResult]:
+        if not self.path.exists():
+            return {}
+        done: dict[str, ExtractionResult] = {}
+        for line in self.path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+                done[str(row["id"])] = ExtractionResult.from_dict(row["result"])
+            except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+                continue  # torn last line from a kill
+        return done
+
+
 def run_backend(
     backend: Backend,
     examples: list[GoldExample],
     specs: list[FieldSpec],
     workers: int = 1,
+    on_result: Callable[[GoldExample, ExtractionResult], None] | None = None,
 ) -> list[tuple[GoldExample, ExtractionResult]]:
     """Extract every example. ``workers=1`` is the original sequential path.
 
@@ -205,14 +248,11 @@ def run_backend(
     nothing else: ``ThreadPoolExecutor.map`` preserves input order, and grading
     happens afterwards over the same list. The default stays 1 so a run is
     reproducible by anyone who does not ask for more.
-    """
-    if workers <= 1:
-        return [
-            (ex, backend.extract(ex.documento_id, ex.paginas, specs))
-            for ex in examples
-        ]
 
-    from concurrent.futures import ThreadPoolExecutor
+    ``on_result`` is called for every document the moment its result exists, in
+    input order. That is the hook the journal uses, and it is the difference
+    between a run that survives a kill and one that does not.
+    """
 
     def one(ex: GoldExample) -> tuple[GoldExample, ExtractionResult]:
         try:
@@ -230,8 +270,18 @@ def run_backend(
             )
             return (ex, fallo)
 
+    def emit(pair: tuple[GoldExample, ExtractionResult]) -> tuple[GoldExample, ExtractionResult]:
+        if on_result is not None:
+            on_result(*pair)
+        return pair
+
+    if workers <= 1:
+        return [emit(one(ex)) for ex in examples]
+
+    from concurrent.futures import ThreadPoolExecutor
+
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        return list(pool.map(one, examples))
+        return [emit(pair) for pair in pool.map(one, examples)]
 
 
 def main(argv: list[str]) -> int:
@@ -243,6 +293,12 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--json-out", type=Path, help="write the full report as JSON")
     parser.add_argument("--workers", type=int, default=1,
                         help="parallel requests over independent documents (default 1 = sequential)")
+    parser.add_argument("--journal", type=Path,
+                        help="append-only per-document journal (default out/journal_<effort>.jsonl)")
+    parser.add_argument("--resume", action="store_true",
+                        help="skip documents already in the journal instead of paying for them twice")
+    parser.add_argument("--progress-every", type=int, default=25,
+                        help="print progress every N documents (0 disables)")
     args = parser.parse_args(argv[1:])
 
     if not args.examples.exists():
@@ -274,9 +330,64 @@ def main(argv: list[str]) -> int:
         efforts = [e.strip() for e in args.efforts.split(",") if e.strip()]
         for effort in efforts:
             backend = ZeroShotBackend(effort=effort)
-            results = run_backend(backend, examples, specs, workers=args.workers)
+            if args.journal:
+                journal_path = args.journal
+                if len(efforts) > 1:
+                    journal_path = args.journal.with_name(f"{args.journal.stem}_{effort}{args.journal.suffix}")
+            else:
+                journal_path = Path(f"out/journal_{effort}.jsonl")
+            journal = Journal(journal_path)
+            already = journal.load() if args.resume else {}
+            pending = [ex for ex in examples if ex.id not in already]
+
+            print(
+                f"\n── {backend.name} · {len(examples)} documentos · "
+                f"ya en diario {len(already)} · pendientes {len(pending)} · diario {journal_path}",
+                flush=True,
+            )
+            if not pending:
+                print("  nada pendiente: se reporta lo que ya está en el diario.", flush=True)
+
+            started = time.monotonic()
+            counter = {"n": 0}
+            total_pending = len(pending)
+
+            def on_result(ex: GoldExample, result: ExtractionResult, *, _j=journal, _c=counter,
+                          _total=total_pending, _start=started) -> None:
+                _j.append(ex.id, result)
+                _c["n"] += 1
+                every = args.progress_every
+                if every and (_c["n"] % every == 0 or _c["n"] == _total):
+                    elapsed = time.monotonic() - _start
+                    rate = elapsed / _c["n"]
+                    remaining = (_total - _c["n"]) * rate
+                    print(
+                        f"  {_c['n']}/{_total} · {rate:.2f}s/doc · "
+                        f"restante ~{remaining / 60:.1f} min",
+                        flush=True,
+                    )
+
+            fresh: list[tuple[GoldExample, ExtractionResult]] = []
+            try:
+                fresh = run_backend(backend, pending, specs, workers=args.workers, on_result=on_result)
+            except KeyboardInterrupt:
+                print("\n  interrumpido: lo ya escrito en el diario se conserva. Reanudar con --resume.", flush=True)
+
+            merged = dict(already)
+            for ex, result in fresh:
+                merged[ex.id] = result
+            results = [(ex, merged[ex.id]) for ex in examples if ex.id in merged]
             report = score(results, specs)
+            report["journal"] = str(journal_path)
+            report["reanudado"] = len(already)
+            report["pendientes_sin_resultado"] = len(examples) - len(results)
             print_report(backend.name, report, specs)
+            if report["pendientes_sin_resultado"]:
+                print(
+                    f"  ⚠ INCOMPLETO: {report['pendientes_sin_resultado']} documentos sin resultado. "
+                    "Este número no es comparable con un run completo.",
+                    flush=True,
+                )
             runs[backend.name] = report
             payload["runs"][backend.name] = report  # type: ignore[index]
         if args.tuned:

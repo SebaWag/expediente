@@ -147,3 +147,49 @@ class ExtractionResult:
             "reasoning_effort": self.reasoning_effort,
             "finish_reason": self.finish_reason,
         }
+
+    @classmethod
+    def from_dict(cls, row: dict) -> "ExtractionResult":
+        """Rebuild a result that was written to disk, so a run can be resumed.
+
+        This exists because a benchmark that only persists at the end does not
+        persist at all: a killed process takes 800 documents of paid work with it.
+        The journal writes one result per line as it lands, and this is the reader
+        that turns those lines back into results.
+
+        An unknown ``causa`` becomes ``HTTP_ERROR`` rather than raising. A journal
+        written by an older version must degrade into a counted failure, not into a
+        stack trace that costs another full pass.
+        """
+        usage = row.get("usage") or {}
+        campos = []
+        for item in row.get("campos") or []:
+            campos.append(
+                ExtractedField(
+                    campo=item["campo"],
+                    valor=item.get("valor", ""),
+                    pagina=item.get("pagina"),
+                    extracto=item.get("extracto", ""),
+                    backend=item.get("backend", ""),
+                )
+            )
+        unverified = []
+        for item in row.get("unverified") or []:
+            try:
+                causa = Causa(item["causa"])
+            except ValueError:
+                causa = Causa.HTTP_ERROR
+            unverified.append(Unverified(campo=item["campo"], causa=causa, detalle=item.get("detalle", "")))
+        return cls(
+            documento_id=row["documento_id"],
+            backend=row.get("backend", ""),
+            campos=tuple(campos),
+            unverified=tuple(unverified),
+            usage=Usage(
+                prompt_tokens=int(usage.get("prompt_tokens") or 0),
+                completion_tokens=int(usage.get("completion_tokens") or 0),
+                reasoning_tokens=int(usage.get("reasoning_tokens") or 0),
+            ),
+            reasoning_effort=row.get("reasoning_effort"),
+            finish_reason=row.get("finish_reason"),
+        )
