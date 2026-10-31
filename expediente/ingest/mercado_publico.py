@@ -128,7 +128,13 @@ def orden_from_api(record: dict) -> OrdenCompra:
 
     razon_social = _first(supplier, "NombreProveedor", "Nombre", default="")
     monto = parse_clp(_first(record, "Total", "TotalNeto"))
-    fecha = parse_date(_first(dates, "FechaAceptacion", "FechaEnvio", "FechaCreacion"))
+    # The cap that governs an order is the one in force when the order was **created**, and
+    # this payload carries three different clocks: the buyer creates and sends the order, and
+    # the supplier accepts it days later. Ley 21.634 moved the Compra Ágil cap from 30 to 100
+    # UTM on 2024-12-12 — 3.3x in one day — so an order created before that date and accepted
+    # after it was previously judged against a limit that did not exist when it was issued.
+    # Creation first, then the send date, and acceptance only as a last resort.
+    fecha = parse_date(_first(dates, "FechaCreacion", "FechaEnvio", "FechaAceptacion"))
     if monto is None or fecha is None:
         raise MercadoPublicoError(f"order {record.get('Codigo')} has no usable amount or date")
 
