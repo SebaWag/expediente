@@ -120,3 +120,24 @@ def test_monto_neto_is_absent_when_no_breakdown():
         assert not re.search(r"\bneto\b", normalize_text(_texto(ex))), (
             f"{ex['id']}: marcado sin neto pero la etiqueta aparece en el texto"
         )
+
+
+def test_tipo_documento_matches_the_rendered_title():
+    """El tipo declarado tiene que ser el que el documento dice ser.
+
+    Este test faltaba, y su ausencia costó caro: 156 de 800 documentos se renderizaron
+    como ORDEN DE COMPRA y se etiquetaron como ``resolucion_adjudicacion``, porque el
+    tipo se derivaba del mecanismo de compra y no de la plantilla usada. El benchmark
+    reportó 0.626 en ese campo y el culpable era el generador.
+    """
+    for ex in EXAMPLES:
+        titulo = ex["paginas"][0]["texto"][:120].upper()
+        tipo = ex["gold"]["tipo_documento"]
+        if tipo == "resolucion_adjudicacion":
+            assert "RESOLUCIÓN" in titulo or "RESOLUCION" in titulo, (
+                f"{ex['id']}: etiquetado {tipo} pero el título dice {titulo[:50]!r}"
+            )
+        elif tipo == "orden_compra":
+            assert any(k in titulo for k in ("ORDEN DE COMPRA", "COMPRA ÁGIL", "CONVENIO MARCO")), (
+                f"{ex['id']}: etiquetado {tipo} pero el título dice {titulo[:50]!r}"
+            )

@@ -49,13 +49,6 @@ PROCEDENCIA = {
     "Convenio Marco": "convenio_marco",
 }
 
-TIPO_DOC = {
-    "Compra Agil": "orden_compra",
-    "Licitacion Publica": "resolucion_adjudicacion",
-    "Trato Directo": "orden_compra",
-    "Convenio Marco": "orden_compra",
-}
-
 PROC_TEXTO = {
     "Compra Agil": "Compra Ágil (art. 7 Ley 19.886)",
     "Licitacion Publica": "Licitación Pública",
@@ -123,7 +116,7 @@ def _t_resolucion(row: dict, fecha: str, total: str, neto: int | None) -> list[d
     neto_linea = f"Monto neto: {_fmt_clp(neto)}\n" if neto else ""
     return [
         {"numero": 1, "texto":
-            f"RESOLUCIÓN EXENTA\n"
+            f"RESOLUCIÓN DE ADJUDICACIÓN\n"
             f"{row['organismo']}\n"
             f"R.U.T.: {row['organismo_rut']}\n\n"
             f"VISTO: la licitación que dio origen a la Orden de Compra "
@@ -173,11 +166,15 @@ def _t_convenio(row: dict, fecha: str, total: str, neto: int | None) -> list[dic
     ]
 
 
+#: Each layout carries the document type it renders. Deriving ``tipo_documento`` from
+#: the mechanism instead was a real bug: a third of the licitaciones were rendered as
+#: purchase orders and labelled as adjudication resolutions, so 156 of 800 labels were
+#: unanswerable while the report blamed the model.
 PLANTILLAS = {
-    "Compra Agil": [_t_agil, _t_orden],
-    "Licitacion Publica": [_t_resolucion, _t_orden],
-    "Trato Directo": [_t_orden, _t_convenio],
-    "Convenio Marco": [_t_convenio, _t_orden],
+    "Compra Agil": [(_t_agil, "orden_compra"), (_t_orden, "orden_compra")],
+    "Licitacion Publica": [(_t_resolucion, "resolucion_adjudicacion"), (_t_orden, "orden_compra")],
+    "Trato Directo": [(_t_orden, "orden_compra"), (_t_convenio, "orden_compra")],
+    "Convenio Marco": [(_t_convenio, "orden_compra"), (_t_orden, "orden_compra")],
 }
 
 
@@ -200,7 +197,7 @@ def build_example(row: dict, idx: int, rng: random.Random) -> dict | None:
     con_neto = rng.random() > SIN_NETO
     neto = _split_monto(total_int)[0] if con_neto else None
 
-    plantilla = rng.choice(PLANTILLAS[proc])
+    plantilla, tipo_documento = rng.choice(PLANTILLAS[proc])
     paginas = plantilla(row, fecha, total, neto)
 
     if rng.random() > DOS_PAGINAS and len(paginas) > 1:
@@ -210,7 +207,7 @@ def build_example(row: dict, idx: int, rng: random.Random) -> dict | None:
 
     gold = {
         "orden_compra_id": row["codigo"],
-        "tipo_documento": TIPO_DOC[proc],
+        "tipo_documento": tipo_documento,
         "procedencia": PROCEDENCIA[proc],
         "monto_total_clp": str(total_int),
         "rut_proveedor": row["proveedor_rut"],
