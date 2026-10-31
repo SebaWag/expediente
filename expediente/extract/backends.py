@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -154,7 +155,22 @@ def parse_completion(
     )
 
 
-def _post_json(url: str, payload: dict, api_key: str, timeout: float) -> tuple[int, dict]:
+#: Upstream health comes and goes: probing Fireworks three times a few seconds
+#: apart returned 503, 503, 200 for the same model. A benchmark that scores a
+#: transient 503 as "the field was not verified" measures the network, not the
+#: extractor -- and it does so in the direction that flatters nobody. So 5xx and
+#: 429 are retried, with backoff, and only the final failure is reported.
+_RETRY_STATUS = frozenset({429, 500, 502, 503, 504})
+
+
+def _post_json(
+    url: str,
+    payload: dict,
+    api_key: str,
+    timeout: float,
+    attempts: int = 5,
+    base_delay: float = 1.0,
+) -> tuple[int, dict]:
     data = json.dumps(payload).encode("utf-8")
     request = urllib.request.Request(
         url,
@@ -166,14 +182,25 @@ def _post_json(url: str, payload: dict, api_key: str, timeout: float) -> tuple[i
             "Accept": "application/json",
         },
     )
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 - fixed https endpoint
-            return response.status, json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as error:
-        detail = error.read().decode("utf-8", "replace")[:300]
-        return error.code, {"error": detail}
-    except urllib.error.URLError as error:
-        return 0, {"error": str(error.reason)}
+    status, body = 0, {"error": "no attempt made"}
+    for attempt in range(attempts):
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 - fixed https endpoint
+                return response.status, json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as error:
+            detail = error.read().decode("utf-8", "replace")[:300]
+            status, body = error.code, {"error": detail}
+            if error.code in _RETRY_STATUS and attempt < attempts - 1:
+                time.sleep(base_delay * (2 ** attempt))
+                continue
+            return status, body
+        except urllib.error.URLError as error:
+            status, body = 0, {"error": str(error.reason)}
+            if attempt < attempts - 1:
+                time.sleep(base_delay * (2 ** attempt))
+                continue
+            return status, body
+    return status, body
 
 
 @dataclass
