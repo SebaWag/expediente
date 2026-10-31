@@ -126,9 +126,9 @@ def _t_resolucion(row: dict, fecha: str, total: str, neto: int | None) -> list[d
             f"RESOLUCIÓN EXENTA\n"
             f"{row['organismo']}\n"
             f"R.U.T.: {row['organismo_rut']}\n\n"
-            f"VISTO: licitación ID {row['codigo']}, procedimiento "
-            f"{PROC_TEXTO[row['procedencia']]}.\n"
-            f"Unidad requirente: {row['unidad_compra']}\n\n"
+            f"VISTO: la licitación que dio origen a la Orden de Compra "
+            f"N° {row['codigo']}, procedimiento {PROC_TEXTO[row['procedencia']]}.\n"
+            f"Unidad Compradora: {row['unidad_compra']}\n\n"
             f"RESUELVO: adjudícase a {row['proveedor']}, R.U.T. {row['proveedor_rut']}, "
             f"la adquisición de {row['nombre'][:180]}."},
         {"numero": 2, "texto":
@@ -146,7 +146,7 @@ def _t_agil(row: dict, fecha: str, total: str, neto: int | None) -> list[dict]:
             f"COMPRA ÁGIL — FICHA DE ADJUDICACIÓN\n"
             f"Código: {row['codigo']}\n"
             f"Organismo comprador: {row['organismo']}\n"
-            f"Unidad: {row['unidad_compra']}\n"
+            f"Unidad Compradora: {row['unidad_compra']}\n"
             f"Fecha: {fecha}\n"
             f"Procedimiento: {PROC_TEXTO[row['procedencia']]}\n\n"
             f"Proveedor adjudicado: {row['proveedor']}\n"
@@ -161,10 +161,9 @@ def _t_convenio(row: dict, fecha: str, total: str, neto: int | None) -> list[dic
     neto_linea = f"Neto: {_fmt_clp(neto)}\n" if neto else ""
     return [
         {"numero": 1, "texto":
-            f"CONVENIO MARCO — ORDEN DE COMPRA\n"
-            f"N° {row['codigo']}\n"
+            f"CONVENIO MARCO — ORDEN DE COMPRA N° {row['codigo']}\n"
             f"Organismo comprador: {row['organismo']}\n"
-            f"Unidad de compra: {row['unidad_compra']}\n"
+            f"Unidad Compradora: {row['unidad_compra']}\n"
             f"Fecha: {fecha}\n"
             f"Proveedor: {row['proveedor']}\n"
             f"RUT: {row['proveedor_rut']}\n\n"

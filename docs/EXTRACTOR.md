@@ -163,3 +163,27 @@ clean text. Document capture is a separate problem and this set does not touch i
 A layout is a function `(row, fecha, total, neto) -> list[page]`. It must print every
 value it expects to be labelled. If it does not, `test_extract_gold` fails — which is
 the point.
+
+### The render is part of the measurement
+
+The first smoke test of the gold set scored 14/16 and the two misses were both
+**render bugs, not model bugs**:
+
+| Field | Gold | Model said | Cause |
+|---|---|---|---|
+| `unidad_compradora` | `Hospital Traiguén` | `SERVICIO DE SALUD ARAUCANIA HOSPITAL DE TRAIGUEN` | the document printed two names, and the correct one was labelled *"Unidad requirente"* |
+| `orden_compra_id` | `2085-945-SE22` | *(not extracted)* | the text said *"licitación ID"*, while the field asks for an order code |
+
+After labelling both explicitly (`Unidad Compradora:` and `Orden de Compra N°`), the
+same two documents score 16/16. The lesson is not "the model got better": it is that
+**a benchmark which punishes the model for an ambiguity in the document measures the
+document, not the extractor.** Layouts must name every field they expect to be
+labelled, or the test invariant in `tests/test_extract_gold.py` is the only thing
+keeping the number honest — and it only checks presence, not disambiguation.
+
+### Cost of a run
+
+`--workers N` parallelises over independent documents. Grading happens after, over
+the same ordered list, so concurrency changes wall-clock time and nothing else.
+Measured on 6 documents: 189 s sequential vs 37 s at `--workers 6`, identical scores.
+The default stays `workers=1` so any published number is reproducible without flags.

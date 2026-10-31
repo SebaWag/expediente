@@ -193,11 +193,32 @@ def print_report(label: str, report: dict, specs: list[FieldSpec]) -> None:
         )
 
 
-def run_backend(backend: Backend, examples: list[GoldExample], specs: list[FieldSpec]) -> list[tuple[GoldExample, ExtractionResult]]:
-    results = []
-    for example in examples:
-        results.append((example, backend.extract(example.documento_id, example.paginas, specs)))
-    return results
+def run_backend(
+    backend: Backend,
+    examples: list[GoldExample],
+    specs: list[FieldSpec],
+    workers: int = 1,
+) -> list[tuple[GoldExample, ExtractionResult]]:
+    """Extract every example. ``workers=1`` is the original sequential path.
+
+    Concurrency is over independent documents, so it changes wall-clock time and
+    nothing else: ``ThreadPoolExecutor.map`` preserves input order, and grading
+    happens afterwards over the same list. The default stays 1 so a run is
+    reproducible by anyone who does not ask for more.
+    """
+    if workers <= 1:
+        return [
+            (ex, backend.extract(ex.documento_id, ex.paginas, specs))
+            for ex in examples
+        ]
+
+    from concurrent.futures import ThreadPoolExecutor
+
+    def one(ex: GoldExample) -> tuple[GoldExample, ExtractionResult]:
+        return (ex, backend.extract(ex.documento_id, ex.paginas, specs))
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        return list(pool.map(one, examples))
 
 
 def main(argv: list[str]) -> int:
@@ -207,6 +228,8 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--tuned", action="store_true", help="also score the deployed LoRA extractor")
     parser.add_argument("--mock", type=Path, help="replay canned completions instead of calling the API")
     parser.add_argument("--json-out", type=Path, help="write the full report as JSON")
+    parser.add_argument("--workers", type=int, default=1,
+                        help="parallel requests over independent documents (default 1 = sequential)")
     args = parser.parse_args(argv[1:])
 
     if not args.examples.exists():
@@ -229,7 +252,7 @@ def main(argv: list[str]) -> int:
             return 1
         completions = load_mock_completions(args.mock)
         backend = MockBackend(completions=completions, name="mock")
-        results = run_backend(backend, examples, specs)
+        results = run_backend(backend, examples, specs, workers=args.workers)
         report = score(results, specs)
         print_report("mock (sin red, sin créditos)", report, specs)
         runs["mock"] = report
@@ -238,7 +261,7 @@ def main(argv: list[str]) -> int:
         efforts = [e.strip() for e in args.efforts.split(",") if e.strip()]
         for effort in efforts:
             backend = ZeroShotBackend(effort=effort)
-            results = run_backend(backend, examples, specs)
+            results = run_backend(backend, examples, specs, workers=args.workers)
             report = score(results, specs)
             print_report(backend.name, report, specs)
             runs[backend.name] = report
