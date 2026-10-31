@@ -131,7 +131,11 @@ def test_the_shipped_placebo_curve_is_flat_enough_to_forbid_the_strong_claim():
     """
     import json
 
-    curve = ROOT / "out" / "placebo_caps.json"
+    # The committed sample, so the invariant holds on a clean clone; the local 200k run is
+    # the fallback for a development machine that still has it.
+    curve = ROOT / "benchmarks" / "placebo_caps_sample.json"
+    if not curve.exists():
+        curve = ROOT / "out" / "placebo_caps.json"
     if not curve.exists():
         import pytest
 

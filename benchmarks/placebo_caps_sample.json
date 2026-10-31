@@ -1,0 +1,109 @@
+{
+  "orders": 2438215,
+  "stats": {
+    "read": 2438220,
+    "skipped_no_date": 0,
+    "skipped_no_supplier": 3,
+    "skipped_no_amount": 2
+  },
+  "results": [
+    {
+      "factor": 0.4,
+      "chains": 16121,
+      "orders_cited": 77354,
+      "total_clp": 157048331600,
+      "examined": 2438215,
+      "in_window": 305857,
+      "seconds": 16.7,
+      "discarded": {
+        "PROCEDENCIA": 2095201,
+        "BAJO_EL_PISO": 4562,
+        "SOBRE_EL_TOPE": 32595
+      }
+    },
+    {
+      "factor": 0.6,
+      "chains": 16632,
+      "orders_cited": 79940,
+      "total_clp": 191720530184,
+      "examined": 2438215,
+      "in_window": 314126,
+      "seconds": 18.58,
+      "discarded": {
+        "PROCEDENCIA": 2095201,
+        "BAJO_EL_PISO": 4562,
+        "SOBRE_EL_TOPE": 24326
+      }
+    },
+    {
+      "factor": 0.8,
+      "chains": 16916,
+      "orders_cited": 81396,
+      "total_clp": 215367216893,
+      "examined": 2438215,
+      "in_window": 318578,
+      "seconds": 17.26,
+      "discarded": {
+        "PROCEDENCIA": 2095201,
+        "BAJO_EL_PISO": 4562,
+        "SOBRE_EL_TOPE": 19874
+      }
+    },
+    {
+      "factor": 0.9,
+      "chains": 17040,
+      "orders_cited": 81977,
+      "total_clp": 226840054164,
+      "examined": 2438215,
+      "in_window": 320391,
+      "seconds": 17.39,
+      "discarded": {
+        "PROCEDENCIA": 2095201,
+        "BAJO_EL_PISO": 4562,
+        "SOBRE_EL_TOPE": 18061
+      }
+    },
+    {
+      "factor": 1.0,
+      "chains": 17164,
+      "orders_cited": 82527,
+      "total_clp": 238664475453,
+      "examined": 2438215,
+      "in_window": 322319,
+      "seconds": 16.48,
+      "discarded": {
+        "PROCEDENCIA": 2095201,
+        "BAJO_EL_PISO": 4562,
+        "SOBRE_EL_TOPE": 16133
+      }
+    },
+    {
+      "factor": 1.1,
+      "chains": 17215,
+      "orders_cited": 82806,
+      "total_clp": 244759026310,
+      "examined": 2438215,
+      "in_window": 323264,
+      "seconds": 17.31,
+      "discarded": {
+        "PROCEDENCIA": 2095201,
+        "BAJO_EL_PISO": 4562,
+        "SOBRE_EL_TOPE": 15188
+      }
+    },
+    {
+      "factor": 1.25,
+      "chains": 17303,
+      "orders_cited": 83249,
+      "total_clp": 253270101239,
+      "examined": 2438215,
+      "in_window": 324619,
+      "seconds": 17.41,
+      "discarded": {
+        "PROCEDENCIA": 2095201,
+        "BAJO_EL_PISO": 4562,
+        "SOBRE_EL_TOPE": 13833
+      }
+    }
+  ]
+}
