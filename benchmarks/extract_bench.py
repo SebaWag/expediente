@@ -40,7 +40,7 @@ if str(ROOT) not in sys.path:
 
 from expediente.extract import grading  # noqa: E402
 from expediente.extract.backends import Backend, Completion, MockBackend, TunedBackend, ZeroShotBackend  # noqa: E402
-from expediente.extract.models import Causa, ExtractionResult, Page, Usage  # noqa: E402
+from expediente.extract.models import Causa, ExtractionResult, Page, Unverified, Usage  # noqa: E402
 from expediente.extract.schema import PROCUREMENT_FIELDS, FieldSpec  # noqa: E402
 
 
@@ -215,7 +215,20 @@ def run_backend(
     from concurrent.futures import ThreadPoolExecutor
 
     def one(ex: GoldExample) -> tuple[GoldExample, ExtractionResult]:
-        return (ex, backend.extract(ex.documento_id, ex.paginas, specs))
+        try:
+            return (ex, backend.extract(ex.documento_id, ex.paginas, specs))
+        except Exception as error:  # noqa: BLE001
+            # One document failing must not destroy the other 799. The failure is
+            # recorded as HTTP_ERROR per field, not raised, so the report still counts it.
+            fallo = ExtractionResult(
+                documento_id=ex.documento_id,
+                backend=getattr(backend, "name", "?"),
+                unverified=tuple(
+                    Unverified(campo=spec.nombre, causa=Causa.HTTP_ERROR, detalle=f"{type(error).__name__}: {error}"[:200])
+                    for spec in specs
+                ),
+            )
+            return (ex, fallo)
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
         return list(pool.map(one, examples))

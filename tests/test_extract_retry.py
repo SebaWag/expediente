@@ -89,3 +89,34 @@ def test_network_errors_are_retried_too(monkeypatch):
     status, _ = backends._post_json("https://example.invalid", {}, "k", timeout=1, attempts=3, base_delay=0)
     assert status == 200
     assert calls["n"] == 2
+
+
+def test_read_timeout_is_retried(monkeypatch):
+    """``socket.timeout`` is ``TimeoutError`` since 3.10, and it is NOT a URLError.
+
+    It escaped the old handler and propagated through ``ThreadPoolExecutor.map``,
+    aborting the entire run: 800 documents lost to one slow response.
+    """
+    calls = {"n": 0}
+
+    def fake_urlopen(request, timeout=None):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise TimeoutError("The read operation timed out")
+        return _Resp(b'{"ok":true}')
+
+    monkeypatch.setattr(backends.urllib.request, "urlopen", fake_urlopen)
+    status, body = backends._post_json("https://example.invalid", {}, "k", timeout=1, attempts=3, base_delay=0)
+    assert status == 200
+    assert calls["n"] == 2
+
+
+def test_unexpected_exception_returns_a_failure_instead_of_raising(monkeypatch):
+    """Cualquier excepción se convierte en un fallo contable, nunca en un crash."""
+    def fake_urlopen(request, timeout=None):
+        raise RuntimeError("something nobody predicted")
+
+    monkeypatch.setattr(backends.urllib.request, "urlopen", fake_urlopen)
+    status, body = backends._post_json("https://example.invalid", {}, "k", timeout=1, attempts=2, base_delay=0)
+    assert status == 0
+    assert "RuntimeError" in body["error"]

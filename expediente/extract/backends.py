@@ -194,12 +194,18 @@ def _post_json(
                 time.sleep(base_delay * (2 ** attempt))
                 continue
             return status, body
-        except urllib.error.URLError as error:
-            status, body = 0, {"error": str(error.reason)}
+        except (urllib.error.URLError, TimeoutError, OSError) as error:
+            # socket.timeout does NOT inherit from URLError: it is TimeoutError since
+            # 3.10. A read timeout that escapes this handler aborts the whole run of
+            # 800 documents, which is how a single slow response cost us `medium`.
+            reason = getattr(error, "reason", error)
+            status, body = 0, {"error": f"{type(error).__name__}: {reason}"[:300]}
             if attempt < attempts - 1:
                 time.sleep(base_delay * (2 ** attempt))
                 continue
             return status, body
+        except Exception as error:  # noqa: BLE001 - un documento no tumba el run
+            return 0, {"error": f"{type(error).__name__}: {error}"[:300]}
     return status, body
 
 
