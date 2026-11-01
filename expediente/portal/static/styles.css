@@ -490,3 +490,42 @@ body {
 /* Un paso sin resultados no es un error: se dice una vez y en voz baja. */
 .paso.vacio .objetivo { color: #64748b; font-style: italic; }
 .paso.vacio .verbo { color: #94a3b8; }
+
+/* El rebobinado.
+ *
+ * Va arriba de la lista porque ordena la lectura: primero dónde estoy en la grabación, después qué
+ * pasó. La nota dice explícitamente que no se está ejecutando nada — es la afirmación que sostiene
+ * todo el gesto.
+ */
+.rebobinado {
+  margin: 6px 0 10px;
+  padding: 9px 10px 8px;
+  border: 1px solid rgba(100, 116, 139, 0.28);
+  border-radius: 10px;
+  background: rgba(2, 6, 23, 0.55);
+}
+.rebobinado-fila { display: flex; align-items: center; gap: 9px; }
+.rebobinado .icono.chico {
+  width: 26px; height: 26px; flex: 0 0 26px;
+  font-size: 11px; padding: 0;
+}
+#linea-tiempo {
+  flex: 1; min-width: 0;
+  accent-color: #22d3ee;
+  height: 18px;
+}
+.rebobinado-pos {
+  font: 700 10.5px ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #94a3b8; white-space: nowrap;
+}
+.rebobinado-nota {
+  margin: 6px 0 0;
+  font: 500 10.5px ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #64748b; letter-spacing: 0.02em;
+}
+.rebobinado-nota.activo { color: #22d3ee; }
+
+/* Las filas que todavía no ocurrieron se apagan: el futuro no se lee como si hubiera pasado. */
+.paso.futuro { opacity: 0.28; }
+.paso.actual { background: rgba(56, 189, 248, 0.12); border-radius: 6px; }
+.paso.actual .verbo { color: #7dd3fc; }

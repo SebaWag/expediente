@@ -249,7 +249,7 @@ detector groups by its **RUT**, and the dossier came out valid, signable and emp
 
 ## Status
 
-Honest as of **day 7** (2026-11-01). **88 commits, 405 tests** — and both runs are
+Honest as of **day 7** (2026-11-01). **91 commits, 405 tests** — and both runs are
 reproduced on every push by CI, not by a badge that only claims it:
 
 ```bash
@@ -292,6 +292,7 @@ that says the in-memory adapter and the engine agree — is executed, not skippe
 | **Citation verification — code → line in the State's archive** | ✅ `scripts/verify_archive.py`: semicolon CSV, both month spellings, sha256 + retrieval time, coverage reported rather than assumed. Reproduces the nine hand-verified lines of 2021-11 exactly |
 | **Dossier pipeline — signal → verified → dossier** | ✅ `scripts/dossier_pipeline.py`: **3 chains, 3 months, 16/16 codes located, 3/3 signable, 39 s** over 10.3 M orders. See [`docs/VERIFICATION.md`](docs/VERIFICATION.md) |
 | **The route between two nodes** | ✅ `GET /api/path`: breadth-first over relation edges, two queries per hop, bounded in hops/frontier/nodes with the cap reported. `TIENE_DOMICILIO` twice through one address in **1.0 s** on the live graph |
+| **Replay scrubber — the recording, re-read not re-run** | ✅ Drag the timeline and the canvas repaints what had happened by that point: records touched so far lit, deleted claims ringed in red, future steps dimmed. **No model, no network, no database** — the portal's own version of the dossier replay. Space plays it |
 | **Step waterfall, linked to the canvas** | ✅ One row per step (calls paired with results), bar scaled to the slowest step, the model's own time and tokens in a colour of their own. Hovering a row lights the records that step touched. A real run reads **8 pasos · 44.732 tok · 16,8 s (96% modelo)** |
 | Vision / OCR — Meta SAM 3.1, for pages with no text layer | ⬜ not started |
 

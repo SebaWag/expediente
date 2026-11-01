@@ -286,3 +286,40 @@ sí. Una revisión lo describió como *"el menú de filtros tapa el panel"*, y e
 registro. Ahora abrir uno cierra el otro, el chat se fue a la izquierda y más angosto (760 → 520
 px) para no ocupar el centro del lienzo, y la leyenda del canvas se levantó 96 px para no pisar la
 letra chica legal.
+
+---
+
+# El rebobinado
+
+Añadido 2026-11-01. Es la pieza que convierte «el expediente se puede reconstruir desde su
+grabación» en un gesto que se puede arrastrar.
+
+```
+en vivo .......... en vivo · la grabación completa, 22 pasos
+rebobinado a 11 .. rebobinando · paso 11 de 22 · sin modelo, sin red, sin base de datos
+                   · 2 registros tocados
+```
+
+Arrastrar la línea **no vuelve a ejecutar nada**. Se releen los eventos que ya están en memoria y
+se re-aplican a la vista:
+
+- los registros que **existían** hasta ese punto se encienden en el canvas;
+- los que tenían una afirmación **descartada** hasta ese punto se marcan en rojo;
+- las filas del waterfall que **todavía no ocurrieron** se apagan al 28 %, así el futuro no se lee
+  como si hubiera pasado;
+- la fila del paso actual queda resaltada.
+
+Y lo que no hace, que es el punto: **no llama al servidor**. Ni modelo, ni red, ni base de datos —
+la misma frase que el proyecto usa para su replay de línea de comandos, ahora sobre la pantalla.
+Es lo único de esta interfaz que funcionaría con el servidor caído, y eso es una propiedad del
+diseño, no una anécdota.
+
+## Las dos reglas que costó
+
+| Regla | Por qué |
+|---|---|
+| **En vivo no se pinta el rebobinado** | Iluminar «todos los registros tocados» durante una corrida normal convertiría el resaltado por defecto en permanente, y entonces el resaltado dejaría de significar algo |
+| **Llegar al final es volver a estar en vivo** | Quedarse pegado al último paso haría que la corrida siguiente arrancara mirando el final de la anterior |
+
+Controles: la barra, el botón ▶/⏸ y la **barra espaciadora** (que no se dispara si el foco está en
+el compositor del chat).

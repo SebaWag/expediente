@@ -694,6 +694,10 @@
   // ------------------------------------------------------------------- runs
   function followRun(runId) {
     state.runId = runId;
+    // Una corrida nueva empieza en vivo: dejar la línea de tiempo en el medio de la anterior
+    // mostraría el registro de una investigación que ya no es la que está en pantalla.
+    detenerRebobinado();
+    state.replayPos = null;
     if (state.stream) { state.stream.close(); }
     var box = el("div", { class: "mensaje agente" });
     $("transcripcion").appendChild(box);
@@ -745,6 +749,26 @@
     if ($("camino")) { $("camino").hidden = true; } openLog(state.runId); });
   $("cerrar-registro").addEventListener("click", function () { $("registro").hidden = true; });
   $("solo-importantes").addEventListener("change", renderEvents);
+
+  if ($("linea-tiempo")) {
+    $("linea-tiempo").addEventListener("input", function () {
+      detenerRebobinado();
+      aplicarRebobinado(Number($("linea-tiempo").value));
+      renderEvents();
+    });
+  }
+  if ($("btn-rebobinar")) {
+    $("btn-rebobinar").addEventListener("click", alternarRebobinado);
+  }
+  // Espacio reproduce o pausa, pero nunca mientras alguien escribe en el compositor.
+  document.addEventListener("keydown", function (event) {
+    if (event.code !== "Space") { return; }
+    var activo = document.activeElement;
+    if (activo && (activo.tagName === "TEXTAREA" || activo.tagName === "INPUT")) { return; }
+    if (!state.events || !state.events.length) { return; }
+    event.preventDefault();
+    alternarRebobinado();
+  });
 
   function openLog(runId) {
     $("registro").hidden = false;
@@ -907,6 +931,90 @@
   }
 
 
+  /* Rebobinar la grabación.
+   *
+   * `state.replayPos` is how many steps of the recording have "happened". Null means live: the
+   * whole thing. Moving it does not call the server and does not re-run the agent — it re-reads
+   * events already in memory and repaints the canvas with the set of records that existed at that
+   * point, plus the ones whose claim had been deleted by then, in red.
+   *
+   * That is the same claim the dossier makes about its own replay: the artefact can be rebuilt
+   * from its recording with no model, no network and no database. This is that sentence, on
+   * screen, with a handle you can drag.
+   */
+  function aplicarRebobinado(pos) {
+    var pasos = state.pasos || [];
+    var hasta = Math.max(0, Math.min(pos == null ? pasos.length : pos, pasos.length));
+    state.replayPos = hasta;
+
+    var vivos = [];
+    var rechazados = [];
+    pasos.slice(0, hasta).forEach(function (paso) {
+      var ids = nodosDelPaso({ type: paso.tipo, payload: paso.payload });
+      ids.forEach(function (id) {
+        if (vivos.indexOf(id) < 0) { vivos.push(id); }
+      });
+      if (paso.tipo === "claim.rejected") {
+        ids.forEach(function (id) { if (rechazados.indexOf(id) < 0) { rechazados.push(id); } });
+      }
+    });
+
+    if (state.graph && state.graph.setReplay) {
+      state.graph.setReplay(vivos.slice(0, 400), rechazados.slice(0, 40));
+    }
+
+    pintarEstadoRebobinado(hasta, pasos.length, vivos.length, rechazados.length);
+  }
+
+  /* La etiqueta y la nota, sin tocar el grafo.
+   *
+   * En vivo no se llama a `setReplay`: iluminar «todos los registros tocados» durante una corrida
+   * normal convertiría el estado por defecto en un resaltado permanente, y entonces el resaltado
+   * dejaría de significar algo.
+   */
+  function pintarEstadoRebobinado(hasta, total, vivos, rechazados) {
+    var linea = $("linea-tiempo");
+    var nota = $("rebobinado-nota");
+    if (linea && document.activeElement !== linea) { linea.value = String(hasta); }
+    if ($("rebobinado-pos")) { $("rebobinado-pos").textContent = hasta + "/" + total; }
+    if (!nota) { return; }
+    var vivo = hasta >= total;
+    nota.classList.toggle("activo", !vivo);
+    nota.textContent = !total ? "sin grabación cargada"
+      : vivo ? "en vivo · la grabación completa, " + total + " pasos"
+        : "rebobinando · paso " + hasta + " de " + total
+          + " · sin modelo, sin red, sin base de datos · " + vivos + " registros tocados"
+          + (rechazados ? " · " + rechazados + " descartados" : "");
+  }
+
+  function detenerRebobinado() {
+    if (state.replayTimer) { clearInterval(state.replayTimer); state.replayTimer = null; }
+    if ($("btn-rebobinar")) { $("btn-rebobinar").textContent = "▶"; }
+  }
+
+  function alternarRebobinado() {
+    var pasos = state.pasos || [];
+    if (!pasos.length) { return; }
+    if (state.replayTimer) { detenerRebobinado(); return; }
+    var inicio = state.replayPos == null || state.replayPos >= pasos.length ? 0 : state.replayPos;
+    if ($("btn-rebobinar")) { $("btn-rebobinar").textContent = "⏸"; }
+    aplicarRebobinado(inicio);
+    state.replayTimer = setInterval(function () {
+      var actual = (state.replayPos || 0) + 1;
+      if (actual >= pasos.length) {
+        // Llegar al final es volver a estar en vivo, no quedarse pegado al último paso: si no,
+        // la próxima corrida arrancaría mirando el final de la anterior.
+        state.replayPos = null;
+        detenerRebobinado();
+        renderEvents();
+        if (state.graph && state.graph.setReplay) { state.graph.setReplay([], []); }
+        return;
+      }
+      aplicarRebobinado(actual);
+      renderEvents();
+    }, 620);
+  }
+
   function renderEvents() {
     var list = $("eventos");
     var onlyImportant = $("solo-importantes").checked;
@@ -920,6 +1028,16 @@
       // "Only important" hides the model's own narration, never a tool call or a decision.
       return !onlyImportant || paso.tipo !== "agent.step";
     });
+    state.pasos = pasos;
+    var linea = $("linea-tiempo");
+    if (linea && Number(linea.max) !== pasos.length) {
+      linea.max = String(pasos.length);
+      if (state.replayPos == null) { linea.value = String(pasos.length); }
+    }
+    var posicion = state.replayPos == null ? pasos.length : state.replayPos;
+    if (state.replayPos == null) {
+      pintarEstadoRebobinado(pasos.length, pasos.length, 0, 0);
+    }
     var maxMs = 1;
     pasos.forEach(function (paso) { if (paso.ms > maxMs) { maxMs = paso.ms; } });
 
@@ -977,8 +1095,10 @@
       var vacio = paso.tipo === "tool" && /^0\b/.test(String(texto).trim());
       if (vacio) { texto = "sin resultados · " + texto; }
 
+      var indice = pasos.indexOf(paso);
       var fila = el("li", {
-        class: "paso " + familia + (ids.length ? " con-nodos" : "") + (vacio ? " vacio" : ""),
+        class: "paso " + familia + (ids.length ? " con-nodos" : "") + (vacio ? " vacio" : "")
+          + (indice >= posicion ? " futuro" : "") + (indice === posicion - 1 ? " actual" : ""),
         style: "color:" + (familia === "pensar" ? "#c084fc"
           : familia === "navegar" ? "#22d3ee"
           : familia === "documentar" ? "#60a5fa"
@@ -1034,7 +1154,7 @@
     list.appendChild(resumen);
     if (state.hoverPaso) { state.graph.setPeek(state.hoverPaso); }
     // La corrida crece hacia abajo; el panel se queda en el final, que es donde está el desenlace.
-    if (!state.hoverPaso) { list.scrollTop = list.scrollHeight; }
+    if (!state.hoverPaso && state.replayPos == null) { list.scrollTop = list.scrollHeight; }
   }
 
 

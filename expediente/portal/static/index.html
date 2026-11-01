@@ -75,6 +75,21 @@
     <select id="selector-run"></select>
   </label>
   <label class="check"><input type="checkbox" id="solo-importantes" checked> Solo pasos importantes</label>
+
+  <!-- Rebobinar la grabación.
+       Arrastrar esto no vuelve a correr nada: se releen los eventos y se re-aplican a la vista,
+       igual que el expediente se reconstruye desde su registro sin modelo, sin red y sin base
+       de datos. Es lo único de esta pantalla que funciona con el servidor caído. -->
+  <div class="rebobinado" id="rebobinado">
+    <div class="rebobinado-fila">
+      <button type="button" id="btn-rebobinar" class="icono chico" title="Reproducir la grabación (espacio)">▶</button>
+      <input type="range" id="linea-tiempo" min="0" max="0" value="0" step="1"
+             aria-label="Posición en la grabación">
+      <span class="rebobinado-pos" id="rebobinado-pos">0/0</span>
+    </div>
+    <p class="rebobinado-nota" id="rebobinado-nota">sin grabación cargada</p>
+  </div>
+
   <ol class="eventos" id="eventos"></ol>
 </aside>
 

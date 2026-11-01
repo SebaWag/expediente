@@ -252,6 +252,7 @@
     this.hoveredEdge = null;
     this.pinned = [];
     this.peek = [];
+    this.rechazo = [];
     this.hidden = {};
     this.solo = null;
     this.pulse = null;
@@ -1214,6 +1215,18 @@
         ctx.stroke();
       }
 
+      // Un descarte se marca en rojo sobre el nodo: en el rebobinado, ver el momento exacto en que
+      // una afirmación se cae es el punto. El rojo no acusa a nadie; señala qué se retiró del
+      // expediente y cuándo.
+      if (self.rechazo && self.rechazo.indexOf(node.id) >= 0) {
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = "#f87171";
+        ctx.lineWidth = 2.4;
+        ctx.beginPath();
+        ctx.arc(node._sx, node._sy, radius + 9, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
       if (node.id === self.selected || route[node.id]) {
         ctx.globalAlpha = 1;
         ctx.strokeStyle = route[node.id] ? "#38bdf8" : "#ffffff";
@@ -1480,6 +1493,19 @@
     this.peek = (ids || []).slice();
     this.render();
     return this.peek.length;
+  };
+
+  /* Replay: paint what the recording says had happened up to this point.
+   *
+   * This does not re-run anything. It re-reads events that are already in memory and re-applies
+   * them to the view — no model, no network, no database, exactly like the dossier's own replay.
+   * `rechazo` is the set of nodes whose claim was deleted by that moment, drawn in red.
+   */
+  GraphView.prototype.setReplay = function (ids, rechazados) {
+    this.peek = (ids || []).slice();
+    this.rechazo = (rechazados || []).slice();
+    this.render();
+    return {vivos: this.peek.length, rechazados: this.rechazo.length};
   };
 
   GraphView.prototype.clearPins = function () {
