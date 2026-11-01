@@ -21,6 +21,25 @@ dims to 6%, the route is drawn hop by hop with the relation on each edge, and ev
 against the stored direction of `TIENE_DOMICILIO` exactly once — which is what makes it a shared
 address and not a shared buyer.</sub>
 
+## What a person does in it
+
+Four moves, and none of them is "read a chat answer":
+
+1. **Ask.** *"¿Por qué aparecen juntas las dos Cardiotec?"* — the portal recognises a connection
+   question, finds both suppliers, and answers with a walk instead of a paragraph.
+2. **Look at the route.** The rest of the field dims to 6 %, the path is drawn hop by hop with the
+   relation named on each edge, and the panel states the finding with its limit attached: *"a
+   relation in the public record, not an imputation."*
+3. **Watch the run.** The step log is a waterfall: the model's own time and tokens in one colour,
+   graph work in another, a deleted claim in red — and a closing line that reads
+   **`8 pasos · 44.732 tok · 16,8 s (96% modelo)`**.
+4. **Rewind it.** Drag the timeline and the canvas repaints what had happened by that point.
+   **No model, no network, no database** — it re-reads the recording, it does not re-run it.
+
+Every one of those four is driven by data that exists: a route is a query, a bar is a measured
+duration, a red ring is a claim the gate deleted, and the scrubber replays a recording. The
+interface is not allowed to claim more than the run does.
+
 <sub>The live portal at <a href="https://investiga.wagnersolutionsai.com">investiga.wagnersolutionsai.com</a> — 922 nodes drawn from a graph of 64.8 M triples, with the real totals beside them.</sub>
 
 ---
