@@ -207,14 +207,39 @@ cp .env.example .env        # then put your ticket in MP_TICKET
 python3 -m expediente.cli fetch-agil --desde 2026-10-20 --out data/agil.json
 ```
 
+## The first real dossier
+
+Not a fixture. Every number below is a record that exists in the State's own monthly archive:
+
+> **Servicio de Salud Libertador B. O'Higgins**, November 2021. **9** direct-award purchase
+> orders to **Universidad de O'Higgins**, totalling **$370,756,900 CLP**, none above the monthly
+> ceiling of **$53,476,000** — **6.9x** the ceiling, read as one chain.
+
+All nine orders are cited to a line inside `oc-da/2021-11.zip`, the archive ChileCompra
+publishes, and the lines were found by searching the 653 MB CSV for each order code — not
+estimated, not typed from memory. The dossier is at
+[`docs/expediente_real_2021-11.md`](docs/expediente_real_2021-11.md); the run that produced it is
+`scripts/dossier_real.py`.
+
+The same dossier carries the control that **limits its own claim**. Re-running the rule with five
+fake ceilings moves the count from 2 chains to 1 at 40% of the real ceiling: this population
+*does* respond to the threshold, so the document says the finding *"supports reviewing the group
+under the sizing hypothesis, not proving it."* At five-year scale on 2,438,215 orders the opposite
+happens — cutting the ceiling 60% moves the count 6% — and that result is what forbids the
+strong claim in the first place. See [`docs/PLACEBO.md`](docs/PLACEBO.md).
+
+A second chain in that same month was **dropped** by the gate: `AF-2` had no verified line, so it
+had no document, so it did not ship. It is listed in the dossier as dropped, because an omission
+that is visible is worth more than a claim that cannot be checked.
+
 ## Status
 
-Honest as of **day 4** (2026-10-29). **54 commits, 273 tests** — and both runs are
+Honest as of **day 6** (2026-10-31). **80 commits, 385 tests** — and both runs are
 reproduced on every push by CI, not by a badge that only claims it:
 
 ```bash
-python3 -m pytest -q            # 257 passed, 16 skipped (the engine tests need a server)
-EXPEDIENTE_MDB_URL=http://127.0.0.1:1234 python3 -m pytest -q   # 273 passed
+python3 -m pytest -q            # 368 passed, 17 skipped (the engine tests need a server)
+EXPEDIENTE_MDB_URL=http://127.0.0.1:1234 python3 -m pytest -q   # the same 385, none skipped
 ```
 
 The `graph` job in [`.github/workflows/ci.yml`](.github/workflows/ci.yml) starts an
@@ -248,7 +273,7 @@ that says the in-memory adapter and the engine agree — is executed, not skippe
 | **Run recording — append-only log + replay** | ✅ the dossier can be rebuilt from the recording with no model, no network and no database |
 | **Portal — map, board, agent, log** | ✅ `investiga.wagnersolutionsai.com`, no build step, no dependency |
 | Contraloría benchmark — recall against published findings | ⬜ **not started**, and the reason is recorded: that corpus is not machine-readable (Liferay portlet over AJAX, no dataset on datos.gob.cl — checked 2026-10-29) |
-| **Detector desk check — 48 findings, re-derived** | ✅ **{int(79)}% actionable, 100% reproduce their own definition, 83% with complete evidence**. Three rule defects found and fixed. See [`docs/BENCHMARK.md`](docs/BENCHMARK.md) |
+| **Detector desk check — 48 findings, re-derived** | ✅ **79% actionable, 100% reproduce their own definition, 83% with complete evidence**. Three rule defects found and fixed. See [`docs/BENCHMARK.md`](docs/BENCHMARK.md) |
 | Vision / OCR — Meta SAM 3.1, for pages with no text layer | ⬜ not started |
 
 ### Entity resolution was not tuned. It was measured.
