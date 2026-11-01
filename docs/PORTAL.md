@@ -115,3 +115,95 @@ in the image and not in the repository.
   to fewer candidates — and raises `SearchError` rather than returning an empty list,
   because an empty list and a broken search must never look the same to an agent.
 - The map caps at 70 nodes. That is a rendering decision, stated on screen.
+
+---
+
+# Two cameras, and the measurements that chose them
+
+Added 2026-11-01. The canvas now has a **2D map** and a **3D walk**, toggled from the header
+(stored in `localStorage`, default 2D). Neither was chosen because it looked good.
+
+## What each one is for
+
+| | 2D | 3D |
+|---|---|---|
+| What it answers | *where does this sit in the system* | *what does this neighbourhood look like from here* |
+| Layout | brain silhouette, five rings | shells for a corpus, springs below 80 nodes |
+| Node encoding | colour + shape | colour + shape + size + depth fog |
+| Cost | 0 dependencies, 1 file | same file, `_projectionOf` + painter's order |
+
+## The number that justifies 3D existing
+
+The two-company case — the case the demo is built around — is four nodes. Laid out in 2D it
+collapses into a **horizontal line 8 px tall**: two suppliers, a shared address and a shared
+representative, all on one axis, unreadable. In 3D the same four nodes cover **50 % of the
+canvas** with every name legible.
+
+```
+camino (4 nodos)   2D   caja 650 × 8 px    cobertura  0,3 %
+camino (4 nodos)   3D   caja 1008 × 719    cobertura 50,3 %
+vecindad (9 nodos) 2D   caja 605 × 421      cobertura 17,7 %
+vecindad (9 nodos) 3D   caja 893 × 748      cobertura 46,4 %
+```
+
+That is an argument, not a preference. The counter-argument is also recorded: over the **whole
+corpus** (318 nodes in the test bench) both modes are a hairball, and 3D adds occlusion on top —
+which is why the portal must never open on the corpus. See the last section.
+
+## Four visual ideas, measured
+
+| Idea | Outcome |
+|---|---|
+| **Semicolon-free fit**: divide world span by available width | ❌ ran **176 px off the right edge**; the perspective factor is never 1. Replaced by a three-pass fit that projects, measures in pixels, and corrects |
+| **Lift the route toward the camera** so the story sits in front | ❌ moving a node in depth changes its projected size, and it pushed one of the two companies **off the frame**. Rejected; the route is marked with a ring and a brighter edge |
+| **Labels everywhere** | ❌ sixty overlapping pills. Replaced by priority + a shared collision registry |
+| **Up to 80 nodes → springs in 3D** instead of shells | ✅ shells answer "where in the system", which is wrong for nine nodes: they cluster on one side and leave **80 % of the canvas empty** |
+
+## Encoding: colour is not enough
+
+Eleven labels cannot ride on colour. A projector loses three of them, a colour-blind reader loses
+all of them, and a screenshot in a slide loses whatever is compressed. So each label has a
+**shape** as well — hexagon for a buyer, circle for a supplier, square for an order, page for a
+document, diamond for an address or a person, triangle for a signal, pentagon for a claim — and a
+**Spanish name** in the legend, because the reader signs dossiers, not schemas.
+
+`tests/test_portal.py::test_every_label_is_encodable_and_nameable` fails if a label is added to one
+table and not the others, and `test_the_canvas_script_parses` runs `node --check` on the file,
+because a syntax error here is a blank screen and nothing else in CI would notice.
+
+## Labels are a budget
+
+Text is placed by priority — detector, selection, hovered, route, then by degree — and a label that
+would overlap an already-placed one is **dropped**, not drawn on top. Every node reserves its own
+circle before any text is placed, because the first version wrote `ACREDITA` straight across a
+supplier's dot.
+
+Two exceptions, both learned from reviews:
+
+- **A graph of 20 nodes or fewer names everything.** Hiding the fourth name in a four-node picture
+  leaves half the finding unreadable.
+- **The fit reserves the legend's corner.** Fitting into the whole canvas put nodes underneath the
+  key; the fit now happens in the rectangle that is left over, and it budgets ~70 px per node for
+  the label that hangs below it.
+
+## How the reviews went
+
+Three rounds of a vision model reading a 1600×900 capture of the two demo screens, asking for a
+score and the worst remaining defect:
+
+| Round | Score | The defect that moved it |
+|---|---|---|
+| 1 | 3/10 | one of the two companies **off frame**, `COMPARTE_DOMICILIO` hidden behind the legend |
+| 2 | 5/10 | both companies visible, but the person node rendered **nameless** |
+| 3 | 6/10 | all four named, relations readable |
+| 4 | **7/10** | nothing unreadable; the person node still sits close to the top-right corner |
+
+The reviews were run on `muse-wonder-1.0` through the Meta Model API, which is worth recording for
+one reason: the first attempt returned an **empty answer** because all 900 completion tokens went
+to reasoning. Exactly the finding in `docs/SWEEP.md`, reproduced by accident.
+
+## The rule this leaves behind
+
+**The portal must not open on the corpus.** A 300-node overview is a hairball in every dimension;
+the demo, and the product, start at *one case* and walk outwards. The corpus is a claim in the
+README, not a first screen.

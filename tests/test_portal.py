@@ -243,3 +243,50 @@ def test_an_unknown_route_is_json_not_an_html_error_page(live_server):
         get(base + "/api/nada")
     assert error.value.code == 404
     assert json.loads(error.value.read().decode("utf-8"))["error"] == "ruta desconocida"
+
+
+# --------------------------------------------------- the canvas script, as a file
+def _graph_js() -> "Path":
+    from pathlib import Path
+
+    return Path(__file__).resolve().parents[1] / "expediente" / "portal" / "static" / "graph.js"
+
+
+def test_the_canvas_script_parses():
+    """A syntax error here is a blank screen in production, and it has happened twice.
+
+    The whole graph view is one file with no build step, so nothing else would catch it: the
+    server serves it happily and the browser fails silently. `node --check` costs a second.
+    """
+    import shutil
+    import subprocess
+
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node no está disponible para comprobar la sintaxis")
+    subprocess.run([node, "--check", str(_graph_js())], check=True, capture_output=True)
+
+
+def test_every_label_is_encodable_and_nameable():
+    """Colour, shape and a Spanish name for every node label.
+
+    Colour alone fails on a projector and on a colour-blind reader, so each label needs a shape;
+    and the legend is what turns `OrdenCompra` back into something an auditor signs. A label that
+    exists in one table and not the others renders as an anonymous grey circle, which is exactly
+    what a review of the first version flagged.
+    """
+    import re
+
+    source = _graph_js().read_text(encoding="utf-8")
+
+    def block(name: str) -> str:
+        start = source.index(f"var {name} = {{")
+        return source[start:source.index("};", start)]
+
+    colors = set(re.findall(r"^\s{4}(\w+):", block("COLORS"), re.MULTILINE))
+    shapes = set(re.findall(r"^\s{4}(\w+):", block("SHAPES"), re.MULTILINE))
+    names = set(re.findall(r"^\s{4}(\w+):", block("LABELS_ES"), re.MULTILINE))
+
+    assert colors, "no encontré la tabla de colores"
+    assert colors == shapes, f"labels sin forma: {sorted(colors - shapes)} · formas huérfanas: {sorted(shapes - colors)}"
+    assert colors == names, f"labels sin nombre en la leyenda: {sorted(colors - names)}"
