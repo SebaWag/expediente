@@ -375,3 +375,111 @@ body {
 .camino .tramo .rel.reversa { color: #fcd34d; border-color: rgba(251, 191, 36, 0.45); background: rgba(69, 26, 3, 0.75); }
 .camino .nota { font-size: 12.5px; color: #94a3b8; line-height: 1.5; }
 .camino .nota.fuerte { color: #fca5a5; }
+
+/* El waterfall de pasos.
+ *
+ * El registro era una lista de líneas de texto: se podía leer, no se podía ver. Un paso tiene una
+ * duración y un objeto, y las dos cosas caben en una barra. El color dice la familia del verbo,
+ * así que la forma de una corrida se entiende antes de leer una sola palabra.
+ */
+.eventos { list-style: none; margin: 0; padding: 0; }
+
+.paso {
+  display: grid;
+  grid-template-columns: 10px 1fr;
+  gap: 9px;
+  padding: 7px 2px;
+  border-top: 1px solid rgba(100, 116, 139, 0.16);
+  cursor: default;
+}
+.paso:first-child { border-top: 0; }
+.paso.con-nodos { cursor: pointer; }
+.paso.con-nodos:hover { background: rgba(56, 189, 248, 0.07); }
+
+.paso .punto {
+  width: 8px; height: 8px; margin-top: 5px;
+  border-radius: 50%;
+  background: #64748b;
+}
+.paso.decidir .punto { background: #a78bfa; }
+.paso.navegar .punto { background: #22d3ee; }
+.paso.documentar .punto { background: #60a5fa; }
+.paso.descartar .punto { background: #f87171; }
+.paso.cerrar .punto { background: #34d399; }
+.paso.pensar .punto { background: #c084fc; }
+
+.paso .cabecera {
+  display: flex; align-items: baseline; gap: 7px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+.paso .verbo {
+  font: 700 10px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #cbd5e1;
+  white-space: nowrap;
+}
+.paso.decidir .verbo { color: #c4b5fd; }
+.paso.navegar .verbo { color: #67e8f9; }
+.paso.documentar .verbo { color: #93c5fd; }
+.paso.descartar .verbo { color: #fca5a5; }
+.paso.pensar .verbo { color: #d8b4fe; }
+/* El modelo se ve distinto de la herramienta: son dos costos diferentes. */
+.paso.pensar .barra i { opacity: 0.55; }
+.paso .objetivo {
+  color: #94a3b8; font-size: 11.5px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  flex: 1; min-width: 0;
+}
+.paso .ms {
+  font: 600 10.5px ui-monospace, monospace;
+  color: #64748b; white-space: nowrap;
+}
+
+.paso .barra {
+  grid-column: 2;
+  height: 3px;
+  margin-top: 5px;
+  background: rgba(100, 116, 139, 0.18);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.paso .barra i {
+  display: block; height: 100%;
+  background: currentColor;
+  border-radius: 999px;
+  opacity: 0.75;
+}
+
+.paso.pensar .objetivo { color: #a78bfa; }
+
+.registro .resumen-pasos {
+  margin: 10px 2px 0;
+  padding-top: 9px;
+  border-top: 1px solid rgba(100, 116, 139, 0.28);
+  font: 600 11px ui-monospace, monospace;
+  color: #94a3b8;
+  letter-spacing: 0.03em;
+}
+
+.leyenda-pasos {
+  display: flex; flex-wrap: wrap; gap: 10px;
+  margin: 0 2px 9px;
+  font: 600 10px ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
+}
+.leyenda-pasos .clave { display: inline-flex; align-items: center; gap: 4px; }
+.leyenda-pasos .clave i {
+  width: 7px; height: 7px; border-radius: 50%; background: #64748b;
+}
+.leyenda-pasos .pensar i { background: #c084fc; }
+.leyenda-pasos .navegar i { background: #22d3ee; }
+.leyenda-pasos .documentar i { background: #60a5fa; }
+.leyenda-pasos .decidir i { background: #a78bfa; }
+.leyenda-pasos .descartar i { background: #f87171; }
+
+/* Un paso sin resultados no es un error: se dice una vez y en voz baja. */
+.paso.vacio .objetivo { color: #64748b; font-style: italic; }
+.paso.vacio .verbo { color: #94a3b8; }

@@ -787,33 +787,252 @@
   };
   var IMPORTANTES = { "agent.step": 1, "claim.accepted": 1, "claim.rejected": 1, "source.added": 1, "budget.exceeded": 1, "dossier.built": 1, "run.finished": 1, "agent.plan": 1 };
 
+  /* El waterfall: cada paso con su duración, su objeto y su familia de verbo.
+   *
+   * The old log was a list of sentences. A step has two facts that a sentence hides — how long it
+   * took and what it touched — and both fit in a row: a bar whose width is the duration against the
+   * slowest step of the run, and a verb whose colour is its family. The shape of a run then reads
+   * before a single word is read: mostly cyan means it navigated, blue means it went to documents,
+   * any red is a claim that was deleted and is the most interesting row on the screen.
+   */
+  var FAMILIA = {
+    buscar_en_grafo: "navegar", vecinos: "navegar", caminos: "navegar",
+    red_proveedor: "navegar", senales_de: "navegar", perfil_de_gasto: "navegar",
+    senal_detalle: "documentar", citas: "documentar", documento_de_orden: "documentar",
+    buscar_en_web: "documentar", leer_fuente: "documentar",
+    afirmar: "decidir", terminar: "cerrar"
+  };
+
+  //: Which nodes a step touched. The log and the canvas are two views of one run; hovering a row
+  //: has to be able to point at the records that row is about, or the waterfall is just a prettier
+  //: list of strings.
+  function nodosDelPaso(event) {
+    // A tool.call stores its arguments under `arguments`, not at the top level: `buscar_en_grafo`
+    // logs {tool, arguments:{texto}}, so reading `payload.nodo` found nothing and no row in the
+    // waterfall could point at the graph. Both shapes are accepted because claim events are flat.
+    var payload = (event.payload && event.payload.arguments) || event.payload || {};
+    var ids = [];
+    if (payload.nodo) { ids.push(String(payload.nodo)); }
+    if (payload.desde) { ids.push(String(payload.desde)); }
+    if (payload.hasta) { ids.push(String(payload.hasta)); }
+    if (payload.codigo) { ids.push("OrdenCompra/" + payload.codigo); }
+    // `perfil_de_gasto` and `red_proveedor` are called with a RUT, not a node id — the one tool that
+    // takes the identifier the user actually knows. Without this the row for the most expensive
+    // step in the run was the only one that could not point at anything.
+    if (payload.rut) { ids.push("Proveedor/" + String(payload.rut).trim()); }
+    if (payload.source_id) { ids.push(String(payload.source_id)); }
+    if (Array.isArray(payload.ordenes)) {
+      payload.ordenes.forEach(function (code) {
+        ids.push("OrdenCompra/" + (typeof code === "string" ? code : (code && code.codigo) || ""));
+      });
+    }
+    return ids.filter(Boolean);
+  }
+
+  function resumenDe(payload) {
+    var text = payload.summary || payload.texto || payload.text || payload.error
+      || payload.url || payload.reason || "";
+    text = String(text);
+    return text.length > 68 ? text.slice(0, 66) + "…" : text;
+  }
+
+  /* One row per step, not per event — and the model's own time is a step.
+   *
+   * The log emits a pair for each thing that happens: `tool.call` then `tool.result`, and
+   * `model.request` then `model.response`. Only the second of each pair knows how long it took, so
+   * rendering events one by one shows every step twice, once with no time and once with no verb.
+   *
+   * Pairing them also makes visible the distinction the whole observability tooling industry exists
+   * for: **time spent thinking and time spent reading the graph are not the same time**, and the
+   * tokens are only on one side. A run that is 90% model time and 10% declared graph work is an
+   * expensive prompt with a graph attached, and the waterfall should say so at a glance.
+   */
+  function pasosDe(eventos) {
+    var ts = {};
+    eventos.forEach(function (event) { ts[event.seq] = Number(event.ts || 0); });
+    var pasos = [];
+
+    for (var index = 0; index < eventos.length; index += 1) {
+      var event = eventos[index];
+      var payload = event.payload || {};
+
+      // A response or a result is consumed by the request or call that opened it.
+      if (event.type === "tool.result" || event.type === "tool.error"
+        || event.type === "model.response") { continue; }
+
+      if (event.type === "tool.call") {
+        var resultado = null;
+        for (var look = index + 1; look < eventos.length; look += 1) {
+          var siguiente = eventos[look];
+          if (siguiente.type === "tool.result" || siguiente.type === "tool.error") {
+            if ((siguiente.payload || {}).tool === payload.tool) { resultado = siguiente; }
+            break;
+          }
+          if (siguiente.type === "tool.call") { break; }
+        }
+        var ms = Number((resultado && resultado.payload || {}).duration_ms || 0);
+        if (!ms && resultado) { ms = Math.round((ts[resultado.seq] - ts[event.seq]) * 1000); }
+        pasos.push({
+          tipo: "tool", herramienta: payload.tool, payload: payload, ms: Math.max(0, ms),
+          resumen: ((resultado && resultado.payload) || payload),
+          fallo: !!(resultado && resultado.type === "tool.error")
+        });
+        continue;
+      }
+
+      if (event.type === "model.request") {
+        var respuesta = null;
+        for (var scan = index + 1; scan < eventos.length; scan += 1) {
+          if (eventos[scan].type === "model.response") { respuesta = eventos[scan]; break; }
+        }
+        var uso = (respuesta && respuesta.payload && respuesta.payload.usage) || {};
+        var espera = respuesta ? Math.round((ts[respuesta.seq] - ts[event.seq]) * 1000) : 0;
+        pasos.push({
+          tipo: "model", herramienta: payload.purpose || "modelo", payload: payload,
+          ms: Math.max(0, espera), uso: uso, fallo: false,
+          resumen: { summary: (uso.total_tokens ? uso.total_tokens + " tokens" : "") }
+        });
+        continue;
+      }
+
+      pasos.push({
+        tipo: event.type, payload: payload, ms: Number(payload.duration_ms || 0),
+        resumen: payload, fallo: false
+      });
+    }
+    return pasos;
+  }
+
+
   function renderEvents() {
     var list = $("eventos");
     var onlyImportant = $("solo-importantes").checked;
+    /* Pair first, filter afterwards.
+     *
+     * The duration lives on `tool.result`, which the "only important" filter drops — so filtering
+     * the events before pairing produced a waterfall with no bars at all, which is the one thing a
+     * waterfall is for. The pairing needs the whole log; the filter is about what to *show*.
+     */
+    var pasos = pasosDe(state.events).filter(function (paso) {
+      // "Only important" hides the model's own narration, never a tool call or a decision.
+      return !onlyImportant || paso.tipo !== "agent.step";
+    });
+    var maxMs = 1;
+    pasos.forEach(function (paso) { if (paso.ms > maxMs) { maxMs = paso.ms; } });
+
     list.innerHTML = "";
-    state.events.filter(function (event) {
-      return !onlyImportant || IMPORTANTES[event.type];
-    }).forEach(function (event) {
-      var kind = event.type === "claim.accepted" ? "ok" : event.type === "claim.rejected" || event.type === "budget.exceeded" ? "no"
-        : event.type.indexOf("tool.") === 0 ? "tool" : "";
-      var detail = "";
-      var payload = event.payload || {};
-      if (event.type === "agent.plan") { detail = (payload.steps || []).join(" · "); }
-      else if (event.type === "tool.result") { detail = (payload.summary || "") + " · " + (payload.duration_ms || 0) + " ms"; }
-      else if (event.type === "tool.call") { detail = payload.tool + "(" + JSON.stringify(payload.arguments || {}).slice(0, 90) + ")"; }
-      else if (event.type === "claim.accepted") { detail = payload.texto; }
-      else if (event.type === "claim.rejected") { detail = (payload.text || "") + " — " + payload.reason; }
-      else if (event.type === "source.added") { detail = payload.url; }
-      else if (event.type === "run.finished") { detail = (payload.claims || 0) + " afirmaciones · " + (payload.steps || 0) + " pasos"; }
-      list.appendChild(el("li", { class: kind }, [
-        el("span", { class: "n", text: String(event.seq) }),
-        el("div", {}, [
-          el("span", { class: "que", text: ETIQUETA[event.type] || event.type }),
-          el("span", { class: "det", text: detail })
-        ])
+
+    /* Una leyenda, porque el color solo informa si alguien sabe qué informa.
+     * Violet = the model thinking (and its tokens). Cyan = walking the graph. Blue = going to a
+     * document. Green = closing. Red = a claim that was deleted, which is the row worth reading. */
+    var leyenda = el("div", { class: "leyenda-pasos" });
+    [["pensar", "modelo"], ["navegar", "grafo"], ["documentar", "documento"],
+     ["decidir", "afirmación"], ["descartar", "descarte"]].forEach(function (par) {
+      leyenda.appendChild(el("span", { class: "clave " + par[0] }, [
+        el("i", {}), document.createTextNode(par[1])
       ]));
     });
+    list.appendChild(leyenda);
+
+    var contador = 0;
+    var afirmadas = 0;
+    var descartadas = 0;
+    var tokens = 0;
+    var msModelo = 0;
+    var msHerramientas = 0;
+    pasos.forEach(function (paso) {
+      if (paso.tipo === "model") { msModelo += paso.ms; }
+      if (paso.tipo === "tool") { msHerramientas += paso.ms; }
+    });
+
+    pasos.forEach(function (paso) {
+      var familia = paso.fallo || paso.tipo === "claim.rejected" || paso.tipo === "budget.exceeded"
+        ? "descartar"
+        : paso.tipo === "model" ? "pensar"
+          : paso.tipo === "claim.accepted" ? "decidir"
+            : paso.tipo === "run.finished" ? "cerrar"
+              : paso.tipo === "tool" ? (FAMILIA[paso.herramienta] || "navegar")
+                : "";
+      if (paso.tipo === "tool") { contador += 1; }
+      if (paso.tipo === "model") { tokens += Number((paso.uso || {}).total_tokens || 0); }
+      if (paso.tipo === "claim.accepted") { afirmadas += 1; }
+      if (paso.tipo === "claim.rejected") { descartadas += 1; }
+
+      var verbo = paso.tipo === "tool" ? (paso.herramienta || "herramienta")
+        : paso.tipo === "model" ? (paso.herramienta === "plan" ? "planear" : "pensar")
+          : paso.tipo === "claim.accepted" ? "afirmó"
+          : paso.tipo === "claim.rejected" ? "descartó"
+            : ETIQUETA[paso.tipo] || paso.tipo;
+      var ids = nodosDelPaso({ type: paso.tipo, payload: paso.payload });
+      var texto = paso.tipo === "model"
+        ? (paso.uso && paso.uso.total_tokens
+          ? paso.uso.total_tokens + " tokens · " + (paso.uso.prompt_tokens || 0) + " de entrada"
+          : "esperando al modelo")
+        : resumenDe(paso.tipo === "tool" ? paso.resumen : paso.payload);
+      // "0 señal(es)" three times in a row reads like a malfunction. An empty answer is a fact
+      // about the record, not a failure of the run, and the row has to say which one it is.
+      var vacio = paso.tipo === "tool" && /^0\b/.test(String(texto).trim());
+      if (vacio) { texto = "sin resultados · " + texto; }
+
+      var fila = el("li", {
+        class: "paso " + familia + (ids.length ? " con-nodos" : "") + (vacio ? " vacio" : ""),
+        style: "color:" + (familia === "pensar" ? "#c084fc"
+          : familia === "navegar" ? "#22d3ee"
+          : familia === "documentar" ? "#60a5fa"
+            : familia === "decidir" ? "#a78bfa"
+              : familia === "descartar" ? "#f87171"
+                : familia === "cerrar" ? "#34d399" : "#64748b")
+      }, [
+        el("span", { class: "punto" }),
+        el("div", {}, [
+          el("div", { class: "cabecera" }, [
+            el("span", { class: "verbo", text: verbo }),
+            el("span", { class: "objetivo", text: texto, title: texto }),
+            paso.ms ? el("span", { class: "ms", text: paso.ms + " ms" }) : null
+          ]),
+          paso.ms ? el("div", { class: "barra" }, [
+            el("i", { style: "width:" + Math.max(3, Math.round(paso.ms / maxMs * 100)) + "%" })
+          ]) : null
+        ])
+      ]);
+
+      if (ids.length) {
+        // The panel rebuilds itself on every event of a live run, so the row under the pointer is
+        // destroyed and recreated several times a second — which fires `mouseleave` and cleared the
+        // highlight the user was holding. The pointed step lives in the state and is re-applied.
+        fila.addEventListener("mouseenter", function () {
+          state.hoverPaso = ids;
+          state.graph.setPeek(ids);
+        });
+        fila.addEventListener("mouseleave", function () {
+          if (state.hoverPaso === ids) { state.hoverPaso = null; }
+          state.graph.setPeek([]);
+        });
+        fila.addEventListener("click", function () {
+          if (state.graph.selected !== ids[0]) { focusOn(ids[0], ids[0], ids[0].split("/")[0]); }
+        });
+      }
+      list.appendChild(fila);
+    });
+
+    /* The closing line is the argument.
+     *
+     * "7 pasos" says nothing. "7 pasos · 12.480 tokens · 78% del tiempo en el modelo" says where
+     * the cost is, and it is a number this project can defend because it comes from its own
+     * recording — the same position as the prompt-cache figure in the README.
+     */
+    var total = msModelo + msHerramientas;
+    var resumen = el("div", { class: "resumen-pasos" });
+    resumen.textContent = contador + " pasos · " + afirmadas + " afirma."
+      + (descartadas ? " · " + descartadas + " descartes" : "")
+      + (tokens ? " · " + tokens.toLocaleString("es-CL") + " tok" : "")
+      + (total ? " · " + (total < 1000 ? total + " ms" : (total / 1000).toFixed(1) + " s")
+        + (msModelo ? " (" + Math.round(msModelo / total * 100) + "% modelo)" : "") : "");
+    list.appendChild(resumen);
+    if (state.hoverPaso) { state.graph.setPeek(state.hoverPaso); }
   }
+
+
 
   boot();
 })();

@@ -251,6 +251,7 @@
     this.hovered = null;
     this.hoveredEdge = null;
     this.pinned = [];
+    this.peek = [];
     this.hidden = {};
     this.solo = null;
     this.pulse = null;
@@ -1120,12 +1121,19 @@
     });
 
     var neighbour = {};
+    if (this.peek && this.peek.length) {
+      // A hover in the step waterfall lights the nodes that step touched, without changing the
+      // selection: the log and the canvas are two views of one run, and reading one should move
+      // the other. This is a *peek* — it ends when the pointer leaves.
+      this.peek.forEach(function (id) { neighbour[id] = true; });
+    }
     if (this.selected || this.pinned.length || this.path) {
       var lit = [this.selected].concat(this.pinned).filter(Boolean);
       // A route is a focus, not a decoration. Its nodes are the subject, so they join the mask and
       // everything else is pushed back — a highlight drawn on top of 900 lit nodes is not visible,
       // which is what a review of the first version said in one line: "the proof is invisible".
       if (this.path) { lit = lit.concat(this.path.ids); }
+      if (this.peek) { lit = lit.concat(this.peek); }
       lit.forEach(function (id) { neighbour[id] = true; });
       this.edges.forEach(function (edge) {
         if (lit.indexOf(edge.source.id) >= 0) { neighbour[edge.target.id] = true; }
@@ -1463,6 +1471,13 @@
     }
     this.render();
     return this.pinned.slice();
+  };
+
+  //: Light a set of nodes until the next call. Used by the step waterfall on hover.
+  GraphView.prototype.setPeek = function (ids) {
+    this.peek = (ids || []).slice();
+    this.render();
+    return this.peek.length;
   };
 
   GraphView.prototype.clearPins = function () {
