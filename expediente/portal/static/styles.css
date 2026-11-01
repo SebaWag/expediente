@@ -318,11 +318,12 @@ body {
  * nodo: la tarjeta habla de un objeto y esta habla de una relación, y no deben parecer lo mismo.
  */
 .camino {
+  /* A la derecha, no al centro: el centro-abajo es donde vive el chat, y una revisión encontró
+   * que el panel de la evidencia quedaba enterrado debajo de la conversación. */
   position: fixed;
-  left: 50%;
-  bottom: 18px;
-  transform: translateX(-50%);
-  width: min(680px, calc(100vw - 40px));
+  right: 22px;
+  top: 148px;
+  width: min(430px, calc(100vw - 44px));
   max-height: 44vh;
   overflow: auto;
   background: rgba(2, 6, 23, 0.96);

@@ -288,6 +288,7 @@
     cuerpo.innerHTML = "";
     cuerpo.appendChild(el("p", { class: "nota", text: "Buscando hasta 4 saltos…" }));
     panel.hidden = false;
+    if ($("capas")) { $("capas").hidden = true; }  // no tapar la evidencia con el menú
 
     api("/api/path?desde=" + encodeURIComponent(desde) + "&hasta=" + encodeURIComponent(hasta))
       .then(function (data) {
@@ -310,6 +311,20 @@
         }
 
         var camino = data.caminos[0];
+
+        // The verdict, in words a person can read — and with its limit attached, because the whole
+        // product is that a relation in the registry is not an imputation.
+        var rels = camino.tramos.map(function (t) { return t.rel; });
+        var compartido = rels.some(function (r) { return r.indexOf("COMPARTE") === 0; })
+          || rels.filter(function (r) { return r.indexOf("DOMICILIO") >= 0; }).length >= 2;
+        cuerpo.appendChild(el("p", {
+          class: "nota fuerte",
+          style: "color:#7dd3fc;font-weight:600;font-size:13px;line-height:1.45",
+          text: compartido
+            ? "Dos entidades distintas con un domicilio en común. Es una relación en el registro público, "
+              + "no una imputación: lo que sigue es revisar quién firma y qué se compró."
+            : "Estas dos entidades están conectadas por " + rels.length + " relación(es) documentadas."
+        }));
 
         // A citation is an id; a sentence is a name. The reader is looking at companies, not at
         // `Proveedor/76.264.138-0`, so the panel speaks in names and keeps the id as the tooltip.
@@ -339,7 +354,8 @@
         camino.tramos.forEach(function (tramo) { ids.push(tramo.a); });
         state.graph.setData({ nodes: data.nodos, edges: data.aristas, seed: data.desde }, { merge: true });
         state.graph.showPath(ids);
-        if (state.graph.mode === "3d") { state.graph.frameNodes(ids, 1.2); }
+        // Always frame: a route drawn off screen is a claim with no picture next to it.
+        state.graph.frameNodes(ids, 1.25);
       })
       .catch(function (error) {
         cuerpo.innerHTML = "";

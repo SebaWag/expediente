@@ -894,7 +894,38 @@
 
   //: Frame a set of nodes — used by the path view and by "show me the neighbourhood".
   GraphView.prototype.frameNodes = function (ids, padding) {
-    if (this.mode !== "3d") { return this.flyTo(ids[0], 1.6); }
+    if (this.mode !== "3d") {
+      // In 2D the camera is a scale and an origin, so framing a set is arithmetic. Flying to the
+      // first node alone left the other end of the route off screen.
+      var wanted2d = {};
+      ids.forEach(function (id) { wanted2d[id] = true; });
+      var picked2d = this.nodes.filter(function (node) { return wanted2d[node.id]; });
+      if (!picked2d.length) { return false; }
+      var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      picked2d.forEach(function (node) {
+        minX = Math.min(minX, node.x); maxX = Math.max(maxX, node.x);
+        minY = Math.min(minY, node.y); maxY = Math.max(maxY, node.y);
+      });
+      var width2d = this.canvas.clientWidth || 900;
+      var height2d = this.canvas.clientHeight || 700;
+      var spanX = Math.max(maxX - minX, 120);
+      var spanY = Math.max(maxY - minY, 120);
+      // Room for the labels and for the floating panel along the bottom.
+      // The route panel occupies the right-hand 430 px. Centring the drawing in the whole canvas
+      // put one end of the route underneath it — a review counted "a two-hop path with only one and
+      // a half hops visible".
+      var panel = 470;
+      var roomX = Math.max(320, width2d - panel) * 0.66;
+      var roomY = height2d * 0.50;
+      var scale = clamp(Math.min(roomX / spanX, roomY / spanY), 0.4, 4.5);
+      this.scale = scale;
+      this.tx = (width2d - panel) * 0.5 - ((minX + maxX) / 2) * scale;
+      this.ty = height2d * 0.46 - ((minY + maxY) / 2) * scale;
+      this.pulse = { id: ids[0], start: performance.now() };
+      this.render();
+      this._animate();
+      return true;
+    }
     var wanted = {};
     ids.forEach(function (id) { wanted[id] = true; });
     var picked = this.nodes.filter(function (node) { return wanted[node.id]; });
@@ -1089,8 +1120,12 @@
     });
 
     var neighbour = {};
-    if (this.selected || this.pinned.length) {
+    if (this.selected || this.pinned.length || this.path) {
       var lit = [this.selected].concat(this.pinned).filter(Boolean);
+      // A route is a focus, not a decoration. Its nodes are the subject, so they join the mask and
+      // everything else is pushed back — a highlight drawn on top of 900 lit nodes is not visible,
+      // which is what a review of the first version said in one line: "the proof is invisible".
+      if (this.path) { lit = lit.concat(this.path.ids); }
       lit.forEach(function (id) { neighbour[id] = true; });
       this.edges.forEach(function (edge) {
         if (lit.indexOf(edge.source.id) >= 0) { neighbour[edge.target.id] = true; }
@@ -1098,6 +1133,8 @@
       });
     }
     var focused = Object.keys(neighbour).length > 0;
+    // With a route on screen the field is not context, it is noise: dim it harder than a selection.
+    var dimTo = this.path ? 0.055 : 0.16;
 
     // Painter's algorithm: back to front, so a near node covers a far one.
     var order = this.nodes.slice().sort(function (a, b) { return (b._depth || 0) - (a._depth || 0); });
@@ -1115,11 +1152,11 @@
         Math.abs(routeIndex[edge.source.id] - routeIndex[edge.target.id]) === 1;
       var inFocus = !focused || (neighbour[edge.source.id] || neighbour[edge.target.id]);
       var depth = ((edge.source._depth || 0) + (edge.target._depth || 0)) / 2;
-      var alpha = (direct ? 0.8 : onRoute ? 0.95 : inFocus ? 0.20 : 0.05) * self._depthAlpha(depth);
-      var weight = (onRoute || direct ? 1.9 : 0.8) * (self.mode === "3d" ? Math.max(0.35, edge.source._f + edge.target._f) / 2 : 1);
+      var alpha = (direct ? 0.85 : onRoute ? 1 : inFocus ? 0.22 : (self.path ? 0.015 : 0.05)) * self._depthAlpha(depth);
+      var weight = (onRoute ? 3.6 : direct ? 1.9 : 0.8) * (self.mode === "3d" ? Math.max(0.35, edge.source._f + edge.target._f) / 2 : 1);
       ctx.lineWidth = Math.max(0.35, weight);
       ctx.strokeStyle = onRoute
-        ? "rgba(56,189,248," + clamp(alpha + 0.1, 0, 1) + ")"
+        ? "rgba(125,211,252," + clamp(alpha + 0.15, 0, 1) + ")"
         : direct
           ? "rgba(148,197,255," + alpha + ")"
           : "rgba(148,163,184," + alpha + ")";
@@ -1142,7 +1179,7 @@
       var lit = !focused || neighbour[node.id];
       var colour = self.colorFor(node.label);
       var radius = node._r + (node === self.hovered ? 2 : 0);
-      var depthAlpha = node._alpha * (lit ? 1 : 0.16);
+      var depthAlpha = node._alpha * (lit ? 1 : (self.path ? 0.06 : 0.16));
 
       if (lit) {
         var glow = ctx.createRadialGradient(node._sx, node._sy, 0, node._sx, node._sy, radius * 3.4);
@@ -1368,7 +1405,7 @@
       var my = (edge.source._sy + edge.target._sy) / 2;
       var label = String(edge.rel || "");
       if (!label) { return; }
-      ctx.font = (onRoute ? "bold 12px " : "bold 10px ") + "ui-monospace, SFMono-Regular, Menlo, monospace";
+      ctx.font = (onRoute ? "bold 14px " : "bold 10px ") + "ui-monospace, SFMono-Regular, Menlo, monospace";
       var width = ctx.measureText(label).width;
       var pad = onRoute ? 6 : 4.5;
       // Readable text lives in the same rectangle registry as the node labels: a relation name
