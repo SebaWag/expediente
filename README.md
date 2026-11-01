@@ -232,14 +232,22 @@ A second chain in that same month was **dropped** by the gate: `AF-2` had no ver
 had no document, so it did not ship. It is listed in the dossier as dropped, because an omission
 that is visible is worth more than a claim that cannot be checked.
 
+And it is no longer one dossier. `scripts/dossier_pipeline.py` takes the detector's own output,
+downloads each month's archive, locates every order code, and writes the dossier from the
+population it recomputes — **3 chains, 3 different months, 16/16 codes located, 39 seconds** over
+the 10.3 M-order corpus. Re-opening the archives and reading line *N* reproduces every citation.
+The four defects it took to get there are in [`docs/VERIFICATION.md`](docs/VERIFICATION.md), and
+the one worth knowing is this: the first version grouped orders by the buyer's **name**, the
+detector groups by its **RUT**, and the dossier came out valid, signable and empty.
+
 ## Status
 
-Honest as of **day 6** (2026-10-31). **80 commits, 385 tests** — and both runs are
+Honest as of **day 6** (2026-10-31). **82 commits, 397 tests** — and both runs are
 reproduced on every push by CI, not by a badge that only claims it:
 
 ```bash
-python3 -m pytest -q            # 368 passed, 17 skipped (the engine tests need a server)
-EXPEDIENTE_MDB_URL=http://127.0.0.1:1234 python3 -m pytest -q   # the same 385, none skipped
+python3 -m pytest -q            # 380 passed, 17 skipped (the engine tests need a server)
+EXPEDIENTE_MDB_URL=http://127.0.0.1:1234 python3 -m pytest -q   # the same 397, none skipped
 ```
 
 The `graph` job in [`.github/workflows/ci.yml`](.github/workflows/ci.yml) starts an
@@ -274,6 +282,8 @@ that says the in-memory adapter and the engine agree — is executed, not skippe
 | **Portal — map, board, agent, log** | ✅ `investiga.wagnersolutionsai.com`, no build step, no dependency |
 | Contraloría benchmark — recall against published findings | ⬜ **not started**, and the reason is recorded: that corpus is not machine-readable (Liferay portlet over AJAX, no dataset on datos.gob.cl — checked 2026-10-29) |
 | **Detector desk check — 48 findings, re-derived** | ✅ **79% actionable, 100% reproduce their own definition, 83% with complete evidence**. Three rule defects found and fixed. See [`docs/BENCHMARK.md`](docs/BENCHMARK.md) |
+| **Citation verification — code → line in the State's archive** | ✅ `scripts/verify_archive.py`: semicolon CSV, both month spellings, sha256 + retrieval time, coverage reported rather than assumed. Reproduces the nine hand-verified lines of 2021-11 exactly |
+| **Dossier pipeline — signal → verified → dossier** | ✅ `scripts/dossier_pipeline.py`: **3 chains, 3 months, 16/16 codes located, 3/3 signable, 39 s** over 10.3 M orders. See [`docs/VERIFICATION.md`](docs/VERIFICATION.md) |
 | Vision / OCR — Meta SAM 3.1, for pages with no text layer | ⬜ not started |
 
 ### Entity resolution was not tuned. It was measured.

@@ -119,6 +119,19 @@ def build_store(orders: list[OrdenCompra], evidence: dict) -> tuple[InMemoryGrap
     return store, {"attached": attached, "missing": missing, "documented": bool(document_key)}
 
 
+def notas_default() -> list[str]:
+    """The three footnotes every dossier carries, in one place so they cannot drift."""
+    return [
+        "La «página» de una cita a un archivo CSV del Estado es su **número de línea**. El "
+        "documento enlazado es el archivo mensual oficial; la línea se verificó buscando el "
+        "código de la orden dentro de ese archivo, no se estimó.",
+        "Solo las órdenes que se encontraron en el archivo llevan cita. Una afirmación que "
+        "cite una orden sin línea verificada no se emite: se elimina y se cuenta.",
+        "Estas cifras describen registros públicos de compras. No imputan conducta a persona "
+        "ni a institución alguna.",
+    ]
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--orders", type=Path, default=Path("out/orders_b4.jsonl"))
@@ -143,15 +156,7 @@ def main(argv: list[str]) -> int:
         + (f" · sin línea verificada: {len(coverage['missing'])}" if coverage["missing"] else "")
     )
 
-    notas = [
-        "La «página» de una cita a un archivo CSV del Estado es su **número de línea**. El "
-        "documento enlazado es el archivo mensual oficial; la línea se verificó buscando el "
-        "código de la orden dentro de ese archivo, no se estimó.",
-        "Solo las órdenes que se encontraron en el archivo llevan cita. Una afirmación que "
-        "cite una orden sin línea verificada no se emite: se elimina y se cuenta.",
-        "Estas cifras describen registros públicos de compras. No imputan conducta a persona "
-        "ni a institución alguna.",
-    ]
+    notas = notas_default()
 
     result = investigate(
         store,
