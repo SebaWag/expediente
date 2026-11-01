@@ -32,6 +32,7 @@
     <button type="button" data-mapa="in" class="icono" title="Acercar">+</button>
     <button type="button" data-mapa="out" class="icono" title="Alejar">−</button>
     <button type="button" data-mapa="reset" class="icono" title="Volver a la vista completa">⌂</button>
+    <button type="button" id="btn-vista" class="icono" title="Vista 2D (mapa) o 3D (caminata)">3D</button>
     <button type="button" id="btn-registro" class="icono" title="Registro de lo que hizo el agente">▤</button>
   </nav>
 </header>
@@ -55,6 +56,14 @@
 <aside class="tarjeta" id="tarjeta" hidden aria-label="Detalle del nodo">
   <button class="cerrar" id="cerrar-tarjeta" aria-label="Cerrar">×</button>
   <div id="tarjeta-cuerpo"></div>
+</aside>
+
+<aside class="camino" id="camino" hidden aria-label="Camino entre dos nodos">
+  <header>
+    <h2>Camino</h2>
+    <button class="cerrar" id="cerrar-camino" aria-label="Cerrar">×</button>
+  </header>
+  <div id="camino-cuerpo"></div>
 </aside>
 
 <aside class="registro" id="registro" hidden aria-label="Registro del agente">

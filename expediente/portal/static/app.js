@@ -59,15 +59,33 @@
 
   // ------------------------------------------------------------------ graph
   state.graph = new window.GraphView($("mapa"), {
-    onSelect: function (node) { openCard(node.id, node.name, node.label); }
+    legend: true,
+    onSelect: function (node) { openCard(node.id, node.name, node.label); },
+    onPin: function (node, pinned) { onPin(node, pinned); }
   });
+
+  //: The 2D map answers "where does this sit"; the 3D walk answers "what does it look like from
+  //: here". The button says which one you are in, and remembers the choice across reloads.
+  function paintVista() {
+    var button = $("btn-vista");
+    if (!button) { return; }
+    button.textContent = state.graph.mode === "3d" ? "2D" : "3D";
+    button.title = state.graph.mode === "3d" ? "Volver al mapa 2D" : "Pasar a la caminata 3D";
+  }
+  if ($("btn-vista")) {
+    $("btn-vista").addEventListener("click", function () {
+      state.graph.toggleMode();
+      paintVista();
+    });
+    paintVista();
+  }
 
   document.querySelectorAll("[data-mapa]").forEach(function (button) {
     button.addEventListener("click", function () {
       var action = button.dataset.mapa;
       if (action === "in") { state.graph.zoomBy(1.25); }
       if (action === "out") { state.graph.zoomBy(0.8); }
-      if (action === "reset") { state.graph.reset(); closeCard(); }
+      if (action === "reset") { state.graph.reset(); closeCard(); if ($("camino")) { $("camino").hidden = true; } }
     });
   });
 
@@ -193,6 +211,91 @@
         });
     }
     openCard(nodeId, name, label);
+  }
+
+
+  // ------------------------------------------------------------------ camino
+  /* "¿Cómo se conectan?" — dos nodos, un clic con shift, y el grafo contesta con la ruta.
+   *
+   * The answer is a list of hops, each with its relation and its direction, because "two hops"
+   * proves nothing while "TIENE_DOMICILIO, walked backwards, through this address" is the finding.
+   * When there is no path the panel says how many hops it looked at — an empty list would read as
+   * "these two are unrelated", which is a different and usually false statement.
+   */
+  function onPin(node, pinned) {
+    say("agente", "Fijado: " + (node.name || node.id) + (pinned.length === 2 ? " · buscando el camino…" : " · fija un segundo nodo para ver cómo se conectan"));
+    if (pinned.length < 2) {
+      $("camino").hidden = true;
+      return;
+    }
+    buscarCamino(pinned[0], pinned[1]);
+  }
+
+  function buscarCamino(desde, hasta) {
+    var panel = $("camino");
+    var cuerpo = $("camino-cuerpo");
+    cuerpo.innerHTML = "";
+    cuerpo.appendChild(el("p", { class: "nota", text: "Buscando hasta 4 saltos…" }));
+    panel.hidden = false;
+
+    api("/api/path?desde=" + encodeURIComponent(desde) + "&hasta=" + encodeURIComponent(hasta))
+      .then(function (data) {
+        cuerpo.innerHTML = "";
+        if (data.error) {
+          cuerpo.appendChild(el("p", { class: "nota fuerte", text: data.error }));
+          return;
+        }
+        if (!data.caminos || !data.caminos.length) {
+          cuerpo.appendChild(el("p", {
+            class: "nota fuerte",
+            text: data.motivo || "no encontré un camino entre estos dos nodos"
+          }));
+          cuerpo.appendChild(el("p", {
+            class: "nota",
+            text: "No es lo mismo que «no están relacionados»: es que no aparece una ruta en "
+              + (data.saltos || 4) + " saltos."
+          }));
+          return;
+        }
+
+        var camino = data.caminos[0];
+        cuerpo.appendChild(el("p", {
+          class: "nota",
+          text: camino.saltos + (camino.saltos === 1 ? " salto" : " saltos") + " entre "
+            + data.desde + " y " + data.hasta
+            + (data.truncado ? " · búsqueda acotada (" + data.truncado + ")" : "")
+        }));
+
+        camino.tramos.forEach(function (tramo) {
+          cuerpo.appendChild(el("div", { class: "tramo" }, [
+            el("b", { text: tramo.de }),
+            el("span", {
+              class: "rel" + (tramo.reversa ? " reversa" : ""),
+              text: tramo.rel + (tramo.reversa ? " ↩" : ""),
+              title: tramo.reversa ? "recorrida en sentido inverso al que está guardado" : ""
+            }),
+            el("b", { text: tramo.a })
+          ]));
+        });
+
+        // The route is drawn on the canvas, one hop after another, so the answer is the path.
+        var ids = [data.desde];
+        camino.tramos.forEach(function (tramo) { ids.push(tramo.a); });
+        state.graph.setData({ nodes: data.nodos, edges: data.aristas, seed: data.desde }, { merge: true });
+        state.graph.showPath(ids);
+        if (state.graph.mode === "3d") { state.graph.frameNodes(ids, 1.2); }
+      })
+      .catch(function (error) {
+        cuerpo.innerHTML = "";
+        cuerpo.appendChild(el("p", { class: "nota fuerte", text: "No pude buscar el camino: " + error.message }));
+      });
+  }
+
+  if ($("cerrar-camino")) {
+    $("cerrar-camino").addEventListener("click", function () {
+      $("camino").hidden = true;
+      state.graph.clearPins();
+    });
   }
 
   // ------------------------------------------------------------------ card

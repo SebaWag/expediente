@@ -290,3 +290,58 @@ def test_every_label_is_encodable_and_nameable():
     assert colors, "no encontré la tabla de colores"
     assert colors == shapes, f"labels sin forma: {sorted(colors - shapes)} · formas huérfanas: {sorted(shapes - colors)}"
     assert colors == names, f"labels sin nombre en la leyenda: {sorted(colors - names)}"
+
+
+# -------------------------------------------------------------------------- path
+def make_portal(tmp_path) -> Portal:
+    store = make_store()
+    runs = RunStore(tmp_path / "runs")
+    registry = RunRegistry(store, lambda: ScriptedProvider([]), runs, Settings(max_steps=2))
+    return Portal(store, FakeApi(signals()), runs, registry)
+
+
+def test_the_path_between_two_suppliers_is_the_shared_address(tmp_path):
+    """"How are these two connected" — the question the graph exists to answer.
+
+    The fixture is the real case: two suppliers with different RUTs and one address. The answer has
+    to name the relation on each hop, because "two hops" proves nothing and "TIENE_DOMICILIO twice
+    through the same address" is the whole finding.
+    """
+    portal = make_portal(tmp_path)
+    result = portal.path({"desde": "Proveedor/76.264.138-0", "hasta": "Proveedor/77.290.194-1"})
+
+    assert "error" not in result, result
+    assert result["saltos"] == 2
+    assert result["caminos"], "dos proveedores que comparten domicilio tienen que tener un camino"
+    tramos = result["caminos"][0]["tramos"]
+    assert [tramo["rel"] for tramo in tramos] == ["TIENE_DOMICILIO", "TIENE_DOMICILIO"]
+    assert tramos[0]["de"] == "Proveedor/76.264.138-0"
+    assert tramos[-1]["a"] == "Proveedor/77.290.194-1"
+    assert "Domicilio/geo-1" in {node["id"] for node in result["nodos"]}
+
+
+def test_a_path_that_does_not_fit_the_budget_says_so_instead_of_returning_nothing(tmp_path):
+    """An empty list would let a reader conclude the two are unrelated. They are not: they are two
+    hops apart and we only looked at one."""
+    portal = make_portal(tmp_path)
+    result = portal.path({"desde": "Proveedor/76.264.138-0", "hasta": "Proveedor/77.290.194-1", "saltos": "1"})
+
+    assert result["caminos"] == []
+    assert "no hay camino" in result["motivo"]
+    assert result["saltos"] == 1
+
+
+def test_the_path_can_be_restricted_to_one_kind_of_relation(tmp_path):
+    portal = make_portal(tmp_path)
+    allowed = portal.path({"desde": "Proveedor/76.264.138-0", "hasta": "Proveedor/77.290.194-1", "rel": "TIENE_DOMICILIO"})
+    blocked = portal.path({"desde": "Proveedor/76.264.138-0", "hasta": "Proveedor/77.290.194-1", "rel": "ADJUDICADA_A"})
+
+    assert allowed["caminos"], "el camino existe por el domicilio compartido"
+    assert blocked["caminos"] == [], "no hay camino hecho sólo de adjudicaciones"
+
+
+def test_a_path_needs_two_real_nodes(tmp_path):
+    portal = make_portal(tmp_path)
+    assert "error" in portal.path({})
+    assert "error" in portal.path({"desde": "sin-barra", "hasta": "Proveedor/77.290.194-1"})
+    assert "error" in portal.path({"desde": "Proveedor/76.264.138-0", "hasta": "Proveedor/76.264.138-0"})

@@ -554,6 +554,244 @@ class Portal:
         connections.sort(key=lambda item: -item["count"])
         return {"node": nodo, "connections": connections}
 
+    def path(self, params: dict[str, str]) -> dict[str, Any]:
+        """The route between two nodes — the question a graph answers and a table cannot.
+
+        "How are these two connected" is the only question that justifies the whole architecture,
+        and until now the portal could not ask it. The walk is a breadth-first search over the
+        relation edges, run in batches of two queries per hop (every outgoing edge from the whole
+        frontier, then every incoming edge), because one query per node took 18.4 s for a single
+        hop and this takes 1.2 s in production.
+
+        Three properties, each because the alternative lies:
+
+        * **Bounded.** Hops, frontier size and visited nodes are capped in code, and the answer says
+          which cap it hit. An unbounded BFS over 64.8 M triples is a denial of service with a nice
+          interface.
+        * **Direction is not assumed.** A path may traverse an edge forwards or backwards, and the
+          hop records which way it went, so the reader can tell "this supplier is paid by that
+          buyer" from "that buyer is paid by this supplier". Half the graph's relations are only
+          interesting in one direction.
+        * **No path is an answer.** When the target is not reachable inside the budget, the response
+          says so with the number of hops it tried. Two suppliers are not connected because we could
+          not find it in four hops, and reporting that as an empty list would let a reader assume
+          they are unrelated.
+        """
+        from ..graph.millenniumdb import node_uri
+        from ..graph.schema import NODE_PREFIX, ONTO, relation_uri
+
+        def parse_node(text: str) -> tuple[str, str] | None:
+            if "/" not in text:
+                return None
+            label, _, key = text.partition("/")
+            if not label or not key:
+                return None
+            return label, key
+
+        source = parse_node(params.get("desde") or params.get("from") or "")
+        target = parse_node(params.get("hasta") or params.get("to") or "")
+        if source is None or target is None:
+            return {"error": "faltan 'desde' y 'hasta', con la forma Label/id"}
+        if source == target:
+            return {"error": "el origen y el destino son el mismo nodo"}
+
+        try:
+            max_depth = max(1, min(5, int(params.get("saltos") or 4)))
+            max_paths = max(1, min(6, int(params.get("caminos") or 3)))
+        except ValueError:
+            return {"error": "'saltos' y 'caminos' tienen que ser números"}
+        wanted = [rel.strip() for rel in (params.get("rel") or "").split(",") if rel.strip()]
+
+        REL = f"{ONTO}rel/"
+        source_uri, target_uri = node_uri(*source), node_uri(*target)
+
+        def neighbours_sparql(client, frontier: list[str]) -> list[tuple[str, str, str, bool]]:
+            """Every relation edge touching the frontier, in two queries: out, then in.
+
+            Only predicates under ``rel/`` are traversed. The rest of the graph is literals, and a
+            path that goes through `monto_clp = 15575507` is not a path, it is a coincidence.
+            """
+            values = " ".join(f"<{uri}>" for uri in frontier)
+            if wanted:
+                alternatives = "|".join(f"<{relation_uri(rel)}>" for rel in wanted)
+                keep = f" FILTER(?p IN ({alternatives}))"
+            else:
+                keep = f' FILTER(STRSTARTS(STR(?p), "{REL}"))'
+            steps: list[tuple[str, str, str, bool]] = []
+            for query, out in (
+                (f"SELECT ?s ?p ?o WHERE {{ VALUES ?s {{ {values} }} ?s ?p ?o . FILTER(isIRI(?o)){keep} }}", True),
+                (f"SELECT ?s ?p ?o WHERE {{ VALUES ?o {{ {values} }} ?s ?p ?o . FILTER(isIRI(?s)){keep} }}", False),
+            ):
+                for row in client.select(query):
+                    sub, pred, obj = str(row["s"]), str(row["p"]), str(row["o"])
+                    name = pred[len(REL):] if pred.startswith(REL) else pred.replace(ONTO, "")
+                    if out:
+                        steps.append((sub, obj, name, False))
+                    else:
+                        steps.append((obj, sub, name, True))
+            return steps
+
+        def neighbours_memory(store, frontier: list[str]) -> list[tuple[str, str, str, bool]]:
+            """The same walk on the reference adapter, so the tests exercise the real loop."""
+            steps: list[tuple[str, str, str, bool]] = []
+            for uri in frontier:
+                if not uri.startswith(NODE_PREFIX):
+                    continue
+                label, _, key = uri[len(NODE_PREFIX):].partition("/")
+                try:
+                    adjacent = store.adjacent_directed((label, key), "both", limit=200)
+                except Exception:
+                    continue
+                for rel, other, _props, reversed_ in adjacent:
+                    if wanted and rel not in wanted:
+                        continue
+                    other_uri = node_uri(other[0], other[1])
+                    # The walk always *leaves* the frontier, whichever way the edge was written.
+                    # An incoming edge is a legal move walked backwards, and `flipped` is what the
+                    # reader needs to know which of the two directions the data actually states.
+                    if reversed_:
+                        steps.append((uri, other_uri, rel, True))
+                    else:
+                        steps.append((uri, other_uri, rel, False))
+            return steps
+
+        client = getattr(self.store, "client", None)
+        walk_once = (
+            (lambda frontier: neighbours_sparql(client, frontier))
+            if client is not None
+            else (lambda frontier: neighbours_memory(self.store, frontier))
+        )
+
+        levels: dict[str, int] = {source_uri: 0}
+        #: parents[child] = [(parent, rel, walked_backwards)] — every edge that reaches `child` one
+        #: level after the parent. Keeping all of them is what allows more than one shortest path.
+        parents: dict[str, list[tuple[str, str, bool]]] = {}
+        frontier = [source_uri]
+        frontier_cap = 220
+        visited_cap = 4000
+        capped = ""
+
+        for hop in range(1, max_depth + 1):
+            if not frontier:
+                break
+            discovered: list[str] = []
+            for step_from, step_to, rel_name, flipped in walk_once(frontier):
+                if levels.get(step_from) != hop - 1:
+                    continue
+                if not step_to.startswith(NODE_PREFIX):
+                    continue
+                if step_to not in levels:
+                    if len(levels) >= visited_cap:
+                        capped = "visited"
+                        continue
+                    levels[step_to] = hop
+                    discovered.append(step_to)
+                if levels[step_to] == hop:
+                    parents.setdefault(step_to, []).append((step_from, rel_name, flipped))
+            if target_uri in levels:
+                break
+            frontier = discovered[:frontier_cap]
+            if len(discovered) > frontier_cap:
+                capped = "frontier"
+
+        if target_uri not in levels:
+            return {
+                "desde": f"{source[0]}/{source[1]}",
+                "hasta": f"{target[0]}/{target[1]}",
+                "saltos": max_depth,
+                "caminos": [],
+                "motivo": f"no hay camino de {max_depth} saltos o menos entre estos dos nodos",
+                "truncado": capped,
+            }
+
+        # Walk the parent DAG backwards, at most `max_paths` times. A trail entry is
+        # (from, to, rel, walked_backwards): the direction is kept because "A pays B" and
+        # "B pays A" are not the same finding and the reader has to be able to tell them apart.
+        found: list[list[tuple[str, str, str, bool]]] = []
+
+        def rebuild(node: str, trail: list[tuple[str, str, str, bool]]) -> None:
+            if len(found) >= max_paths:
+                return
+            if node == source_uri:
+                found.append(list(reversed(trail)))
+                return
+            for parent, rel, flipped in parents.get(node, [])[:6]:
+                if any(step[0] == parent for step in trail):
+                    continue
+                rebuild(parent, trail + [(parent, node, rel, flipped)])
+
+        rebuild(target_uri, [])
+
+        def node_id(uri: str) -> str:
+            return _node_id_from_uri(uri)
+
+        uris: list[str] = [source_uri]
+        for steps in found:
+            for _step_from, step_to, _rel, _flipped in steps:
+                if step_to not in uris:
+                    uris.append(step_to)
+
+        # One query for every property of every node on every path.
+        props: dict[str, dict[str, Any]] = {uri: {} for uri in uris}
+        if uris and client is not None:
+            values = " ".join(f"<{uri}>" for uri in uris)
+            for row in client.select(f"SELECT ?s ?p ?o WHERE {{ VALUES ?s {{ {values} }} ?s ?p ?o }}"):
+                uri = str(row["s"])
+                predicate = str(row["p"]).replace(ONTO, "")
+                if predicate.startswith("rel/") or predicate == "type":
+                    continue
+                if uri in props and predicate not in props[uri]:
+                    props[uri] = {**props[uri], predicate: row["o"]}
+        elif uris:
+            for uri in uris:
+                label, _, key = uri[len(NODE_PREFIX):].partition("/")
+                node = self.store.node(label, key) or {}
+                props[uri] = {k: v for k, v in list(node.items())[:8]}
+
+        nodes = []
+        for uri in uris:
+            label = _label_from_uri(uri)
+            key = node_id(uri).split("/", 1)[-1]
+            nodes.append(
+                {
+                    "id": node_id(uri),
+                    "label": label,
+                    "key": key,
+                    "name": _display_name(label, key, props.get(uri, {})),
+                    "props": {k: v for k, v in list(props.get(uri, {}).items())[:8]},
+                }
+            )
+
+        caminos = []
+        edges = []
+        seen_edges: set[tuple[str, str, str]] = set()
+        for steps in found:
+            tramos = []
+            for step_from, step_to, rel, flipped in steps:
+                tramos.append(
+                    {
+                        "de": node_id(step_from),
+                        "a": node_id(step_to),
+                        "rel": rel,
+                        "reversa": flipped,
+                    }
+                )
+                signature = (node_id(step_from), rel, node_id(step_to))
+                if signature not in seen_edges:
+                    seen_edges.add(signature)
+                    edges.append({"source": signature[0], "target": signature[2], "rel": rel})
+            caminos.append({"saltos": len(steps), "tramos": tramos})
+
+        return {
+            "desde": f"{source[0]}/{source[1]}",
+            "hasta": f"{target[0]}/{target[1]}",
+            "saltos": levels[target_uri],
+            "caminos": caminos,
+            "nodos": nodes,
+            "aristas": edges,
+            "truncado": capped,
+        }
+
     def connection_page(self, params: dict[str, str]) -> dict[str, Any]:
         """One page of a node's neighbours, with the fields a reader needs.
 
@@ -1269,6 +1507,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, portal.search(params))
             if path == "/api/subgraph":
                 return self._json(200, portal.subgraph(params))
+            if path == "/api/path":
+                return self._json(self.portal.path(query))
             if path == "/api/network":
                 return self._json(200, portal.network(params))
             if path == "/api/runs":

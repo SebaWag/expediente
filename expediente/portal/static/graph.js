@@ -511,6 +511,13 @@
       var at = point(event);
       var node = find(at);
       if (node) {
+        // Shift-click pins a second node instead of replacing the selection: the path question
+        // needs two subjects, and a mode you have to enter is a mode nobody finds.
+        if (event.shiftKey || event.metaKey) {
+          var pinned = self.pin(node.id);
+          if (self.options.onPin) { self.options.onPin(node, pinned); }
+          return;
+        }
         self.selected = node.id;
         self.pinned = [];
         self.render();
