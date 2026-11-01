@@ -99,9 +99,12 @@ body {
 .capa i { width: .6rem; height: .6rem; border-radius: 50%; display: inline-block; }
 
 /* ---------------------------------------------------------------------- chat */
+/* El chat a la izquierda y más angosto: centrado ocupaba 760 px del medio del lienzo, que es
+ * justo donde se dibuja el caso. El grafo tiene que tener el centro libre. */
 .chat {
-  position: fixed; left: 50%; bottom: 1.2rem; transform: translateX(-50%);
-  width: min(760px, calc(100% - 2rem)); z-index: 30;
+  /* Deja libre la franja de la letra chica legal, que vive abajo a la izquierda. */
+  position: fixed; left: 1.2rem; bottom: 5.4rem;
+  width: min(520px, calc(100% - 2rem)); z-index: 30;
   display: flex; flex-direction: column; gap: .55rem;
 }
 
@@ -317,21 +320,25 @@ body {
  * Vive abajo al centro porque es el resultado de una acción sobre el grafo, no una ficha de un
  * nodo: la tarjeta habla de un objeto y esta habla de una relación, y no deben parecer lo mismo.
  */
+/* La columna de la derecha muestra una cosa a la vez.
+ *
+ * El registro y el camino ocupaban el mismo sitio y se tapaban: la revisión lo describió como
+ * "el menú de filtros tapa el panel", y el filtro era el registro. Ahora son la misma columna y
+ * abrir uno cierra el otro — un panel a medias detrás de otro es peor que no tenerlo.
+ */
 .camino {
-  /* A la derecha, no al centro: el centro-abajo es donde vive el chat, y una revisión encontró
-   * que el panel de la evidencia quedaba enterrado debajo de la conversación. */
   position: fixed;
-  right: 22px;
-  top: 148px;
-  width: min(430px, calc(100vw - 44px));
-  max-height: 44vh;
-  overflow: auto;
+  top: 4.4rem;
+  right: 1.2rem;
+  bottom: 1.2rem;
+  width: min(520px, calc(100% - 2rem));
+  overflow-y: auto;
   background: rgba(2, 6, 23, 0.96);
   border: 1px solid rgba(56, 189, 248, 0.38);
   border-radius: 14px;
   padding: 14px 16px 16px;
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
-  z-index: 12;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  z-index: 31;
   color: #e2e8f0;
 }
 

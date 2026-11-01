@@ -288,7 +288,8 @@
     cuerpo.innerHTML = "";
     cuerpo.appendChild(el("p", { class: "nota", text: "Buscando hasta 4 saltos…" }));
     panel.hidden = false;
-    if ($("capas")) { $("capas").hidden = true; }  // no tapar la evidencia con el menú
+    if ($("capas")) { $("capas").hidden = true; }      // no tapar la evidencia con el menú
+    if ($("registro")) { $("registro").hidden = true; } // la derecha muestra una cosa a la vez
 
     api("/api/path?desde=" + encodeURIComponent(desde) + "&hasta=" + encodeURIComponent(hasta))
       .then(function (data) {
@@ -739,7 +740,9 @@
   function investigate(text) { ask(text); }
 
   // ------------------------------------------------------------------ registro
-  $("btn-registro").addEventListener("click", function () { openLog(state.runId); });
+  $("btn-registro").addEventListener("click", function () {
+    // La misma columna: el registro reemplaza al camino, no se apila encima.
+    if ($("camino")) { $("camino").hidden = true; } openLog(state.runId); });
   $("cerrar-registro").addEventListener("click", function () { $("registro").hidden = true; });
   $("solo-importantes").addEventListener("change", renderEvents);
 
@@ -1030,6 +1033,8 @@
         + (msModelo ? " (" + Math.round(msModelo / total * 100) + "% modelo)" : "") : "");
     list.appendChild(resumen);
     if (state.hoverPaso) { state.graph.setPeek(state.hoverPaso); }
+    // La corrida crece hacia abajo; el panel se queda en el final, que es donde está el desenlace.
+    if (!state.hoverPaso) { list.scrollTop = list.scrollHeight; }
   }
 
 

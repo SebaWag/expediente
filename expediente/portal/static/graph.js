@@ -1351,7 +1351,9 @@
     var boxHeight = rows.length * rowHeight + padding * 2 + 22;
     var boxWidth = 258;
     var x = 18;
-    var y = height - boxHeight - 18;
+    // La letra chica vive abajo a la izquierda; la leyenda estaba encima de ella. Se levanta lo
+    // justo para que las dos se lean, sin mover ninguna de las dos de su esquina.
+    var y = height - boxHeight - 96;
 
     ctx.globalAlpha = 0.92;
     ctx.fillStyle = "rgba(2,6,23,0.86)";

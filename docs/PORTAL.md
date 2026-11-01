@@ -207,3 +207,82 @@ to reasoning. Exactly the finding in `docs/SWEEP.md`, reproduced by accident.
 **The portal must not open on the corpus.** A 300-node overview is a hairball in every dimension;
 the demo, and the product, start at *one case* and walk outwards. The corpus is a claim in the
 README, not a first screen.
+
+---
+
+# La ruta entre dos nodos, y el waterfall de pasos
+
+Añadido 2026-11-01. Estas dos piezas son las que hacen que el grafo y el agente sean **la misma
+historia** en vez de dos pantallas que se miran.
+
+## `GET /api/path` — la pregunta que un grafo contesta y una planilla no
+
+```
+GET /api/path?desde=Proveedor/76.264.138-0&hasta=Proveedor/77.290.194-1[&saltos=4][&caminos=3][&rel=A,B]
+```
+
+Búsqueda en anchura sobre las aristas de relación, **dos consultas por salto** (toda la frontera
+hacia afuera, después toda la frontera hacia adentro). Medido en producción:
+
+| | |
+|---|---|
+| Las dos Cardiotec, a través de un domicilio compartido | **1,0 s · 2 saltos · 3 nodos** |
+| Dirección | cada tramo dice si se recorrió **en reversa** |
+| Cota | saltos, frontera (220) y nodos visitados (4.000), y el tope alcanzado se reporta |
+| Sin camino | se devuelve el motivo con el número de saltos probados, **no una lista vacía** |
+
+Tres propiedades, cada una porque la alternativa miente:
+
+1. **Acotada.** Un BFS sin cota sobre 64,8 M de tripletas es una denegación de servicio con buena
+   interfaz.
+2. **No asume dirección.** `A le paga a B` y `B le paga a A` no son el mismo hallazgo; el tramo
+   guarda cuál de las dos direcciones está escrita en los datos.
+3. **Sin camino es una respuesta.** Una lista vacía se lee como «no están relacionados», que es
+   otra afirmación y normalmente es falsa.
+
+Funciona en los dos backends (cliente MillenniumDB y adaptador en memoria), así que los tests
+ejercitan el bucle real y no un mock.
+
+## El waterfall
+
+```
+LEYENDA   ● modelo   ● grafo   ● documento   ● afirmación   ● descarte
+
+planear           1.761 tokens                       2.712 ms  ██████████ 89%
+pensar            3.571 tokens                       3.012 ms  ██████████ 99%
+buscar_en_grafo   1 nodo(s)                            24 ms   ▏      3%
+vecinos           50 vecino(s)                         50 ms   ▏      3%
+perfil_de_gasto   2.145 órdenes · $108.097.415.212    136 ms   ▏      4%
+
+8 pasos · 1 afirma. · 44.732 tok · 16,8 s (96% modelo)
+```
+
+**Los pasos se emparejan, no se listan.** El registro emite `tool.call` + `tool.result` y
+`model.request` + `model.response`; solo el segundo de cada par trae duración. Pintar eventos uno
+por uno muestra cada paso dos veces: una sin tiempo y otra sin verbo.
+
+**El modelo es un paso más, con su propio color y sus tokens** — y ese detalle produce el número
+que sostiene la tesis completa, medido con la grabación del propio sistema: **96 % del tiempo de
+una corrida es el modelo pensando; el trabajo en el grafo es el 4 % restante.** Es la misma
+posición que el 98,99 % de cache hit del README: medido, no afirmado.
+
+Hover en una fila enciende en el canvas los registros que ese paso tocó; clic vuela hasta ellos.
+
+### Los tres defectos que costó
+
+| Defecto | Causa |
+|---|---|
+| Barras de duración vacías | El filtro «solo importantes» descartaba `tool.result` **antes** de emparejar, y ahí vive `duration_ms`. Emparejar primero, filtrar después |
+| `0 señal(es)` tres veces seguidas | Se leía como una falla. Una respuesta vacía es un hecho sobre el registro: ahora dice *"sin resultados"* en voz baja |
+| Ninguna fila apuntaba al grafo | `tool.call` guarda sus argumentos en `payload.arguments`, así que `payload.nodo` era siempre `undefined` |
+
+Y una carrera: el panel se reconstruye en cada evento, la fila bajo el puntero se destruye y
+dispara `mouseleave`. El paso apuntado vive en el estado y se re-aplica después de cada render.
+
+## La columna de la derecha muestra una cosa a la vez
+
+Camino y registro son dos vistas del mismo trabajo, y ocupaban el mismo sitio: se tapaban entre
+sí. Una revisión lo describió como *"el menú de filtros tapa el panel"*, y el «filtro» era el
+registro. Ahora abrir uno cierra el otro, el chat se fue a la izquierda y más angosto (760 → 520
+px) para no ocupar el centro del lienzo, y la leyenda del canvas se levantó 96 px para no pisar la
+letra chica legal.

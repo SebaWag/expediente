@@ -14,6 +14,13 @@ Built for the **Meta Global AI Developer Hackathon 2026** (Startup track, theme 
 
 ![The investigation portal: the graph is the page, and the chat moves it](docs/images/portal.jpg)
 
+![Two suppliers, one address, and the route between them drawn hop by hop](docs/images/portal-camino.jpg)
+
+<sub>Asking *"why do the two Cardiotec appear together?"* returns a walk, not a paragraph: the field
+dims to 6%, the route is drawn hop by hop with the relation on each edge, and every hop goes
+against the stored direction of `TIENE_DOMICILIO` exactly once — which is what makes it a shared
+address and not a shared buyer.</sub>
+
 <sub>The live portal at <a href="https://investiga.wagnersolutionsai.com">investiga.wagnersolutionsai.com</a> — 922 nodes drawn from a graph of 64.8 M triples, with the real totals beside them.</sub>
 
 ---
@@ -242,12 +249,12 @@ detector groups by its **RUT**, and the dossier came out valid, signable and emp
 
 ## Status
 
-Honest as of **day 6** (2026-10-31). **82 commits, 397 tests** — and both runs are
+Honest as of **day 7** (2026-11-01). **88 commits, 405 tests** — and both runs are
 reproduced on every push by CI, not by a badge that only claims it:
 
 ```bash
-python3 -m pytest -q            # 380 passed, 17 skipped (the engine tests need a server)
-EXPEDIENTE_MDB_URL=http://127.0.0.1:1234 python3 -m pytest -q   # the same 397, none skipped
+python3 -m pytest -q            # 388 passed, 17 skipped (the engine tests need a server)
+EXPEDIENTE_MDB_URL=http://127.0.0.1:1234 python3 -m pytest -q   # the same 405, none skipped
 ```
 
 The `graph` job in [`.github/workflows/ci.yml`](.github/workflows/ci.yml) starts an
@@ -284,6 +291,8 @@ that says the in-memory adapter and the engine agree — is executed, not skippe
 | **Detector desk check — 48 findings, re-derived** | ✅ **79% actionable, 100% reproduce their own definition, 83% with complete evidence**. Three rule defects found and fixed. See [`docs/BENCHMARK.md`](docs/BENCHMARK.md) |
 | **Citation verification — code → line in the State's archive** | ✅ `scripts/verify_archive.py`: semicolon CSV, both month spellings, sha256 + retrieval time, coverage reported rather than assumed. Reproduces the nine hand-verified lines of 2021-11 exactly |
 | **Dossier pipeline — signal → verified → dossier** | ✅ `scripts/dossier_pipeline.py`: **3 chains, 3 months, 16/16 codes located, 3/3 signable, 39 s** over 10.3 M orders. See [`docs/VERIFICATION.md`](docs/VERIFICATION.md) |
+| **The route between two nodes** | ✅ `GET /api/path`: breadth-first over relation edges, two queries per hop, bounded in hops/frontier/nodes with the cap reported. `TIENE_DOMICILIO` twice through one address in **1.0 s** on the live graph |
+| **Step waterfall, linked to the canvas** | ✅ One row per step (calls paired with results), bar scaled to the slowest step, the model's own time and tokens in a colour of their own. Hovering a row lights the records that step touched. A real run reads **8 pasos · 44.732 tok · 16,8 s (96% modelo)** |
 | Vision / OCR — Meta SAM 3.1, for pages with no text layer | ⬜ not started |
 
 ### Entity resolution was not tuned. It was measured.
