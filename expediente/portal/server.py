@@ -62,7 +62,14 @@ SIGNAL_CACHE_S = 120
 
 # --------------------------------------------------------------------- subgraph
 def _display_name(label: str, key: str, props: dict[str, Any]) -> str:
-    for field in ("razon_social", "nombre", "direccion", "titulo", "codigo", "texto"):
+    # The order matters: a name is better than an address, and an address is much better than a
+    # hash. `Domicilio` nodes are keyed by their geo hash, so a reader was shown
+    # `157d5c86c514b86c` where the graph holds "VALLE DE CASABLANCA NORTE N° 8219" in
+    # `direccion_texto` — the field existed, the lookup did not.
+    for field in (
+        "razon_social", "nombre", "direccion_texto", "direccion_norm", "direccion",
+        "titulo", "codigo", "texto",
+    ):
         value = props.get(field)
         if isinstance(value, str) and value.strip():
             return value.strip()
@@ -1055,6 +1062,54 @@ class Portal:
                 add(document, "Documento", "Documento")
                 link(document[len(NODE_PREFIX):], "ACREDITA", order[len(NODE_PREFIX):])
 
+        # 5 · the actors: who buys and who sells.
+        #
+        # The first version of this view drew the machinery — detector, signal, order, document —
+        # and none of the parties. Counted on the live portal: 925 nodes, 0 of the 103.220
+        # suppliers and 0 of the 1.400 buyers that the same graph holds, and therefore not one
+        # `ADJUDICADA_A` or `EMITE` edge, which are its two largest relations at 4.95 M each. The
+        # screen answered "what does the system do" and never "who is involved", which is the
+        # question a reader has.
+        if order_uris:
+            unique = list(dict.fromkeys(order_uris))
+            order_values = " ".join(f"<{uri}>" for uri in unique)
+            actors: list[tuple[str, str]] = []
+            for row in client.select(
+                f"SELECT ?o ?p WHERE {{ VALUES ?o {{ {order_values} }} "
+                f"?o <{relation_uri('ADJUDICADA_A')}> ?p FILTER(isIRI(?p)) }}"
+            ):
+                supplier = str(row["p"])
+                if not supplier.startswith(NODE_PREFIX):
+                    continue
+                supplier_id = supplier[len(NODE_PREFIX):]
+                nodes.setdefault(supplier_id, {"id": supplier_id, "label": "Proveedor",
+                                               "key": supplier_id.split("/", 1)[-1], "name": supplier_id.split("/", 1)[-1]})
+                link(str(row["o"])[len(NODE_PREFIX):], "ADJUDICADA_A", supplier_id)
+                actors.append((supplier, "Proveedor"))
+            for row in client.select(
+                f"SELECT ?b ?o WHERE {{ VALUES ?o {{ {order_values} }} "
+                f"?b <{relation_uri('EMITE')}> ?o FILTER(isIRI(?b)) }}"
+            ):
+                buyer = str(row["b"])
+                if not buyer.startswith(NODE_PREFIX):
+                    continue
+                buyer_id = buyer[len(NODE_PREFIX):]
+                nodes.setdefault(buyer_id, {"id": buyer_id, "label": "Organismo",
+                                            "key": buyer_id.split("/", 1)[-1], "name": buyer_id.split("/", 1)[-1]})
+                link(buyer_id, "EMITE", str(row["o"])[len(NODE_PREFIX):])
+                actors.append((buyer, "Organismo"))
+
+            if actors:
+                actor_values = " ".join(f"<{uri}>" for uri in {uri for uri, _label in actors})
+                for row in client.select(
+                    f"SELECT ?s ?p ?o WHERE {{ VALUES ?s {{ {actor_values} }} ?s ?p ?o . "
+                    f"VALUES ?p {{ <{ONTO}nombre> <{ONTO}razon_social> }} }}"
+                ):
+                    identifier = str(row["s"])[len(NODE_PREFIX):]
+                    entry = nodes.get(identifier)
+                    if entry is not None:
+                        entry["name"] = str(row["o"])[:70]
+
         payload = {
             "nodes": list(nodes.values()),
             "edges": edges,
@@ -1062,13 +1117,46 @@ class Portal:
             "layout": "radial",
             "truncated": True,
             "note": (
-                f"{len(nodes)} nodos y {len(edges)} relaciones dibujadas: la maquinaria completa "
-                f"({len(signals)} señales, una muestra de sus órdenes y los documentos que las "
-                "acreditan). El grafo real tiene 64,8 millones de tripletas."
+                f"{len(nodes)} nodos y {len(edges)} relaciones dibujadas: las {len(signals)} "
+                "señales, una muestra de las órdenes que observan, los documentos que las "
+                "acreditan y las partes de esas órdenes —quién compra y quién vende—. El grafo "
+                "real tiene 64,8 millones de tripletas."
             ),
         }
         self._overview_cache = (now, payload)
         return payload
+
+    #: Words that carry the question but never the subject. A search for "juntas" finds nothing and
+    #: a search for "aparecen" finds noise; the entity is the one token that is neither.
+    _STOPWORDS = {
+        "por", "que", "qué", "como", "cómo", "cual", "cuál", "donde", "dónde", "cuando", "cuándo",
+        "las", "los", "una", "uno", "unos", "unas", "del", "para", "con", "sin", "sus", "mis",
+        "aparecen", "aparece", "juntas", "juntos", "conectan", "conecta", "relacionan", "relaciona",
+        "comparten", "comparte", "vinculo", "vínculo", "vínculos", "dos", "tres", "estas", "estos",
+        "esas", "esos", "empresas", "empresa", "misma", "mismo", "razon", "razón", "social",
+        "porque", "salen", "sale", "estan", "están", "hay", "tiene", "tienen", "del", "esta", "este",
+    }
+
+    #: Ways of asking "how are these two related". Detecting the intent is what turns a list of
+    #: search matches into a question the graph can actually answer.
+    _CONNECTION_WORDS = (
+        "juntas", "juntos", "conectan", "conecta", "conectadas", "relacionan", "relacionadas",
+        "comparten", "comparte", "vínculo", "vinculo", "vínculos", "vinculos", "misma dirección",
+        "mismo domicilio", "mismo representante", "familia", "red",
+    )
+
+    def _terms(self, text: str) -> list[str]:
+        """The tokens of a question that could name an entity, longest first.
+
+        `graph_search` matches on a name, so handing it a whole sentence returns nothing — which is
+        why the portal's own suggestion "¿Por qué aparecen juntas las dos Cardiotec?" used to start
+        a ten-step agent run instead of answering. The subject of that sentence is one word.
+        """
+        import re as _re
+
+        tokens = _re.findall(r"[0-9A-Za-zÁÉÍÓÚÜÑáéíóúüñ.\-]{4,}", text or "")
+        picked = [token for token in tokens if token.lower() not in self._STOPWORDS]
+        return sorted(picked, key=len, reverse=True)
 
     def chat(self, message: str) -> dict[str, Any]:
         """One message in, one action out.
@@ -1085,26 +1173,62 @@ class Portal:
             return {"kind": "help", "reply": "Escribe el nombre de un organismo, de una empresa o una pregunta."}
 
         matches: list[dict[str, Any]] = []
-        for label in ("Organismo", "Proveedor"):
-            try:
-                hits = graph_search(self.store, {"label": label, "text": text, "limit": 4})
-            except Exception:
-                hits = {}
-            for node in hits.get("results") or []:
-                matches.append(
-                    {
-                        "node": node.get("node"),
-                        "label": label,
-                        "name": node.get("match"),
-                        "matched_via": node.get("matched_via"),
-                    }
-                )
+
+        def search_all(needle: str) -> list[dict[str, Any]]:
+            found: list[dict[str, Any]] = []
+            for label in ("Organismo", "Proveedor"):
+                try:
+                    hits = graph_search(self.store, {"label": label, "text": needle, "limit": 4})
+                except Exception:
+                    hits = {}
+                for node in hits.get("results") or []:
+                    found.append(
+                        {
+                            "node": node.get("node"),
+                            "label": label,
+                            "name": node.get("match"),
+                            "matched_via": node.get("matched_via"),
+                        }
+                    )
+            return found
+
+        matches = search_all(text)
+        # A sentence is not a name. When the whole text finds nothing, try its subject words — and
+        # prefer the token that found more than one entity, because that is the pair being asked
+        # about.
+        if not matches:
+            for term in self._terms(text):
+                candidate = search_all(term)
+                if len(candidate) > 1:
+                    matches = candidate
+                    break
+                if candidate and not matches:
+                    matches = candidate
 
         # A direct signal id is also a destination.
         if text.startswith("Senal/"):
             matches.insert(0, {"node": text, "label": "Senal", "name": text, "matched_via": "id"})
 
         is_question = ("?" in text) or len(text.split()) > 6
+        wants_connection = any(word in text.lower() for word in self._CONNECTION_WORDS)
+        distinct: list[dict[str, Any]] = []
+        for match in matches:
+            if all(match["node"] != seen["node"] for seen in distinct):
+                distinct.append(match)
+
+        if wants_connection and len(distinct) >= 2:
+            first, second = distinct[0], distinct[1]
+            return {
+                "kind": "path",
+                "desde": first["node"],
+                "hasta": second["node"],
+                "label": first["label"],
+                "reply": (
+                    f"{first['name'] or first['node']} y {second['name'] or second['node']}: "
+                    "busco la ruta entre las dos en el grafo, con la relación de cada salto."
+                ),
+            }
+
         if matches:
             best = matches[0]
             return {
@@ -1508,7 +1632,7 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/subgraph":
                 return self._json(200, portal.subgraph(params))
             if path == "/api/path":
-                return self._json(self.portal.path(query))
+                return self._json(200, portal.path(params))
             if path == "/api/network":
                 return self._json(200, portal.network(params))
             if path == "/api/runs":

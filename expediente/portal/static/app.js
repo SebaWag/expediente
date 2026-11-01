@@ -60,9 +60,27 @@
   // ------------------------------------------------------------------ graph
   state.graph = new window.GraphView($("mapa"), {
     legend: true,
-    onSelect: function (node) { openCard(node.id, node.name, node.label); },
-    onPin: function (node, pinned) { onPin(node, pinned); }
+    onSelect: function (node) {
+      // With one node pinned, the next click is the other end of the question, not a new card.
+      // Otherwise the gesture would be "shift-click, remember the instructions, shift-click".
+      if (state.graph.pinned.length === 1) {
+        var primero = state.graph.pinned[0];
+        if (primero !== node.id) {
+          state.graph.pin(node.id);
+          buscarCamino(primero, node.id);
+          return;
+        }
+      }
+      openCard(node.id, node.name, node.label);
+    },
+    onPin: function (node, pinned) { onPin(node, pinned); },
+    onExpand: function (node) { expandir(node); }
   });
+
+  //: The instance, reachable from the console. Not a debugging leftover: the demo is recorded by a
+  //: script that has to fly the camera and pin two nodes at exact moments, and driving the same
+  //: object the page uses is the only way to record what the product actually does.
+  window.expedienteGrafo = state.graph;
 
   //: The 2D map answers "where does this sit"; the 3D walk answers "what does it look like from
   //: here". The button says which one you are in, and remembers the choice across reloads.
@@ -184,6 +202,13 @@
         return;
       }
 
+      if (data.kind === "path") {
+        // The chat answered with a question the graph can settle: two ends and a walk between them.
+        say("agente", data.reply);
+        buscarCamino(data.desde, data.hasta);
+        return;
+      }
+
       if (data.kind === "run") {
         say("agente", data.reply);
         followRun(data.run_id);
@@ -213,6 +238,32 @@
     openCard(nodeId, name, label);
   }
 
+
+
+  /* Walk outwards from a node: two hops, merged into what is already on screen.
+   *
+   * This is the gesture that makes the two-company case reachable at all. Searching "Cardiotec"
+   * brings one supplier and the address it is registered at; the second company with the same
+   * address is two hops away and never arrives on its own. Without a way to walk, the graph is an
+   * illustration of a search result instead of a thing you explore.
+   */
+  function expandir(node) {
+    say("agente", "Abriendo el vecindario de " + (node.name || node.id) + "…");
+    api("/api/subgraph?nodo=" + encodeURIComponent(node.id) + "&saltos=2")
+      .then(function (data) {
+        if (data.error) { say("agente", data.error); return; }
+        var antes = state.graph.nodes.length;
+        state.graph.setData(data, { merge: true });
+        renderLayers();
+        var nuevos = state.graph.nodes.length - antes;
+        say("agente", nuevos > 0
+          ? "Aparecieron " + nuevos + " nodos alrededor de " + (node.name || node.id) + "."
+          : "No hay nada nuevo alrededor de " + (node.name || node.id) + ".");
+        if (state.graph.mode === "3d") { state.graph.frameNodes(data.nodes.map(function (n) { return n.id; }), 1.15); }
+        else { state.graph.flyTo(node.id, 1.9); }
+      })
+      .catch(function (error) { say("agente", "No pude abrir el vecindario: " + error.message); });
+  }
 
   // ------------------------------------------------------------------ camino
   /* "¿Cómo se conectan?" — dos nodos, un clic con shift, y el grafo contesta con la ruta.
@@ -259,22 +310,27 @@
         }
 
         var camino = data.caminos[0];
+
+        // A citation is an id; a sentence is a name. The reader is looking at companies, not at
+        // `Proveedor/76.264.138-0`, so the panel speaks in names and keeps the id as the tooltip.
+        var nombres = {};
+        (data.nodos || []).forEach(function (nodo) { nombres[nodo.id] = nodo.name || nodo.id; });
         cuerpo.appendChild(el("p", {
           class: "nota",
           text: camino.saltos + (camino.saltos === 1 ? " salto" : " saltos") + " entre "
-            + data.desde + " y " + data.hasta
+            + (nombres[data.desde] || data.desde) + " y " + (nombres[data.hasta] || data.hasta)
             + (data.truncado ? " · búsqueda acotada (" + data.truncado + ")" : "")
         }));
 
         camino.tramos.forEach(function (tramo) {
           cuerpo.appendChild(el("div", { class: "tramo" }, [
-            el("b", { text: tramo.de }),
+            el("b", { text: nombres[tramo.de] || tramo.de, title: tramo.de }),
             el("span", {
               class: "rel" + (tramo.reversa ? " reversa" : ""),
               text: tramo.rel + (tramo.reversa ? " ↩" : ""),
               title: tramo.reversa ? "recorrida en sentido inverso al que está guardado" : ""
             }),
-            el("b", { text: tramo.a })
+            el("b", { text: nombres[tramo.a] || tramo.a, title: tramo.a })
           ]));
         });
 

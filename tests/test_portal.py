@@ -345,3 +345,32 @@ def test_a_path_needs_two_real_nodes(tmp_path):
     assert "error" in portal.path({})
     assert "error" in portal.path({"desde": "sin-barra", "hasta": "Proveedor/77.290.194-1"})
     assert "error" in portal.path({"desde": "Proveedor/76.264.138-0", "hasta": "Proveedor/76.264.138-0"})
+
+
+def test_the_path_is_reachable_over_http_and_not_only_in_a_unit_test(live_server):
+    """The route is where the bug was: `portal.path()` worked and `/api/path` raised NameError.
+
+    A handler is a name, a status and a query string; testing the method skips all three.
+    """
+    base, _runs = live_server
+    result = get(
+        f"{base}/api/path?desde=Proveedor/76.264.138-0&hasta=Proveedor/77.290.194-1"
+    )
+    assert "error" not in result, result
+    assert result["saltos"] == 2
+    assert result["caminos"][0]["tramos"][0]["rel"] == "TIENE_DOMICILIO"
+
+
+def test_a_place_is_named_by_its_street_and_not_by_its_hash():
+    """The lookup that shows `157d5c86c514b86c` where the graph holds an address.
+
+    A `Domicilio` is keyed by geo hash. The props carry `direccion_texto`; the display name only
+    looked for `direccion`, so every shared address in the portal rendered as a hex string — which
+    is precisely the finding the demo is built on.
+    """
+    from expediente.portal.server import _display_name
+
+    props = {"geo_hash": "157d5c86c514b86c", "direccion_texto": "VALLE DE CASABLANCA NORTE N° 8219"}
+    assert _display_name("Domicilio", "157d5c86c514b86c", props) == "VALLE DE CASABLANCA NORTE N° 8219"
+    # Sin nombre ni dirección, el hash es mejor que nada: la caída sigue siendo honesta.
+    assert _display_name("Domicilio", "157d5c86c514b86c", {}) == "157d5c86c514b86c"
