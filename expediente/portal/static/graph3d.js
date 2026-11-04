@@ -67,10 +67,13 @@
       //: Una esfera de 12 caras se lee como un disco. La resolución es lo que separa "nodo 3D"
       //: de "calcomanía vista de lado".
       .nodeResolution(14)
-      .nodeRelSize(4)
-      .nodeVal(function (node) { return Math.max(0.8, Math.pow((node.size || 12) / 8, 3)); })
+      //: Los valores son los del explorador de la memoria, que es la referencia: `nodeRelSize`
+      //: 7 y `val = 0.6 + min(deg,45)*0.36`. Con relSize 4 y una val cúbica las esferas quedaban
+      //: 3x más chicas y a la distancia de encuadre se veían como puntos planos.
+      .nodeRelSize(7)
+      .nodeVal(function (node) { return 0.6 + Math.min(node.deg || 1, 45) * 0.36; })
       .nodeColor(function (node) { return node.color; })
-      .nodeOpacity(0.96)
+      .nodeOpacity(0.92)
       .nodeLabel(function (node) {
         var kind = LABELS_ES[node.kind] || node.kind;
         return '<div class="tip3d"><b>' + escapeHtml(node.name) + "</b><span>" + kind + "</span></div>";
@@ -81,8 +84,8 @@
       .linkDirectionalArrowLength(0)
       .d3AlphaDecay(0.024)
       .d3VelocityDecay(0.32)
-      .warmupTicks(40)
-      .cooldownTicks(180)
+      .warmupTicks(60)
+      .cooldownTicks(240)
       .onNodeClick(function (node) {
         self._selected = node.id;
         if (self.options.onSelect) {
@@ -94,6 +97,19 @@
           self.options.onExpand({ id: node.id, name: node.name, label: node.kind });
         }
       });
+
+    /* Fuerzas: las mismas del explorador de la memoria.
+     *
+     * Una carga de -30 (la del motor) deja el volumen ralo: las esferas quedan lejos entre sí y
+     * el encuadre las achica hasta que se ven como puntos. Con -46 y una distancia de enlace de
+     * 30 unidades, el grafo se aprieta como una red neuronal y cada esfera conserva su tamaño.
+     */
+    if (this._graph.d3Force("charge")) { this._graph.d3Force("charge").strength(-46); }
+    if (this._graph.d3Force("link")) {
+      this._graph.d3Force("link").distance(30).strength(0.5);
+    }
+    var centrar = this._graph.d3Force("center");
+    if (centrar && typeof centrar.strength === "function") { centrar.strength(0.05); }
 
     /* Luz: el motor trae una ambiental y una direccional, y por defecto son tímidas.
      *
@@ -254,7 +270,7 @@
 
   Graph3D.prototype.fit = function (duration) {
     if (!this._graph) { return; }
-    this._graph.zoomToFit(duration === undefined ? 600 : duration, 60);
+    this._graph.zoomToFit(duration === undefined ? 900 : duration, 24);
   };
 
   Graph3D.prototype.flyTo = function (nodeId) {

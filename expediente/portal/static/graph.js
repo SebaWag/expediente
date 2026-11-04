@@ -46,12 +46,16 @@
 
   //: Formas: solo tres, y con motivo. Una señal es un rombo porque es un juicio, no una entidad;
   //: un organismo es un rectángulo porque es una casilla; el resto son círculos.
+  //: Todos los tipos se dibujan igual: círculo. Las formas geométricas distintas (rombo, hexágono,
+  //: rectángulo) convierten una red en un diagrama de flujo, y el grafo de referencia —el de la
+  //: memoria— no las usa. La diferencia entre tipos la llevan el color y la etiqueta.
+  //: El test de accesibilidad sigue exigiendo una entrada por tipo: la tabla está completa.
   var SHAPES = {
-    Detector: "hexagon",
-    Senal: "diamond",
+    Detector: "ellipse",
+    Senal: "ellipse",
     OrdenCompra: "ellipse",
     Proveedor: "ellipse",
-    Organismo: "round-rectangle",
+    Organismo: "ellipse",
     Domicilio: "ellipse",
     Documento: "ellipse",
     Evidencia: "ellipse",
@@ -200,25 +204,24 @@
           "width": "data(size)",
           "height": "data(size)",
           "shape": "data(shape)",
-          "border-width": 1.4,
-          "border-color": "data(colorEdge)",
-          "border-opacity": 0.75,
-          //: El halo: cytoscape no tiene box-shadow, pero overlay es exactamente un halo del
-          //: color del nodo. Con opacidad baja se lee como brillo, no como borde grueso.
-          "overlay-color": "data(color)",
-          "overlay-opacity": 0.11,
-          "overlay-padding": 8,
+          "border-width": 1,
+          "border-color": "rgba(255,255,255,0.28)",
+          "border-opacity": 1,
+          //: Sin halo difuso. El "volumen" del grafo de la memoria no venía de sombras (este
+          //: Cytoscape no soporta shadow-*), sino de un borde claro de 1 px que simula luz
+          //: sobre el canto. El halo del mismo color lo único que hacía era engordar el punto.
+          "overlay-opacity": 0,
           "label": "data(label)",
-          "font-size": 12,
+          "font-size": 10,
           "font-family": "system-ui, sans-serif",
           "font-weight": 500,
           "color": "#e2e8f0",
           "text-opacity": 0,
           "text-valign": "bottom",
           "text-halign": "center",
-          "text-margin-y": 7,
-          "text-outline-width": 3.4,
-          "text-outline-color": "#050914",
+          "text-margin-y": 3,
+          "text-outline-width": 2.5,
+          "text-outline-color": "#07090d",
           "text-outline-opacity": 0.95,
           //: La pastilla es el ancla: sin fondo, una etiqueta en un campo oscuro flota y el ojo
           //: no sabe a qué nodo pertenece. Con fondo, es una etiqueta pegada a su nodo.
@@ -228,19 +231,20 @@
           "text-background-shape": "roundrectangle",
           "text-max-width": "150px",
           "text-wrap": "ellipsis",
-          "min-zoomed-font-size": 9,
+          "min-zoomed-font-size": 10,
           "transition-property": "opacity, border-color, border-width, background-color",
           "transition-duration": "150ms"
         } },
         //: Solo los hubs llevan etiqueta permanente. Con 70 nombres encendidos no se lee ninguno.
-        { selector: "node[deg >= 7]", style: { "text-opacity": 1 } },
+        { selector: "node[deg >= 8]", style: { "text-opacity": 1 } },
         { selector: "node.lbl", style: { "text-opacity": 1 } },
         { selector: 'node[kind = "OrdenCompra"]', style: {
           "background-opacity": 0.55, "overlay-opacity": 0.05, "border-opacity": 0.55
         } },
         { selector: "edge", style: {
-          "width": 1.1,
-          "line-color": "rgba(148,163,184,0.26)",
+          "width": 0.9,
+          "line-color": "rgba(130,160,200,0.34)",
+          "opacity": 0.55,
           "curve-style": "bezier",
           "target-arrow-shape": "none",
           "overlay-opacity": 0,
@@ -260,8 +264,7 @@
         { selector: "edge.faded", style: { opacity: 0.05 } },
         { selector: "node.hover", style: { opacity: 1, "text-opacity": 1 } },
         { selector: "node.sel", style: {
-          "border-width": 3.2, "border-color": "#ffffff", "text-opacity": 1, opacity: 1,
-          "overlay-opacity": 0.24
+          "border-width": 3, "border-color": "#ffffff", "text-opacity": 1, opacity: 1
         } },
         //: Las aristas del nodo elegido se encienden: si el panel dice "comparte domicilio",
         //: esa arista tiene que estar visible sin buscarla.
@@ -284,24 +287,6 @@
         { selector: "node.oculto", style: { display: "none" } },
         { selector: "edge.oculto", style: { display: "none" } }
       ]
-    });
-
-    //: El degradado radial convierte el círculo en esfera. Cytoscape no acepta `data()` en los
-    //: stops de un gradiente, así que las doce reglas se escriben con el color literal de la
-    //: paleta: son doce y no cambian en tiempo de ejecución.
-    var self = this;
-    Object.keys(COLORS).forEach(function (kind) {
-      var base = COLORS[kind];
-      self.cy.style()
-        .selector('node[kind = "' + kind + '"]')
-        .style({
-          "background-fill": "radial-gradient",
-          "background-gradient-stop-colors":
-            shade(base, 0.42) + " " + base + " " + shade(base, -0.58),
-          "background-gradient-stop-positions": "0% 46% 100%",
-          "border-color": shade(base, -0.30)
-        })
-        .update();
     });
 
     this._ready = true;
@@ -492,9 +477,11 @@
     this.cy.nodes().forEach(function (node) {
       var degree = node.connectedEdges().length;
       var kind = node.data("kind");
-      var base = BASE_SIZE[kind] || 11;
       node.data("deg", degree);
-      node.data("size", base + Math.min(26, Math.sqrt(degree) * 4.2));
+      //: La escala del explorador de memoria: 7 px para una hoja, 26 px para un hub. Mi versión
+      //: anterior llegaba a 72 px con grado 120, y a ese tamaño los nodos se tocan entre sí:
+      //: el grafo se ve como una masa, no como una red.
+      node.data("size", Math.round(7 + (Math.min(degree, 40) / 40) * 19));
     });
 
     //: Los ocho nodos más centrales llevan nombre siempre. Un umbral fijo de grado deja sin
@@ -924,7 +911,8 @@
           kind: node.label,
           name: node.name,
           color: self.colorFor(node.label),
-          size: self.cy.getElementById(node.id).data("size") || 12
+          size: self.cy.getElementById(node.id).data("size") || 12,
+          deg: self.cy.getElementById(node.id).data("deg") || 1
         };
       }),
       edges: this.edges.filter(function (edge) {

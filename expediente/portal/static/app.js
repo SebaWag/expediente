@@ -119,21 +119,31 @@
     button.setAttribute("aria-pressed", String(activo));
   }
 
-  if ($("btn-vista")) {
-    $("btn-vista").addEventListener("click", function () {
-      if (enTresD()) {
-        if (state.graph3d) { state.graph3d.hide(); }
-        document.body.classList.remove("en-3d");
-      } else {
-        var camara = vista3d();
-        camara.setData(state.graph.snapshot());
-        document.body.classList.add("en-3d");
-        camara.show();
-      }
-      paintVista();
-    });
+  /* La vista por defecto es la cámara 3D.
+   *
+   * No es una preferencia estética: es la que se parece al grafo de la memoria y la única que
+   * muestra el volumen de una red. El mapa 2D queda como segunda cámara, para leer una relación
+   * plana cuando hace falta (una ruta, dos nodos, un domicilio compartido).
+   */
+  function setVista(tres) {
+    if (tres) {
+      var camara = vista3d();
+      camara.setData(state.graph.snapshot());
+      document.body.classList.add("en-3d");
+      camara.show();
+    } else {
+      if (state.graph3d) { state.graph3d.hide(); }
+      document.body.classList.remove("en-3d");
+    }
     paintVista();
   }
+
+  if ($("btn-vista")) {
+    $("btn-vista").addEventListener("click", function () { setVista(!enTresD()); });
+    paintVista();
+  }
+
+  window.expedienteSetVista = setVista;
 
   //: Al cambiar el tamaño de la ventana, la cámara 3D tiene que enterarse: si no, el volumen
   //: queda recortado por un lienzo del porte anterior.
@@ -162,6 +172,8 @@
     api("/api/overview").then(function (data) {
       state.graph.setData(data);
       renderLayers();
+      //: La cámara 3D es la vista de entrada: es la que muestra la red como red.
+      setVista(true);
       $("letra-chica").textContent = data.note || "";
       say("agente", "Escribe el nombre de una municipalidad, un servicio público o una empresa. "
         + "Si prefieres, hazme una pregunta y la investigo paso a paso.");
