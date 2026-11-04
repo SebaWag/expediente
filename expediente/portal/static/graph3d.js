@@ -230,11 +230,12 @@
     this._data = { nodes: nodes, links: links };
     this._graph.graphData(this._data);
 
-    //: Los ocho nodos más grandes llevan nombre siempre. El resto, al pasar el mouse: ocho
+    //: Los cinco nodos más grandes llevan nombre. Con 1.437 esferas, ocho etiquetas se pisaban
+    //: entre sí y tapaban justo la estructura que hay que ver. El resto, al pasar el mouse: ocho
     //: etiquetas flotando en un volumen se tapan entre sí en cuanto la cámara gira.
     this._labelled = nodes.slice().sort(function (a, b) {
       return (b.size || 0) - (a.size || 0);
-    }).slice(0, 8);
+    }).slice(0, 5);
     this._buildLabels();
     //: Redimensionar un lienzo oculto lo deja en 0×0 y el motor revienta en el primer tick.
     //: El tamaño se ajusta cuando la cámara se muestra, que es cuando existe.
@@ -312,6 +313,17 @@
    */
   Graph3D.prototype._tickLabels = function () {
     if (!this._labels || !this._graph || !this.visible) { return; }
+
+    //: Lejos, un nombre es una mancha: se apaga la capa entera en vez de dibujar texto ilegible
+    //: encima de las esferas.
+    var pos = this._graph.camera().position;
+    var lejos = Math.hypot(pos.x, pos.y, pos.z) > 1500;
+    if (lejos) {
+      for (var k = 0; k < this._labels.children.length; k += 1) {
+        this._labels.children[k].style.opacity = "0";
+      }
+      return;
+    }
     var width = this.host.clientWidth || 1;
     var height = this.host.clientHeight || 1;
     for (var i = 0; i < this._labels.children.length; i += 1) {
@@ -411,7 +423,9 @@
 
   Graph3D.prototype.fit = function (duration) {
     if (!this._graph) { return; }
-    this._graph.zoomToFit(duration === undefined ? 900 : duration, 24);
+    //: 40 de relleno en vez de 24: con 1.437 nodos, el encuadre ajustado dejaba la estructura
+    //: fuera de cuadro y las etiquetas encima de los nodos.
+    this._graph.zoomToFit(duration === undefined ? 900 : duration, 40);
   };
 
   Graph3D.prototype.flyTo = function (nodeId) {
