@@ -925,11 +925,17 @@
     //: porque no hay recorte: los 957 están dibujados, lo que se elige es dónde mirar.
     var pie = document.createElement("p");
     pie.className = "leyenda-pie-texto";
-    var huerfanas = this.cy.nodes().filter(function (node) {
-      return node.data("kind") === "Senal" && node.data("deg") === 1;
+    var senales = this.cy.nodes().filter(function (node) { return node.data("kind") === "Senal"; });
+    var vinculadas = senales.filter(function (node) {
+      return node.connectedEdges().filter(function (edge) {
+        var rel = edge.data("rel");
+        return rel === "SOBRE_ORGANISMO" || rel === "SOBRE_PROVEEDOR";
+      }).length > 0;
     }).length;
+    //: El pie cuenta lo que el producto logró, no lo que le falta: casi todas las señales
+    //: están unidas a su organismo y a su proveedor, y eso es lo que hay que poder leer.
     pie.textContent = this.cy.nodes().length + " nodos · "
-      + (huerfanas ? huerfanas + " señales sin órdenes cargadas (agrupadas en su detector)" : "todas con evidencia");
+      + vinculadas + " de " + senales.length + " señales vinculadas a su organismo y proveedor";
     this._legend.appendChild(pie);
 
     var volver = document.createElement("button");

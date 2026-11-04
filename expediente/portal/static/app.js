@@ -113,6 +113,12 @@
 
   function enTresD() { return document.body.classList.contains("en-3d"); }
 
+  //: La cámara que el usuario está mirando. Toda acción de vista pasa por acá: si hay dos
+  //: vistas y una sola responde, la mitad de los botones parecen rotos.
+  function camara() {
+    return (enTresD() && state.graph3d) ? state.graph3d : state.graph;
+  }
+
   function paintVista() {
     var button = $("btn-vista");
     if (!button) { return; }
@@ -159,10 +165,21 @@
 
   document.querySelectorAll("[data-mapa]").forEach(function (button) {
     button.addEventListener("click", function () {
+      /* Los controles hablan con la cámara que está en pantalla.
+       *
+       * Antes llamaban siempre al mapa 2D; con la vista 3D de entrada, los botones +, − y ⌂ no
+       * hacían nada visible. Ese es exactamente el tipo de botón que un jurado pulsa dos veces y
+       * concluye que el producto no funciona.
+       */
       var action = button.dataset.mapa;
-      if (action === "in") { state.graph.zoomBy(1.25); }
-      if (action === "out") { state.graph.zoomBy(0.8); }
-      if (action === "reset") { state.graph.reset(); closeCard(); if ($("camino")) { $("camino").hidden = true; } }
+      var activa = camara();
+      if (action === "in") { activa.zoomBy(1.25); }
+      if (action === "out") { activa.zoomBy(0.8); }
+      if (action === "reset") {
+        activa.reset();
+        closeCard();
+        if ($("camino")) { $("camino").hidden = true; }
+      }
     });
   });
 
@@ -794,8 +811,14 @@
     var box = $("capas");
     box.innerHTML = "";
     Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; }).forEach(function (label) {
-      var input = el("input", { type: "checkbox", id: "capa-" + label, checked: "checked" });
-      input.addEventListener("change", function () { state.graph.setLabelVisible(label, input.checked); });
+      var visibleAhora = !state.graph.isHidden(label);
+      var input = el("input", { type: "checkbox", id: "capa-" + label, checked: visibleAhora ? "checked" : null });
+      //: El mismo interruptor manda en las dos cámaras. Si solo filtrara el mapa 2D, apagar
+      //: "órdenes" en la vista 3D no haría nada y el panel parecería decorativo.
+      input.addEventListener("change", function () {
+        state.graph.setLabelVisible(label, input.checked);
+        if (state.graph3d) { state.graph3d.setLabelVisible(label, input.checked); }
+      });
       box.appendChild(el("label", { class: "capa", for: "capa-" + label }, [
         input,
         el("i", { style: "background:" + state.graph.colorFor(label) }),

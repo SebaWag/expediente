@@ -50,6 +50,7 @@
     this._graph = null;
     this._data = { nodes: [], links: [] };
     this._selected = null;
+    this._hidden = {};        //: tipos apagados desde el panel de capas
     this._trail = [];         //: ids en el orden en que el agente los tocó
     this._trailLinks = {};    //: "origen|destino" de los saltos recorridos
     this._labels = null;      //: capa HTML con los nombres
@@ -85,6 +86,15 @@
       })
       //: Un nodo visitado se enciende; el resto queda igual. Es el recorrido de la investigación
       //: lo que se dibuja, y solo eso: no hay destellos decorativos.
+      //: El filtro por tipo del panel de capas. Sin esto, apagar "órdenes" no hacía nada en 3D.
+      .nodeVisibility(function (node) { return !this._hidden[node.kind]; }.bind(this))
+      .linkVisibility(function (link) {
+        var a = typeof link.source === "object" ? link.source.kind : null;
+        var b = typeof link.target === "object" ? link.target.kind : null;
+        if (a && this._hidden[a]) { return false; }
+        if (b && this._hidden[b]) { return false; }
+        return true;
+      }.bind(this))
       .nodeColor(function (node) {
         if (node.visitado) { return aclarar(node.color, 0.55); }
         //: Señal sin órdenes cargadas: existe, pero no hay nada que investigar en ella todavía.
@@ -333,6 +343,37 @@
       global.cancelAnimationFrame(this._loop);
       this._loop = null;
     }
+  };
+
+  //: Apagar un tipo de nodo: mismo estado que el mapa 2D, aplicado a las esferas.
+  Graph3D.prototype.setLabelVisible = function (kind, visible) {
+    this._hidden[kind] = !visible;
+    if (this._graph && this._graph.refresh) { this._graph.refresh(); }
+    return !this._hidden[kind];
+  };
+
+  Graph3D.prototype.isHidden = function (kind) {
+    return !!this._hidden[kind];
+  };
+
+  /* Acercar y alejar la cámara.
+   *
+   * Se mueve la cámara sobre su propia dirección: `zoom` del motor no existe acá, y cambiar el
+   * encuadre de golpe (zoomToFit) perdería el punto que la persona estaba mirando.
+   */
+  Graph3D.prototype.zoomBy = function (factor) {
+    if (!this._graph) { return; }
+    var camera = this._graph.camera();
+    var pos = camera.position;
+    var len = Math.hypot(pos.x, pos.y, pos.z) || 1;
+    var next = Math.max(60, Math.min(4000, len / (factor || 1)));
+    var k = next / len;
+    this._graph.cameraPosition({ x: pos.x * k, y: pos.y * k, z: pos.z * k }, null, 320);
+  };
+
+  Graph3D.prototype.reset = function () {
+    this.clearTrail();
+    this.fit(700);
   };
 
   Graph3D.prototype.show = function () {
