@@ -532,11 +532,18 @@
 
   GraphView.prototype._layout = function (fresh) {
     var visible = this.cy.nodes().not(".fuera, .oculto");
+
+    /* `eles` NO se pasa, y esto no es un detalle.
+     *
+     * Con `eles: <colección>`, fcose deja los nodos en una grilla regular en vez de relajarlos:
+     * el grafo se ve como un tablero de ajedrez y no como una red. Sin `eles`, el layout corre
+     * sobre todo el grafo y después se encuadra solo lo visible. Los nodos fuera del foco igual
+     * reciben posición —no se ven— y así el día que se muestren ya están ubicados.
+     */
     var options = {
       name: global.cytoscapeFcose ? "fcose" : "cose",
-      eles: visible,
       animate: false,
-      fit: true,
+      fit: false,
       padding: 90,
       randomize: !!fresh,
       nodeRepulsion: 28000,
@@ -549,33 +556,32 @@
       samplingType: true,
       packComponents: true
     };
-    if (!fresh) {
-      //: Un vecindario que se suma no debe reordenar lo que el lector ya estaba mirando: se
-      //: relaja sin randomizar y el encuadre se anima, para que el ojo siga el cambio.
-      options.fit = false;
-      options.randomize = false;
-    }
+
     //: El corpus completo no se dibuja con force-directed: a ese tamaño el resultado es una
     //: bola. Concéntrico por grado dice "quién manda", que es la única pregunta que un mapa
-    //: de 957 nodos puede contestar de un vistazo.
+    //: de mil nodos puede contestar de un vistazo.
     if (visible.length > 420) {
       options = {
         name: "concentric",
-        eles: visible,
         animate: false,
-        fit: true,
+        fit: false,
         padding: 70,
         concentric: function (node) { return node.data("deg"); },
         levelWidth: function (nodes) { return Math.max(2, Math.round(nodes.length / 12)); },
         minNodeSpacing: 26
       };
     }
+
     try {
       this.cy.layout(options).run();
     } catch (error) {
-      this.cy.layout({ name: "cose", animate: false, fit: true, padding: 90, eles: visible }).run();
+      this.cy.layout({ name: "cose", animate: false, fit: false, padding: 90 }).run();
     }
-    if (!fresh && visible.length <= 420) {
+
+    //: El encuadre sí es sobre lo visible: si se encuadra todo, el foco queda en una esquina.
+    if (fresh) {
+      this.cy.fit(visible, 90);
+    } else {
       this.cy.animate({ fit: { eles: visible, padding: 90 } }, { duration: 420 });
     }
     this.container.style.opacity = "1";
