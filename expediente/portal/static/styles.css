@@ -705,3 +705,12 @@ body.en-3d .leyenda-grafo { display: none; }
   color: var(--texto-suave);
   letter-spacing: 0.02em;
 }
+
+/* Etiqueta de un nodo del recorrido: más fuerte que el resto, porque es la que se narra. */
+.etiqueta-3d.en-ruta {
+  background: rgba(8, 25, 45, 0.92);
+  border-color: rgba(125, 211, 252, 0.6);
+  font-weight: 600;
+  font-size: 0.74rem;
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.35);
+}

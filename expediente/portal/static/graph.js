@@ -238,6 +238,12 @@
         //: Solo los hubs llevan etiqueta permanente. Con 70 nombres encendidos no se lee ninguno.
         { selector: "node[deg >= 8]", style: { "text-opacity": 1 } },
         { selector: "node.lbl", style: { "text-opacity": 1 } },
+        //: Una señal con grado 1 sólo está colgada de su detector: no tiene órdenes ni documentos
+        //: cargados. Son 480 de las 565 señales y forman las islas que se veían como "grupos
+        //: aislados". No se borran (son reales), se atenúan y se declaran en el pie.
+        { selector: 'node[kind = "Senal"][deg = 1]', style: {
+          opacity: 0.18, "text-opacity": 0, "border-opacity": 0.2
+        } },
         { selector: 'node[kind = "OrdenCompra"]', style: {
           "background-opacity": 0.55, "overlay-opacity": 0.05, "border-opacity": 0.55
         } },
@@ -730,6 +736,23 @@
     return { vivos: this.peek.length, rechazados: this.rechazo.length };
   };
 
+  /* Rastro del recorrido en el mapa: los mismos nodos que el 3D encendió.
+   *
+   * Se guarda la secuencia completa y se redibuja entera en cada paso: la ruta tiene que
+   * crecer, no reemplazarse. `showPath` limpia y vuelve a marcar, así que recibe el acumulado.
+   */
+  GraphView.prototype.markTrail = function (id, prevId) {
+    if (!this._trail) { this._trail = []; }
+    if (prevId && !this._trail.length) { this._trail.push(prevId); }
+    if (this._trail.indexOf(id) < 0) { this._trail.push(id); }
+    this.showPath(this._trail.slice());
+  };
+
+  GraphView.prototype.clearTrail = function () {
+    this._trail = [];
+    this.cy.elements().removeClass("route");
+  };
+
   GraphView.prototype.showPath = function (ids) {
     if (!this._ready) { return; }
     var self = this;
@@ -874,7 +897,11 @@
     //: porque no hay recorte: los 957 están dibujados, lo que se elige es dónde mirar.
     var pie = document.createElement("p");
     pie.className = "leyenda-pie-texto";
-    pie.textContent = this.cy.nodes().length + " nodos en el lienzo";
+    var huerfanas = this.cy.nodes().filter(function (node) {
+      return node.data("kind") === "Senal" && node.data("deg") === 1;
+    }).length;
+    pie.textContent = this.cy.nodes().length + " nodos · "
+      + (huerfanas ? huerfanas + " señales sin órdenes cargadas (atenuadas)" : "todas con evidencia");
     this._legend.appendChild(pie);
 
     var volver = document.createElement("button");

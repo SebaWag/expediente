@@ -98,6 +98,9 @@
         onExpand: function (node) { expandir(node); }
       });
     }
+    //: Accesible desde la consola: el guion del demo tiene que poder mover la cámara, y
+    //: depurar la niebla de profundidad exige tocar la escena.
+    window.expedienteCamara3d = state.graph3d;
     return state.graph3d;
   }
 
@@ -144,6 +147,9 @@
   }
 
   window.expedienteSetVista = setVista;
+  //: El guion del demo y el QA necesitan disparar un paso sin el modelo. Es la misma función
+  //: que corre en vivo: si se prueba esta, se prueba el camino real.
+  window.expedienteSeguirPaso = seguirPaso;
 
   //: Al cambiar el tamaño de la ventana, la cámara 3D tiene que enterarse: si no, el volumen
   //: queda recortado por un lienzo del porte anterior.
@@ -765,7 +771,15 @@
     if (!state.graph || !state.graph.follow) { return; }
     var ids = nodosDelPaso(event);
     if (!ids.length) { return; }
-    state.graph.follow(ids, 1.1);
+    var id = String(ids[0]);
+    var previo = state.ultimoPaso || null;
+
+    //: La cámara viaja, y el camino queda encendido. Las dos cosas juntas son el "recorrido":
+    //: sin el rastro, el jurado ve saltos de cámara; con el rastro, ve una investigación.
+    state.graph.follow([id], 1.1);
+    state.graph.markTrail(id, previo);
+    if (state.graph3d) { state.graph3d.markTrail(id, previo); }
+    state.ultimoPaso = id;
   }
 
   function followRun(runId) {
@@ -774,6 +788,11 @@
     // mostraría el registro de una investigación que ya no es la que está en pantalla.
     detenerRebobinado();
     state.replayPos = null;
+    //: Cada investigación empieza con el camino limpio: un rastro de la corrida anterior
+    //: encendido se leería como parte de esta.
+    state.ultimoPaso = null;
+    if (state.graph.clearTrail) { state.graph.clearTrail(); }
+    if (state.graph3d && state.graph3d.clearTrail) { state.graph3d.clearTrail(); }
     if (state.stream) { state.stream.close(); }
     var box = el("div", { class: "mensaje agente" });
     $("transcripcion").appendChild(box);

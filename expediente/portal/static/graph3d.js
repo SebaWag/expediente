@@ -23,6 +23,10 @@
 (function (global) {
   "use strict";
 
+  //: Hay un recorrido en curso. Los accessors de color la consultan para atenuar el resto.
+  var HAY_RASTRO = false;
+  function senalDeRastro() { return HAY_RASTRO; }
+
   var LABELS_ES = {
     Detector: "detector",
     Senal: "señal",
@@ -46,6 +50,8 @@
     this._graph = null;
     this._data = { nodes: [], links: [] };
     this._selected = null;
+    this._trail = [];         //: ids en el orden en que el agente los tocó
+    this._trailLinks = {};    //: "origen|destino" de los saltos recorridos
     this._labels = null;      //: capa HTML con los nombres
     this._labelled = [];      //: los nodos que llevan nombre permanente
     this._loop = null;
@@ -71,16 +77,38 @@
       //: 7 y `val = 0.6 + min(deg,45)*0.36`. Con relSize 4 y una val cúbica las esferas quedaban
       //: 3x más chicas y a la distancia de encuadre se veían como puntos planos.
       .nodeRelSize(7)
-      .nodeVal(function (node) { return 0.6 + Math.min(node.deg || 1, 45) * 0.36; })
-      .nodeColor(function (node) { return node.color; })
+      //: El nodo visitado crece: en un volumen de 957 esferas, el tamaño es la única marca que
+      //: se lee sin buscar. El aclarado solo no alcanzaba (medido: no se distinguía el camino).
+      .nodeVal(function (node) {
+        var base = 0.6 + Math.min(node.deg || 1, 45) * 0.36;
+        return node.visitado ? base * 2.4 : base;
+      })
+      //: Un nodo visitado se enciende; el resto queda igual. Es el recorrido de la investigación
+      //: lo que se dibuja, y solo eso: no hay destellos decorativos.
+      .nodeColor(function (node) {
+        if (node.visitado) { return aclarar(node.color, 0.55); }
+        //: Señal sin órdenes cargadas: existe, pero no hay nada que investigar en ella todavía.
+        if (node.kind === "Senal" && (node.deg || 1) === 1) { return atenuar(node.color, 0.84); }
+        //: Con un recorrido en curso, el resto baja de intensidad: el camino se lee primero.
+        return senalDeRastro() ? atenuar(node.color, 0.55) : node.color;
+      })
       .nodeOpacity(0.92)
       .nodeLabel(function (node) {
         var kind = LABELS_ES[node.kind] || node.kind;
         return '<div class="tip3d"><b>' + escapeHtml(node.name) + "</b><span>" + kind + "</span></div>";
       })
-      .linkColor(function () { return "rgba(148,163,184,0.34)"; })
-      .linkWidth(0.5)
+      .linkColor(function (link) {
+        if (link.recorrido) { return "#7dd3fc"; }
+        return senalDeRastro() ? "rgba(148,163,184,0.10)" : "rgba(148,163,184,0.34)";
+      })
+      .linkWidth(function (link) { return link.recorrido ? 3 : 0.5; })
       .linkOpacity(0.55)
+      //: La luz que viaja por la arista es lo que hace visible el "paso a paso": el jurado ve
+      //: por dónde va el agente, no solo dónde llegó.
+      .linkDirectionalParticles(function (link) { return link.recorrido ? 6 : 0; })
+      .linkDirectionalParticleWidth(3.2)
+      .linkDirectionalParticleSpeed(0.014)
+      .linkDirectionalParticleColor(function () { return "#7dd3fc"; })
       .linkDirectionalArrowLength(0)
       .d3AlphaDecay(0.024)
       .d3VelocityDecay(0.32)
@@ -147,6 +175,29 @@
     this._built = true;
   };
 
+  //: Oscurece un color. Se usa para retirar del foco lo que no es parte del recorrido.
+  function atenuar(hex, amount) {
+    var v = String(hex).replace("#", "");
+    if (v.length === 3) { v = v[0] + v[0] + v[1] + v[1] + v[2] + v[2]; }
+    var n = parseInt(v, 16);
+    var canales = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(function (c) {
+      return Math.round(c * (1 - amount));
+    });
+    return "#" + canales.map(function (c) { return ("0" + c.toString(16)).slice(-2); }).join("");
+  }
+
+  //: Aclara un color para marcar lo visitado. Se calcula acá y no en el CSS porque las esferas
+  //: son materiales de Three, no DOM.
+  function aclarar(hex, amount) {
+    var v = String(hex).replace("#", "");
+    if (v.length === 3) { v = v[0] + v[0] + v[1] + v[1] + v[2] + v[2]; }
+    var n = parseInt(v, 16);
+    var canales = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(function (c) {
+      return Math.round(c + (255 - c) * amount);
+    });
+    return "#" + canales.map(function (c) { return ("0" + c.toString(16)).slice(-2); }).join("");
+  }
+
   function escapeHtml(text) {
     return String(text === undefined || text === null ? "" : text)
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -180,16 +231,65 @@
     if (this.visible) { this.resize(); }
   };
 
+  /* Marcar un paso del recorrido.
+   *
+   * `prevId` es el nodo del paso anterior: con él se enciende la arista que el agente cruzó.
+   * Sin ese dato el recorrido sería una lista de nodos encendidos, no un camino.
+   */
+  Graph3D.prototype.markTrail = function (id, prevId) {
+    if (!this._graph || !id) { return; }
+    if (this._trail.indexOf(id) < 0) { this._trail.push(id); }
+    for (var i = 0; i < this._data.nodes.length; i += 1) {
+      if (this._data.nodes[i].id === id) { this._data.nodes[i].visitado = true; }
+    }
+    if (prevId) {
+      var clave = prevId + "|" + id;
+      this._trailLinks[clave] = true;
+      this._data.links.forEach(function (link) {
+        var a = typeof link.source === "object" ? link.source.id : link.source;
+        var b = typeof link.target === "object" ? link.target.id : link.target;
+        if ((a + "|" + b) === clave || (b + "|" + a) === clave) { link.recorrido = true; }
+      });
+    }
+    //: `refresh()` re-evalúa los accessors sin reiniciar la simulación: el volumen no salta.
+    HAY_RASTRO = true;
+    this._buildLabels();
+    if (this._graph.refresh) { this._graph.refresh(); }
+  };
+
+  Graph3D.prototype.clearTrail = function () {
+    this._trail = [];
+    this._trailLinks = {};
+    this._data.nodes.forEach(function (node) { node.visitado = false; });
+    this._data.links.forEach(function (link) { link.recorrido = false; });
+    HAY_RASTRO = false;
+    this._buildLabels();
+    if (this._graph && this._graph.refresh) { this._graph.refresh(); }
+  };
+
+  //: ①..⑳: el número es el orden del recorrido. Sin él, cuatro esferas encendidas son cuatro
+  //: esferas; con él, son un camino que se puede narrar en voz alta.
+  var NUMEROS = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳".split("");
+
   Graph3D.prototype._buildLabels = function () {
     if (!this._labels) { return; }
     this._labels.innerHTML = "";
     var self = this;
-    this._labelled.forEach(function (node) {
+    var visitados = this._data.nodes.filter(function (n) { return n.visitado; });
+
+    var etiquetas = visitados.map(function (node, i) {
+      return { node: node, badge: NUMEROS[i] || (i + 1) + "·" };
+    }).concat(
+      this._labelled.filter(function (node) { return !node.visitado; })
+        .map(function (node) { return { node: node, badge: "" }; })
+    );
+
+    etiquetas.forEach(function (item) {
       var el = document.createElement("span");
-      el.className = "etiqueta-3d";
-      el.textContent = node.name;
-      el.style.color = node.color;
-      el.dataset.node = node.id;
+      el.className = "etiqueta-3d" + (item.badge ? " en-ruta" : "");
+      el.textContent = item.badge ? item.badge + " " + item.node.name : item.node.name;
+      el.style.color = item.badge ? "#e8f6ff" : item.node.color;
+      el.dataset.node = item.node.id;
       self._labels.appendChild(el);
     });
   };
