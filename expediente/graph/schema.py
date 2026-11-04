@@ -72,6 +72,11 @@ EDGES: dict[str, tuple[str, str]] = {
     "RESPALDA": ("Documento", "CompraAgil"),
     # Detection
     "SE_OBSERVA_EN": ("Senal", "OrdenCompra"),
+    # De qué habla la señal. El detector escribió el nombre del organismo y del proveedor como
+    # texto; sin estas dos aristas el vínculo existía solo en Python y el grafo quedaba en islas.
+    # Son dos relaciones y no una porque el destino es distinto: un organismo no es una empresa.
+    "SOBRE_ORGANISMO": ("Senal", "Organismo"),
+    "SOBRE_PROVEEDOR": ("Senal", "Proveedor"),
     "PRODUCE": ("Detector", "Senal"),
     "CORRELACIONA_CON": ("Senal", "Senal"),
     # Dossier

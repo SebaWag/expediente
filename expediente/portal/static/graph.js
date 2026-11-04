@@ -98,7 +98,9 @@
     GENERA: "genera",
     PARTICIPA_EN: "participa en",
     COTIZA_EN: "cotiza en",
-    PERTENECE_A: "pertenece a"
+    PERTENECE_A: "pertenece a",
+    SOBRE_ORGANISMO: "sobre el organismo",
+    SOBRE_PROVEEDOR: "sobre el proveedor"
   };
 
   var LABELS_ES = {
@@ -241,9 +243,11 @@
         //: Una señal con grado 1 sólo está colgada de su detector: no tiene órdenes ni documentos
         //: cargados. Son 480 de las 565 señales y forman las islas que se veían como "grupos
         //: aislados". No se borran (son reales), se atenúan y se declaran en el pie.
-        { selector: 'node[kind = "Senal"][deg = 1]', style: {
-          opacity: 0.18, "text-opacity": 0, "border-opacity": 0.2
-        } },
+        //: La señal con grado 1 sólo cuelga de su detector: no tiene órdenes cargadas. Son 505
+        //: de 565 y formaban cinco nubes flotando al lado del grafo. No se borran del corpus
+        //: —el detector dice cuántas son— pero no se dibujan como puntos sueltos: no hay nada
+        //: que investigar en ellas todavía.
+        { selector: 'node[kind = "Senal"][deg = 1]', style: { display: "none" } },
         { selector: 'node[kind = "OrdenCompra"]', style: {
           "background-opacity": 0.55, "overlay-opacity": 0.05, "border-opacity": 0.55
         } },
@@ -496,6 +500,14 @@
     this.cy.nodes().slice().sort(function (a, b) {
       return b.data("deg") - a.data("deg");
     }).slice(0, 8).forEach(function (node) { node.addClass("lbl"); });
+
+    //: El detector declara a cuántas señales representa que no se dibujan.
+    this.cy.nodes('[kind = "Detector"]').forEach(function (node) {
+      var huerfanas = node.neighborhood('node[kind = "Senal"][deg = 1]').length;
+      if (huerfanas) {
+        node.data("label", node.data("name") + "  +" + huerfanas + " señales sin órdenes");
+      }
+    });
 
     this._applyHidden();
     this._layout(!merge);
@@ -780,6 +792,14 @@
 
   GraphView.prototype.setLabelVisible = function (label, visible) {
     this.hidden[label] = !visible;
+    //: El detector declara a cuántas señales representa que no se dibujan.
+    this.cy.nodes('[kind = "Detector"]').forEach(function (node) {
+      var huerfanas = node.neighborhood('node[kind = "Senal"][deg = 1]').length;
+      if (huerfanas) {
+        node.data("label", node.data("name") + "  +" + huerfanas + " señales sin órdenes");
+      }
+    });
+
     this._applyHidden();
     if (this.options.legend) { this._renderLegend(); }
     return !this.hidden[label];
@@ -792,6 +812,14 @@
 
   GraphView.prototype.setSolo = function (label) {
     this.solo = label || null;
+    //: El detector declara a cuántas señales representa que no se dibujan.
+    this.cy.nodes('[kind = "Detector"]').forEach(function (node) {
+      var huerfanas = node.neighborhood('node[kind = "Senal"][deg = 1]').length;
+      if (huerfanas) {
+        node.data("label", node.data("name") + "  +" + huerfanas + " señales sin órdenes");
+      }
+    });
+
     this._applyHidden();
     return this.solo;
   };
@@ -901,7 +929,7 @@
       return node.data("kind") === "Senal" && node.data("deg") === 1;
     }).length;
     pie.textContent = this.cy.nodes().length + " nodos · "
-      + (huerfanas ? huerfanas + " señales sin órdenes cargadas (atenuadas)" : "todas con evidencia");
+      + (huerfanas ? huerfanas + " señales sin órdenes cargadas (agrupadas en su detector)" : "todas con evidencia");
     this._legend.appendChild(pie);
 
     var volver = document.createElement("button");
@@ -929,7 +957,10 @@
     var self = this;
     var visible = {};
     this.cy.nodes().forEach(function (node) {
-      visible[node.id()] = !node.hasClass("oculto");
+      //: Lo que el mapa no dibuja, la cámara 3D tampoco: una vista que muestra más que la otra
+      //: es una segunda verdad.
+      var esHuerfana = node.data("kind") === "Senal" && node.data("deg") === 1;
+      visible[node.id()] = !node.hasClass("oculto") && !esHuerfana;
     });
     return {
       nodes: this.nodes.filter(function (node) { return visible[node.id]; }).map(function (node) {

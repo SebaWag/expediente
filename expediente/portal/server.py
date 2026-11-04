@@ -1034,6 +1034,39 @@ class Portal:
             ):
                 link(str(row["d"])[len(NODE_PREFIX):], "PRODUCE", str(row["s"])[len(NODE_PREFIX):])
 
+        # 2b · de qué habla cada señal: su organismo y su proveedor.
+        #
+        # Estas dos aristas se materializaron el 4-nov-2026 (scripts/link_signal_parties.py).
+        # Antes no existían: el detector guardó el nombre —o el RUT— como texto, y el vínculo se
+        # resolvía en Python cada vez que alguien preguntaba. Consecuencia visible: el mapa tenía
+        # cinco islas, porque cuatro detectores colgaban sus señales de la nada.
+        if signal_values:
+            for rel, destino, prop in (
+                ("SOBRE_ORGANISMO", "Organismo", "nombre"),
+                ("SOBRE_PROVEEDOR", "Proveedor", "razon_social"),
+            ):
+                pairs = [
+                    (str(row["s"]), str(row["o"]))
+                    for row in client.select(
+                        f"SELECT ?s ?o WHERE {{ ?s <{relation_uri(rel)}> ?o . "
+                        f"VALUES ?s {{ {signal_values} }} }}"
+                    )
+                ]
+                if not pairs:
+                    continue
+                targets = sorted({target for _, target in pairs})
+                nombres: dict[str, str] = {}
+                for start in range(0, len(targets), 200):
+                    chunk = targets[start:start + 200]
+                    values = " ".join(f"<{uri}>" for uri in chunk)
+                    for row in client.select(
+                        f"SELECT ?o ?n WHERE {{ VALUES ?o {{ {values} }} ?o <{ONTO}{prop}> ?n }}"
+                    ):
+                        nombres[str(row["o"])] = str(row["n"])
+                for source, target in pairs:
+                    add(target, nombres.get(target, target.rsplit("/", 1)[-1]), destino)
+                    link(source[len(NODE_PREFIX):], rel, target[len(NODE_PREFIX):])
+
         # 3 · a sample of the orders each signal observes, and their documents
         order_uris: list[str] = []
         for uri in signals[:60]:
