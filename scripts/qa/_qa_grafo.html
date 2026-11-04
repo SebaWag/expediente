@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es-CL">
+<head>
+<meta charset="utf-8">
+<title>QA · grafo force-directed</title>
+<link rel="stylesheet" href="/home/seba/expediente/expediente/portal/static/styles.css">
+<style>
+  /* Aísla el lienzo para la captura: sin chat ni tarjetas encima. */
+  .chat, .tarjeta, .barra-superior, .letra-chica { display: none !important; }
+  #mapa { opacity: 1 !important; }
+</style>
+</head>
+<body>
+<div id="mapa"></div>
+
+<script src="/home/seba/expediente/expediente/portal/static/vendor/cytoscape.min.js"></script>
+<script src="/home/seba/expediente/expediente/portal/static/vendor/layout-base.js"></script>
+<script src="/home/seba/expediente/expediente/portal/static/vendor/cose-base.js"></script>
+<script src="/home/seba/expediente/expediente/portal/static/vendor/cytoscape-fcose.js"></script>
+<script src="/home/seba/expediente/expediente/portal/static/graph.js"></script>
+<script>
+// Un vecindario con la forma del caso estrella: detector -> señal -> orden -> proveedor/domicilio.
+const nodes = [];
+const edges = [];
+
+function add(id, label, name) { nodes.push({ id, label, name }); }
+
+add("Detector/fraccionamiento", "Detector", "Fraccionamiento de trato directo");
+add("Senal/sig-93efd38a", "Senal", "73 órdenes bajo el umbral · CLP 54.582.378");
+add("Senal/sig-76.264.138", "Senal", "Concentración HHI 0.71 · 2022");
+
+const organismos = [
+  ["Organismo/HPM", "HOSPITAL PUERTO MONTT"],
+  ["Organismo/MUNI-LOTA", "MUNICIPALIDAD DE LOTA"],
+  ["Organismo/CENABAST", "CENABAST"]
+];
+organismos.forEach(o => add(o[0], "Organismo", o[1]));
+
+const proveedores = [
+  ["Proveedor/76.264.138-0", "CARDIOTEC VASCULAR LIMITADA"],
+  ["Proveedor/77.290.194-1", "CARDIOTEC VASCULARIS SPA"],
+  ["Proveedor/96.555.222-4", "BAXTER CHILE"],
+  ["Proveedor/79.111.333-9", "TECNOMEDICAL DEL SUR"],
+  ["Proveedor/88.444.777-2", "INSUMOS MÉDICOS AUSTRALES"],
+  ["Proveedor/70.222.111-5", "DISTRIBUIDORA VALDIVIA"]
+];
+proveedores.forEach(p => add(p[0], "Proveedor", p[1]));
+
+add("Domicilio/157d5c86c514b86c", "Domicilio", "VALLE DE CASABLANCA NORTE 8219");
+add("Domicilio/geo-2", "Domicilio", "AV. LOS CARRERA 1234");
+add("Domicilio/geo-3", "Domicilio", "PASAJE INDUSTRIAL 88");
+
+add("Persona/rep-1", "Persona", "REPRESENTANTE LEGAL COMÚN");
+
+// 12 órdenes colgando del hospital y de Baxter
+for (let i = 0; i < 12; i++) {
+  add("OrdenCompra/OC-" + i, "OrdenCompra", "OC 41" + (1000 + i));
+  edges.push({ source: "Organismo/HPM", target: "OrdenCompra/OC-" + i, rel: "EMITE" });
+  edges.push({ source: "OrdenCompra/OC-" + i, target: "Proveedor/96.555.222-4", rel: "ADJUDICADA_A" });
+  if (i % 3 === 0) edges.push({ source: "Senal/sig-93efd38a", target: "OrdenCompra/OC-" + i, rel: "OBSERVA" });
+}
+
+add("Documento/doc-1", "Documento", "Resolución de adjudicación 2021-11");
+add("Documento/doc-2", "Documento", "Orden de compra firmada");
+add("Evidencia/ev-1", "Evidencia", "cita p. 14 · resuelvo primero");
+add("Afirmacion/af-1", "Afirmacion", "73 OC bajo umbral por receta");
+add("Licitacion/lic-1", "Licitacion", "LE 1234-56-LR21");
+add("CompraAgil/ca-1", "CompraAgil", "CA 9988-221");
+
+edges.push(
+  { source: "Detector/fraccionamiento", target: "Senal/sig-93efd38a", rel: "GENERA" },
+  { source: "Detector/fraccionamiento", target: "Senal/sig-76.264.138", rel: "GENERA" },
+  { source: "Senal/sig-76.264.138", target: "Proveedor/76.264.138-0", rel: "OBSERVA" },
+  { source: "Senal/sig-76.264.138", target: "Proveedor/77.290.194-1", rel: "OBSERVA" },
+  { source: "Proveedor/76.264.138-0", target: "Domicilio/157d5c86c514b86c", rel: "TIENE_DOMICILIO" },
+  { source: "Proveedor/77.290.194-1", target: "Domicilio/157d5c86c514b86c", rel: "TIENE_DOMICILIO" },
+  { source: "Proveedor/96.555.222-4", target: "Domicilio/geo-2", rel: "TIENE_DOMICILIO" },
+  { source: "Proveedor/96.555.222-4", target: "Persona/rep-1", rel: "REPRESENTADA_POR" },
+  { source: "Proveedor/79.111.333-9", target: "Persona/rep-1", rel: "REPRESENTADA_POR" },
+  { source: "Organismo/MUNI-LOTA", target: "Proveedor/88.444.777-2", rel: "ADJUDICADA_A" },
+  { source: "Organismo/CENABAST", target: "Proveedor/70.222.111-5", rel: "ADJUDICADA_A" },
+  { source: "OrdenCompra/OC-0", target: "Documento/doc-1", rel: "ACREDITA" },
+  { source: "Documento/doc-1", target: "Evidencia/ev-1", rel: "SOPORTADA_POR" },
+  { source: "Evidencia/ev-1", target: "Afirmacion/af-1", rel: "ACREDITA" },
+  { source: "OrdenCompra/OC-3", target: "Licitacion/lic-1", rel: "EN" },
+  { source: "Organismo/MUNI-LOTA", target: "CompraAgil/ca-1", rel: "EMITE" }
+);
+
+window.grafo = new window.GraphView(document.getElementById("mapa"), {
+  legend: true,
+  onSelect: n => { window.__sel = n; },
+  onPin: n => { window.__pin = n; },
+  onExpand: n => { window.__exp = n; }
+});
+
+window.grafo.setData({ nodes, edges, seed: "Senal/sig-93efd38a" });
+window.__stats = {
+  nodos: window.grafo.cy.nodes().length,
+  aristas: window.grafo.cy.edges().length,
+  counts: window.grafo.counts()
+};
+</script>
+</body>
+</html>

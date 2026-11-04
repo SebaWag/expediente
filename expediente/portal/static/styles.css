@@ -44,8 +44,15 @@ body {
   height: 100%;
   display: block;
   cursor: grab;
+  opacity: 0;
+  transition: opacity 420ms ease;
+  /* El campo: dos luces de color en las esquinas y el vacío al medio. Es el mismo tratamiento
+     del explorador de memoria, y cumple una función: da profundidad sin dibujar nada que no
+     exista en el grafo. */
   background:
-    radial-gradient(1200px 700px at 50% 40%, #0b1730 0%, #050914 70%),
+    radial-gradient(circle at 18% 12%, rgba(34, 211, 238, 0.10), transparent 42%),
+    radial-gradient(circle at 82% 88%, rgba(139, 92, 246, 0.10), transparent 45%),
+    radial-gradient(1200px 700px at 50% 42%, #0b1730 0%, #050914 72%),
     var(--fondo);
 }
 #mapa:active { cursor: grabbing; }
@@ -529,3 +536,86 @@ body {
 .paso.futuro { opacity: 0.28; }
 .paso.actual { background: rgba(56, 189, 248, 0.12); border-radius: 6px; }
 .paso.actual .verbo { color: #7dd3fc; }
+
+/* --------------------------------------------------------------- leyenda del grafo */
+/* La leyenda vive sobre el lienzo, abajo a la izquierda: dice qué color es cada tipo y cuántos
+   hay. Se puede clickear para apagar un tipo, y el panel de capas del encabezado se repinta. */
+.leyenda-grafo {
+  position: fixed;
+  left: 1.4rem;
+  bottom: 8.6rem;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  padding: 0.6rem 0.7rem 0.5rem;
+  background: rgba(10, 18, 36, 0.72);
+  border: 1px solid var(--linea);
+  border-radius: 12px;
+  backdrop-filter: blur(14px);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+  max-height: 42vh;
+  overflow-y: auto;
+}
+
+.leyenda-titulo {
+  margin: 0 0 0.3rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.leyenda-fila {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.12rem 0.25rem;
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  color: #cbd5e1;
+  font: inherit;
+  font-size: 0.74rem;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.leyenda-fila:hover { background: rgba(255, 255, 255, 0.05); }
+.leyenda-fila.apagada { opacity: 0.36; }
+.leyenda-fila i { width: 0.55rem; height: 0.55rem; border-radius: 50%; flex: 0 0 auto; }
+.leyenda-fila span { flex: 1; }
+.leyenda-fila b { color: #e2e8f0; font-variant-numeric: tabular-nums; font-weight: 600; }
+
+/* El globo del nodo bajo el cursor. */
+.grafo-tip {
+  position: fixed;
+  z-index: 30;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 120ms ease;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  max-width: 260px;
+  padding: 0.45rem 0.6rem;
+  background: rgba(13, 18, 28, 0.94);
+  border: 1px solid var(--linea-fuerte);
+  border-radius: 9px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.55);
+  font-size: 0.78rem;
+  color: #e8eefb;
+}
+
+.grafo-tip span { font-size: 0.66rem; color: #94a3b8; }
+
+/* Viñeta: oscurece los bordes para que el ojo aterrice en el centro. No dibuja datos — solo
+   dice dónde mirar, que es distinto. */
+.vineta {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  background: radial-gradient(circle at 50% 46%, transparent 38%, rgba(2, 5, 12, 0.55) 100%);
+}

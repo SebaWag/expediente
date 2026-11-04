@@ -9,7 +9,8 @@
 </head>
 <body>
 
-<canvas id="mapa" aria-label="Grafo de compras públicas" role="img"></canvas>
+<div id="mapa" aria-label="Grafo de compras públicas" role="application"></div>
+<div class="vineta" aria-hidden="true"></div>
 
 <header class="barra-superior">
   <div class="marca">
@@ -32,7 +33,6 @@
     <button type="button" data-mapa="in" class="icono" title="Acercar">+</button>
     <button type="button" data-mapa="out" class="icono" title="Alejar">−</button>
     <button type="button" data-mapa="reset" class="icono" title="Volver a la vista completa">⌂</button>
-    <button type="button" id="btn-vista" class="icono" title="Vista 2D (mapa) o 3D (caminata)">3D</button>
     <button type="button" id="btn-registro" class="icono" title="Registro de lo que hizo el agente">▤</button>
   </nav>
 </header>
@@ -95,6 +95,10 @@
 
 <p class="letra-chica" id="letra-chica"></p>
 
+<script src="/static/vendor/cytoscape.min.js"></script>
+<script src="/static/vendor/layout-base.js"></script>
+<script src="/static/vendor/cose-base.js"></script>
+<script src="/static/vendor/cytoscape-fcose.js"></script>
 <script src="/static/graph.js"></script>
 <script src="/static/app.js"></script>
 </body>

@@ -685,6 +685,10 @@
     });
   }
 
+  //: La leyenda del lienzo y el panel de capas son dos vistas del mismo estado. El clic en una
+  //: tiene que repintar la otra, o el usuario ve dos verdades distintas.
+  window.expedienteActualizarCapas = renderLayers;
+
   $("btn-capas").addEventListener("click", function () {
     var box = $("capas");
     box.hidden = !box.hidden;
