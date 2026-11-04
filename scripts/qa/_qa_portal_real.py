@@ -194,6 +194,35 @@ def main():
         page.wait_for_timeout(500)
         page.screenshot(path=str(OUT / "3_capas.png"))
 
+        # --- la cámara 3D: girar el mismo grafo
+        page.click("#btn-vista")
+        page.wait_for_timeout(4500)
+        info3d = page.evaluate("""() => {
+          const host = document.getElementById('mapa-3d');
+          const canvas = host && host.querySelector('canvas');
+          return {
+            en3d: document.body.classList.contains('en-3d'),
+            hostVisible: !!host && !host.hidden,
+            canvas: !!canvas,
+            ancho: canvas ? canvas.width : 0,
+            mapaOculto: getComputedStyle(document.getElementById('mapa')).display === 'none'
+          };
+        }""")
+        print("3d:", json.dumps(info3d, ensure_ascii=False))
+        page.screenshot(path=str(OUT / "4_3d.png"))
+
+        box = page.locator("#mapa-3d").bounding_box()
+        if box:
+            page.mouse.move(box["width"] * 0.5, box["height"] * 0.5)
+            page.mouse.down()
+            page.mouse.move(box["width"] * 0.72, box["height"] * 0.36, steps=18)
+            page.mouse.up()
+            page.wait_for_timeout(900)
+            page.screenshot(path=str(OUT / "5_3d_girado.png"))
+
+        page.click("#btn-vista")
+        page.wait_for_timeout(1200)
+        print("volvio a 2d:", page.evaluate("() => !document.body.classList.contains('en-3d')"))
         print("errors:", json.dumps(ERR, ensure_ascii=False, indent=1))
         browser.close()
 

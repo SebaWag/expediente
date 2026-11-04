@@ -77,6 +77,20 @@
     Licitacion: 14
   };
 
+  //: El landing llega con el corpus muestreado (hoy ~957 nodos, 565 de ellos señales). Dibujar
+  //: eso de una vez es una bola de pelo: el ojo no aterriza en ninguna parte. Se abre en foco
+  //: —la maquinaria, las entidades estructurales y las señales más conectadas— y el resto queda
+  //: a un clic, declarado en pantalla. Es la misma decisión del explorador de memoria: arrancar
+  //: en la red ego, no en el grafo completo.
+  var FOCUS_LIMIT = 130;
+
+  //: Prioridad del foco por tipo. La maquinaria primero, el volumen al final.
+  var FOCUS_RANK = {
+    Detector: 0, Organismo: 1, Proveedor: 1, Persona: 2, Domicilio: 2,
+    Senal: 3, Documento: 4, Evidencia: 4, Afirmacion: 4, Licitacion: 4,
+    CompraAgil: 4, OrdenCompra: 5
+  };
+
   var REL_ES = {
     EMITE: "emite",
     ADJUDICADA_A: "adjudicada a",
@@ -109,6 +123,28 @@
     Afirmacion: "afirmación"
   };
 
+  //: Aclara u oscurece un color hex. Sirve para el degradado radial que convierte un círculo
+  //: plano en una esfera: sin luz, un nodo es una calcomanía.
+  function shade(hex, amount) {
+    var value = String(hex).replace("#", "");
+    if (value.length === 3) {
+      value = value[0] + value[0] + value[1] + value[1] + value[2] + value[2];
+    }
+    var number = parseInt(value, 16);
+    var r = (number >> 16) & 255;
+    var g = (number >> 8) & 255;
+    var b = number & 255;
+    var mix = function (channel) {
+      var out = amount > 0
+        ? channel + (255 - channel) * amount
+        : channel * (1 + amount);
+      return Math.max(0, Math.min(255, Math.round(out)));
+    };
+    return "#" + [mix(r), mix(g), mix(b)].map(function (channel) {
+      return ("0" + channel.toString(16)).slice(-2);
+    }).join("");
+  }
+
   function truncate(text, max) {
     var value = String(text === undefined || text === null ? "" : text);
     return value.length > max ? value.slice(0, max - 1) + "…" : value;
@@ -130,6 +166,9 @@
     this._legend = null;
     this._tip = null;
     this._ready = false;
+    this._showAll = false;     //: el corpus completo se pide, no se impone
+    this._total = 0;
+    this._focused = 0;
     this._build();
     this._bind();
     if (this.options.legend) { this._mountLegend(); }
@@ -156,7 +195,6 @@
 
     this.cy = global.cytoscape({
       container: this.container,
-      wheelSensitivity: 0.6,
       minZoom: 0.08,
       maxZoom: 3.4,
       boxSelectionEnabled: false,
@@ -172,13 +210,13 @@
         } },
         { selector: "node", style: {
           "background-color": "data(color)",
-          "background-opacity": 0.94,
+          "background-opacity": 1,
           "width": "data(size)",
           "height": "data(size)",
           "shape": "data(shape)",
           "border-width": 1.4,
-          "border-color": "#050914",
-          "border-opacity": 0.9,
+          "border-color": "data(colorEdge)",
+          "border-opacity": 0.75,
           //: El halo: cytoscape no tiene box-shadow, pero overlay es exactamente un halo del
           //: color del nodo. Con opacidad baja se lee como brillo, no como borde grueso.
           "overlay-color": "data(color)",
@@ -186,7 +224,7 @@
           "overlay-padding": 8,
           "label": "data(label)",
           "font-size": 12,
-          "font-family": "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+          "font-family": "system-ui, sans-serif",
           "font-weight": 500,
           "color": "#e2e8f0",
           "text-opacity": 0,
@@ -258,8 +296,29 @@
         { selector: "node.peek", style: { opacity: 1, "text-opacity": 1 } },
         { selector: "node.pulse", style: { "border-width": 4, "border-color": "#fde047" } },
         { selector: "node.oculto", style: { display: "none" } },
+        //: `fuera` es el recorte del foco, y es independiente del filtro por tipo: apagar una
+        //: capa no debe re-dibujar el foco, ni al revés.
+        { selector: "node.fuera", style: { display: "none" } },
         { selector: "edge.oculto", style: { display: "none" } }
       ]
+    });
+
+    //: El degradado radial convierte el círculo en esfera. Cytoscape no acepta `data()` en los
+    //: stops de un gradiente, así que las doce reglas se escriben con el color literal de la
+    //: paleta: son doce y no cambian en tiempo de ejecución.
+    var self = this;
+    Object.keys(COLORS).forEach(function (kind) {
+      var base = COLORS[kind];
+      self.cy.style()
+        .selector('node[kind = "' + kind + '"]')
+        .style({
+          "background-fill": "radial-gradient",
+          "background-gradient-stop-colors":
+            shade(base, 0.42) + " " + base + " " + shade(base, -0.58),
+          "background-gradient-stop-positions": "0% 46% 100%",
+          "border-color": shade(base, -0.30)
+        })
+        .update();
     });
 
     this._ready = true;
@@ -411,6 +470,9 @@
           name: raw.name || raw.id,
           label: truncate(raw.name || raw.id, 22),
           color: self.colorFor(kind),
+          colorHi: shade(self.colorFor(kind), 0.45),
+          colorLo: shade(self.colorFor(kind), -0.55),
+          colorEdge: shade(self.colorFor(kind), -0.35),
           shape: SHAPES[kind] || "ellipse",
           size: BASE_SIZE[kind] || 11,
           deg: 0
@@ -460,6 +522,7 @@
     }).slice(0, 8).forEach(function (node) { node.addClass("lbl"); });
 
     this._applyHidden();
+    if (!merge) { this._applyFocus(); }
     this._layout(!merge);
 
     if (data.seed) { this.selected = data.seed; }
@@ -468,10 +531,10 @@
   };
 
   GraphView.prototype._layout = function (fresh) {
-    var self = this;
-    var name = global.cytoscapeFcose ? "fcose" : "cose";
+    var visible = this.cy.nodes().not(".fuera, .oculto");
     var options = {
-      name: name,
+      name: global.cytoscapeFcose ? "fcose" : "cose",
+      eles: visible,
       animate: false,
       fit: true,
       padding: 90,
@@ -492,16 +555,66 @@
       options.fit = false;
       options.randomize = false;
     }
+    //: El corpus completo no se dibuja con force-directed: a ese tamaño el resultado es una
+    //: bola. Concéntrico por grado dice "quién manda", que es la única pregunta que un mapa
+    //: de 957 nodos puede contestar de un vistazo.
+    if (visible.length > 420) {
+      options = {
+        name: "concentric",
+        eles: visible,
+        animate: false,
+        fit: true,
+        padding: 70,
+        concentric: function (node) { return node.data("deg"); },
+        levelWidth: function (nodes) { return Math.max(2, Math.round(nodes.length / 12)); },
+        minNodeSpacing: 26
+      };
+    }
     try {
       this.cy.layout(options).run();
     } catch (error) {
-      this.cy.layout({ name: "cose", animate: false, fit: true, padding: 90 }).run();
+      this.cy.layout({ name: "cose", animate: false, fit: true, padding: 90, eles: visible }).run();
     }
-    if (!fresh) {
-      this.cy.animate({ fit: { eles: this.cy.elements(), padding: 90 } }, { duration: 420 });
+    if (!fresh && visible.length <= 420) {
+      this.cy.animate({ fit: { eles: visible, padding: 90 } }, { duration: 420 });
     }
-    //: El fade-in de entrada: el lienzo aparece completo, no nodo por nodo.
     this.container.style.opacity = "1";
+  };
+
+  /* El foco: qué se dibuja del corpus, y cuánto se declara que se dejó afuera.
+   *
+   * No se borra nada. Los nodos fuera del foco siguen en el grafo y siguen siendo alcanzables
+   * por búsqueda; solo no se dibujan hasta que alguien pide el todo. Un lienzo que dice
+   * "130 de 957" es honesto; uno que dibuja 130 y parece completo, no.
+   */
+  GraphView.prototype._applyFocus = function () {
+    var nodes = this.cy.nodes();
+    nodes.removeClass("fuera");
+    this._total = nodes.length;
+    if (this._showAll || nodes.length <= FOCUS_LIMIT) {
+      this._focused = nodes.length;
+      return;
+    }
+    var ranked = nodes.slice().sort(function (a, b) {
+      var ra = FOCUS_RANK[a.data("kind")];
+      var rb = FOCUS_RANK[b.data("kind")];
+      if (ra === undefined) { ra = 4; }
+      if (rb === undefined) { rb = 4; }
+      if (ra !== rb) { return ra - rb; }
+      return b.data("deg") - a.data("deg");
+    });
+    ranked.slice(FOCUS_LIMIT).forEach(function (node) { node.addClass("fuera"); });
+    this._focused = FOCUS_LIMIT;
+  };
+
+  //: "Ver todo" y "volver al foco". Es la misma decisión del explorador de memoria: el grafo
+  //: completo es el remate, no la entrada.
+  GraphView.prototype.toggleFocus = function (showAll) {
+    this._showAll = (showAll === undefined) ? !this._showAll : !!showAll;
+    this._applyFocus();
+    this._layout(false);
+    if (this.options.legend) { this._renderLegend(); }
+    return this._showAll;
   };
 
   /* --------------------------------------------------------------- pintado */
@@ -691,7 +804,7 @@
 
   GraphView.prototype.counts = function () {
     var tally = {};
-    this.cy.nodes().forEach(function (node) {
+    this.cy.nodes().not(".fuera").forEach(function (node) {
       var kind = node.data("kind");
       tally[kind] = (tally[kind] || 0) + 1;
     });
@@ -770,6 +883,50 @@
       });
       self._legend.appendChild(row);
     });
+
+    //: El pie declara el recorte y ofrece el todo. Es el mismo pacto del aviso del servidor:
+    //: el lienzo dice cuánto está mostrando, siempre.
+    var foot = document.createElement("button");
+    foot.type = "button";
+    foot.className = "leyenda-pie";
+    if (this._showAll || this._total <= FOCUS_LIMIT) {
+      foot.textContent = "mostrando las " + this._total + " · volver al foco";
+      foot.addEventListener("click", function () { self.toggleFocus(false); });
+    } else {
+      foot.textContent = "mostrando " + this._focused + " de " + this._total + " · ver todo";
+      foot.addEventListener("click", function () { self.toggleFocus(true); });
+    }
+    this._legend.appendChild(foot);
+  };
+
+  /* Una foto de lo que hay en el lienzo, con los campos crudos del servidor incluidos.
+   *
+   * La cámara 3D dibuja el mismo grafo, no una copia distinta: si el foco deja algo afuera,
+   * la foto también lo deja afuera. Una segunda vista que muestra más que la primera es una
+   * segunda verdad.
+   */
+  GraphView.prototype.snapshot = function () {
+    var self = this;
+    var visible = {};
+    this.cy.nodes().forEach(function (node) {
+      visible[node.id()] = !node.hasClass("fuera") && !node.hasClass("oculto");
+    });
+    return {
+      nodes: this.nodes.filter(function (node) { return visible[node.id]; }).map(function (node) {
+        return {
+          id: node.id,
+          kind: node.label,
+          name: node.name,
+          color: self.colorFor(node.label),
+          size: self.cy.getElementById(node.id).data("size") || 12
+        };
+      }),
+      edges: this.edges.filter(function (edge) {
+        return visible[edge.source] && visible[edge.target];
+      }).map(function (edge) {
+        return { source: edge.source, target: edge.target, rel: edge.rel };
+      })
+    };
   };
 
   global.GraphView = GraphView;

@@ -82,21 +82,64 @@
   //: object the page uses is the only way to record what the product actually does.
   window.expedienteGrafo = state.graph;
 
-  //: The 2D map answers "where does this sit"; the 3D walk answers "what does it look like from
-  //: here". The button says which one you are in, and remembers the choice across reloads.
+  /* Dos cámaras, un solo grafo.
+   *
+   * El mapa contesta "dónde está esto respecto de aquello". La cámara 3D contesta "qué forma
+   * tiene", y para eso hay que poder girarlo: en un plano, toda relación vecina se cruza con
+   * otra y la estructura desaparece.
+   *
+   * La foto que alimenta el 3D es la del mapa (`snapshot`), no la respuesta del servidor: si el
+   * foco dejó ochocientos nodos afuera, acá tampoco aparecen.
+   */
+  function vista3d() {
+    if (!state.graph3d) {
+      state.graph3d = new window.Graph3D($("mapa-3d"), {
+        onSelect: function (node) { openCard(node.id, node.name, node.label); },
+        onExpand: function (node) { expandir(node); }
+      });
+    }
+    return state.graph3d;
+  }
+
+  //: Todo lo que cambie el mapa cambia la cámara: una sola foto, dos dibujos.
+  var _setData = state.graph.setData.bind(state.graph);
+  state.graph.setData = function (data, options) {
+    _setData(data, options);
+    if (state.graph3d) { state.graph3d.setData(state.graph.snapshot()); }
+  };
+
+  function enTresD() { return document.body.classList.contains("en-3d"); }
+
   function paintVista() {
     var button = $("btn-vista");
     if (!button) { return; }
-    button.textContent = state.graph.mode === "3d" ? "2D" : "3D";
-    button.title = state.graph.mode === "3d" ? "Volver al mapa 2D" : "Pasar a la caminata 3D";
+    var activo = enTresD();
+    button.textContent = activo ? "▦" : "◈";
+    button.title = activo ? "Volver al mapa 2D" : "Girar el grafo en 3D";
+    button.setAttribute("aria-pressed", String(activo));
   }
+
   if ($("btn-vista")) {
     $("btn-vista").addEventListener("click", function () {
-      state.graph.toggleMode();
+      if (enTresD()) {
+        if (state.graph3d) { state.graph3d.hide(); }
+        document.body.classList.remove("en-3d");
+      } else {
+        var camara = vista3d();
+        camara.setData(state.graph.snapshot());
+        document.body.classList.add("en-3d");
+        camara.show();
+      }
       paintVista();
     });
     paintVista();
   }
+
+  //: Al cambiar el tamaño de la ventana, la cámara 3D tiene que enterarse: si no, el volumen
+  //: queda recortado por un lienzo del porte anterior.
+  window.addEventListener("resize", function () {
+    if (state.graph3d && enTresD()) { state.graph3d.resize(); }
+  });
 
   document.querySelectorAll("[data-mapa]").forEach(function (button) {
     button.addEventListener("click", function () {
@@ -236,6 +279,9 @@
         });
     }
     openCard(nodeId, name, label);
+    if (state.graph3d && document.body.classList.contains("en-3d")) {
+      state.graph3d.flyTo(nodeId);
+    }
   }
 
 

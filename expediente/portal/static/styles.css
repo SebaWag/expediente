@@ -619,3 +619,79 @@ body {
   z-index: 2;
   background: radial-gradient(circle at 50% 46%, transparent 38%, rgba(2, 5, 12, 0.55) 100%);
 }
+
+/* El pie de la leyenda: declara cuánto se está dibujando y ofrece el corpus completo. */
+.leyenda-pie {
+  margin-top: 0.35rem;
+  padding: 0.3rem 0.3rem 0.1rem;
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--linea);
+  color: var(--acento);
+  font: inherit;
+  font-size: 0.66rem;
+  letter-spacing: 0.02em;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.leyenda-pie:hover { color: #7dd3fc; text-decoration: underline; }
+
+/* La cámara 3D: mismo encuadre que el mapa, otro motor. */
+.mapa-3d {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(34, 211, 238, 0.07), transparent 42%),
+    radial-gradient(circle at 82% 88%, rgba(139, 92, 246, 0.07), transparent 45%),
+    radial-gradient(1200px 700px at 50% 42%, #0b1730 0%, #050914 72%);
+}
+
+.mapa-3d canvas { display: block; }
+
+/* El globo del nodo en 3D lo dibuja la librería; acá solo se le da forma. */
+.tip3d {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.4rem 0.55rem;
+  background: rgba(13, 18, 28, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  border-radius: 8px;
+  font-size: 0.78rem;
+  color: #e8eefb;
+}
+
+.tip3d span { font-size: 0.66rem; color: #94a3b8; }
+
+/* Cuando la cámara 3D está arriba, el mapa se retira: dos lienzos encendidos son dos verdades. */
+body.en-3d #mapa,
+body.en-3d .leyenda-grafo { display: none; }
+
+/* ------------------------------------------------------- etiquetas de la cámara 3D */
+/* Capa HTML sobre el lienzo: se reposiciona en cada cuadro con la proyección de la cámara. */
+.etiquetas-3d {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 3;
+}
+
+.etiqueta-3d {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 0.12rem 0.4rem;
+  border-radius: 6px;
+  background: rgba(5, 9, 20, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  font: 500 0.7rem/1.3 system-ui, sans-serif;
+  white-space: nowrap;
+  transition: opacity 120ms linear;
+  will-change: transform;
+}
