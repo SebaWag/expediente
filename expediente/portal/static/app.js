@@ -593,8 +593,18 @@
           box.appendChild(el("p", { class: "pie alerta", text: flag.flag + ": " + flag.detail }));
         });
 
+        /* De dónde salen las citas.
+         *
+         * `/api/profile` deja `evidence` vacío en la raíz y entrega las filas dentro de `case`;
+         * `/api/signals/<id>` las pone en la raíz. Se aceptan las dos formas porque son el mismo
+         * dato servido por dos puertas, y leer solo una hacía que la tarjeta dijera "sin
+         * documento" en las 25 órdenes de una cadena completa. Medido, no supuesto.
+         */
+        var filas = (data.evidence && data.evidence.length)
+          ? data.evidence
+          : ((data.case && data.case.evidence) || []);
         var porOrden = {};
-        (data.evidence || []).forEach(function (row) { porOrden[row.order] = row; });
+        filas.forEach(function (row) { porOrden[row.order] = row; });
 
         box.appendChild(el("h3", { text: "Las órdenes del caso, con su cita" }));
         data.case.orders.slice(0, 6).forEach(function (order) {
