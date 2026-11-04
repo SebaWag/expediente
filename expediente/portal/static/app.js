@@ -1115,8 +1115,15 @@
         }
         var uso = (respuesta && respuesta.payload && respuesta.payload.usage) || {};
         var espera = respuesta ? Math.round((ts[respuesta.seq] - ts[event.seq]) * 1000) : 0;
+        /* La llamada al modelo se nombra: la regla del hackatón pide que las llamadas a Meta se
+         * vean en el demo, y una fila que dice "modelo · 45.414 tokens" sin decir cuál no lo
+         * cumple. `payload.model` viene del evento; en runs viejos no está y se cae al genérico.
+         */
+        var etiqueta = payload.model
+          ? payload.model + (payload.purpose === "plan" ? " · plan" : " · paso")
+          : (payload.purpose || "modelo");
         pasos.push({
-          tipo: "model", herramienta: payload.purpose || "modelo", payload: payload,
+          tipo: "model", herramienta: etiqueta, payload: payload,
           ms: Math.max(0, espera), uso: uso, fallo: false,
           resumen: { summary: (uso.total_tokens ? uso.total_tokens + " tokens" : "") }
         });

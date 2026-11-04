@@ -47,6 +47,16 @@ from ..runs import (
 from . import tools as toolbox
 from .providers import MIN_OUTPUT_TOKENS, ModelReply, Provider, ProviderError
 
+def _model_name(provider: object) -> str | None:
+    """Nombre del modelo que atiende la llamada, si el proveedor lo expone.
+
+    `ScriptedProvider` (tests) no tiene modelo: devolver `None` es la respuesta correcta, no
+    inventar un nombre que después aparece en un video.
+    """
+    name = getattr(provider, "model", None)
+    return str(name) if name else None
+
+
 SYSTEM_PROMPT = """Eres un investigador de compras públicas de Chile. Trabajas sobre un \
 grafo de 4,9 millones de órdenes de compra reales, con sus proveedores, organismos y \
 señales detectadas por reglas.
@@ -257,7 +267,13 @@ class Investigator:
 
     # -- internals ---------------------------------------------------------
     def _plan(self, run: Run, question: str, result: Investigation) -> list[str]:
-        run.events.append(MODEL_REQUEST, {"purpose": "plan", "reasoning_effort": "low"})
+        #: El nombre del modelo viaja en el evento, no solo en la caja: la regla del hackatón pide
+        #: que las llamadas al modelo de Meta se vean en el demo, y "modelo · 45.414 tokens" sin
+        #: decir cuál es no lo cumple.
+        run.events.append(
+            MODEL_REQUEST,
+            {"purpose": "plan", "reasoning_effort": "low", "model": _model_name(self.provider)},
+        )
         reply = self.provider.chat(
             [
                 {"role": "system", "content": SYSTEM_PROMPT},
@@ -311,7 +327,15 @@ class Investigator:
                 run.events.append(BUDGET, {"limit": "wall_s", "max": self.settings.max_wall_s})
                 break
 
-            run.events.append(MODEL_REQUEST, {"purpose": "step", "reasoning_effort": "low", "tools": list(toolbox.TOOL_ORDER)})
+            run.events.append(
+                MODEL_REQUEST,
+                {
+                    "purpose": "step",
+                    "reasoning_effort": "low",
+                    "model": _model_name(self.provider),
+                    "tools": list(toolbox.TOOL_ORDER),
+                },
+            )
             reply: ModelReply = self.provider.chat(
                 messages,
                 tools=toolbox.SCHEMAS,

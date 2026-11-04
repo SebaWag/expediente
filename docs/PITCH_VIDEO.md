@@ -4,10 +4,29 @@ Producción. **Video en inglés**, demo grabado en una sola toma de pantalla, si
 fallos. Si algo falla en vivo, se ve el fallo: el producto se sostiene en que la interfaz no puede
 afirmar más de lo que el run hizo.
 
-**Formato:** 1080p · ventana del portal 1600×1000 (el criterio de aceptación del landing) ·
+**Duración objetivo: 2:50** (techo duro 3:00) · **Formato:** 1080p · ventana del portal 1600×1000 (el criterio de aceptación del landing) ·
 sin música · subtítulo en castellano solo en el cierre.
 
 ---
+
+## Reglas del video, dichas por los organizadores
+
+> *"You can edit the video. It has to be 3:00 or less, understandable in English, and show the
+> working product you built during the event with the **live Meta model calls visible**. Judges
+> stop at 3:00, so speed up long-running steps rather than cutting the core flow."*
+
+Cuatro consecuencias, y una es un requisito que se puede incumplir sin darse cuenta:
+
+| Regla | Qué hacemos |
+|---|---|
+| **≤ 3:00, y cortan al segundo** | objetivo **2:50**, no 3:00. Un video de 3:01 pierde el cierre |
+| **Inglés entendible** | voz en inglés; el cierre cierra con subtítulo en castellano |
+| **Llamadas al modelo visibles y en vivo** | el run se **ejecuta durante la grabación**, no se rebobina. El waterfall ya muestra `muse-spark-1.3 · paso · N tokens` (medido: 9 llamadas en el run `20261104-065037-k7qa`) |
+| **Acelerar, no cortar** | si el run tarda 45 s y la escena tiene 30 s, se acelera 1,5–2× **con el reloj visible**. Nunca se salta un paso del flujo |
+
+**Lo que esto prohíbe:** usar el botón de *rewind* como si fuera el demo. El rewind es un extra
+(escena 6), no la prueba. Si el video muestra solo la repetición, no hay llamadas al modelo en vivo
+y el criterio queda incumplido.
 
 ## 0. Los números: se re-miden el día de grabar
 
@@ -109,7 +128,20 @@ no debilita la frase: la hace merecida.
 
 ### Escena 3 · 0:34–1:08 · TTS · la pregunta y el plan
 
-**Pantalla:** se escribe la pregunta en el chat del portal. Aparece el plan y luego el waterfall.
+**Pantalla:** el portal. Se escribe la pregunta en el chat, **se dispara el run en vivo** y se abre
+el waterfall. Lo que tiene que quedar legible en pantalla, fila por fila:
+
+```
+muse-spark-1.3 · plan      1.718 tok   8,4 s
+muse-spark-1.3 · paso      3.257 tok   1,2 s
+muse-spark-1.3 · paso      3.575 tok   0,9 s   ← buscar_en_grafo
+muse-spark-1.3 · paso      6.641 tok   1,1 s   ← senal_detalle
+```
+
+Ese bloque es el cumplimiento literal de *"live Meta model calls visible"*: el nombre del modelo,
+cuántos tokens, cuánto tardó y qué verbo eligió, en el mismo registro que después se puede
+rebobinar. **Se graba con el run corriendo de verdad**, y se acelera en post si hace falta, con el
+reloj a la vista.
 
 > "So I ask in plain Spanish: why does one municipality concentrate 82 percent of its spending in
 > a single supplier? Muse Spark writes the plan, naming tools that exist, and picks one per turn.
