@@ -31,3 +31,10 @@ benchmarks/raw_ocds_awards.jsonl
 
 # embedding matrix (27MB, regenerate)
 benchmarks/name_emb.npy
+
+# Grabación del pitch: los guiones se versionan, los videos no.
+# Un mp4 de 40 s pesa 30 MB y el jurado clona el repo.
+rec/clips/
+rec/entrega/
+rec/shots/
+*.webm
