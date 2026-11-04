@@ -1317,8 +1317,16 @@
       if (paso.tipo === "claim.accepted") { afirmadas += 1; }
       if (paso.tipo === "claim.rejected") { descartadas += 1; }
 
+      /* La llamada al modelo dice cuál modelo fue.
+       *
+       * Estaba escrito a mano —"pensar"— y eso tiraba el único dato que el criterio del
+       * hackatón pide ver: que las llamadas a Meta se vean en vivo. `pasosDe` ya arma la
+       * etiqueta "muse-spark-1.3 · paso"; acá se usaba solo para comparar con "plan" y se
+       * descartaba. Un waterfall que dice "PENSAR · 6.719 tokens" no dice qué modelo pensó.
+       */
+      var etiquetaModelo = paso.payload && paso.payload.model ? paso.herramienta : null;
       var verbo = paso.tipo === "tool" ? (paso.herramienta || "herramienta")
-        : paso.tipo === "model" ? (paso.herramienta === "plan" ? "planear" : "pensar")
+        : paso.tipo === "model" ? (etiquetaModelo || (paso.herramienta === "plan" ? "planear" : "pensar"))
           : paso.tipo === "claim.accepted" ? "afirmó"
           : paso.tipo === "claim.rejected" ? "descartó"
             : ETIQUETA[paso.tipo] || paso.tipo;
