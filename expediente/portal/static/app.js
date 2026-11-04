@@ -942,7 +942,37 @@
     });
   }
 
-  function investigate(text) { ask(text); }
+  function investigate(text) {
+    // El chip dice «Investigar esto con el agente», así que investiga. Antes volvía a mandar
+    // el texto al router, que responde lo mismo que la primera vez —el mismo foco, el mismo
+    // chip— y la corrida no empieza nunca: se puede hacer clic para siempre.
+    //
+    // Va derecho al endpoint que arranca el agente, y desde ahí el registro se sigue por SSE
+    // igual que cualquier otra investigación.
+    say("yo", text);
+    var thinking = say("agente", "El agente va a recorrer el grafo…");
+    $("btn-enviar").disabled = true;
+
+    api("/api/investigate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question: text })
+    }).then(function (data) {
+      thinking.remove();
+      $("btn-enviar").disabled = false;
+      if (!data.run_id) {
+        say("agente", "No pude arrancar la investigación.");
+        return;
+      }
+      say("agente", "Recorro el grafo paso a paso; el registro queda a la vista.");
+      followRun(data.run_id);
+      openLog(data.run_id);
+    }).catch(function (error) {
+      thinking.remove();
+      $("btn-enviar").disabled = false;
+      say("agente", "No pude arrancar la investigación: " + error.message);
+    });
+  }
 
   // ------------------------------------------------------------------ registro
   $("btn-registro").addEventListener("click", function () {
