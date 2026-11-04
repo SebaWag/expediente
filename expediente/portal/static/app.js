@@ -569,9 +569,34 @@
         });
       }
 
-      // the evidence case, when the node is a signal
+      /* La cadena de evidencia, dicha como se dice en una auditoría.
+       *
+       * No basta con listar órdenes: el producto afirma que cada afirmación cita su documento.
+       * Así que acá va, por cada orden, el extracto y la ruta exacta donde vive el dato, más el
+       * estado de la cadena ("25 de 25 con documento"). Cuando falta, se dice: `complete: false`
+       * es una respuesta, no un error.
+       */
       if (data.case && data.case.orders) {
-        box.appendChild(el("h3", { text: "Las órdenes del caso" }));
+        var cuentas = data.case.counts || {};
+        var conDoc = cuentas.orders_with_document;
+        var citadas = cuentas.orders_cited;
+        var completa = data.complete !== undefined ? data.complete : (conDoc === citadas);
+        var sello = el("div", { class: "cadena " + (completa ? "ok" : "parcial") }, [
+          el("b", { text: completa ? "Cadena completa" : "Cadena parcial" }),
+          el("span", {
+            text: " · " + (conDoc === undefined ? "—" : conDoc) + " de " + (citadas === undefined ? "—" : citadas)
+              + " órdenes con documento · " + count(cuentas.documents) + " documento(s) citables"
+          })
+        ]);
+        box.appendChild(sello);
+        (data.flags || []).forEach(function (flag) {
+          box.appendChild(el("p", { class: "pie alerta", text: flag.flag + ": " + flag.detail }));
+        });
+
+        var porOrden = {};
+        (data.evidence || []).forEach(function (row) { porOrden[row.order] = row; });
+
+        box.appendChild(el("h3", { text: "Las órdenes del caso, con su cita" }));
         data.case.orders.slice(0, 6).forEach(function (order) {
           box.appendChild(el("div", { class: "fila-item", onclick: function () {
             focusOn("OrdenCompra/" + order.code, order.code, "OrdenCompra");
@@ -588,7 +613,7 @@
               }
             }));
           }
-          box.appendChild(evidenceBlock(order.code));
+          box.appendChild(evidenceBlock(order.code, porOrden[order.code]));
         });
         if (data.case.orders.length > 8) {
           box.appendChild(el("p", { class: "pie", text: "… y " + (data.case.orders.length - 8) + " más en el expediente." }));
@@ -683,8 +708,28 @@
     });
   }
 
-  function evidenceBlock(code) {
+  function evidenceBlock(code, evidencia) {
     var wrap = el("div", { class: "verificacion" });
+
+    //: La cita. Sin esto, el producto solo dice "hay un documento"; con esto, dice *qué dice*
+    //: el documento y *dónde* lo dice. La ruta (`Listado[0].Total`) es la página de una fuente
+    //: legible por máquina.
+    if (evidencia) {
+      var citas = evidencia.evidencias || [];
+      var primera = citas[0] || {};
+      if (primera.extracto) {
+        wrap.appendChild(el("blockquote", { class: "cita" }, [
+          el("span", { text: primera.extracto }),
+          el("cite", {
+            text: (primera.campo ? primera.campo + " · " : "") + (primera.pagina || "sin ruta")
+              + (evidencia.hash_sha256 ? " · sha256 " + String(evidencia.hash_sha256).slice(0, 12) + "…" : "")
+          })
+        ]));
+      }
+    } else if (evidencia === undefined) {
+      wrap.appendChild(el("p", { class: "pie alerta", text: "Sin documento adjunto para esta orden." }));
+    }
+
     var actions = el("div", { class: "acciones" });
     actions.appendChild(el("a", {
       class: "chip", target: "_blank", rel: "noopener",
@@ -693,7 +738,7 @@
     }));
     actions.appendChild(el("a", {
       class: "chip suave", target: "_blank", rel: "noopener",
-      href: "/api/evidence/" + encodeURIComponent(code),
+      href: "/api/evidence/" + encodeURIComponent((evidencia && evidencia.hash_sha256) || code),
       text: "Lo que leímos"
     }));
     var out = el("div", { class: "resultado-verificacion" });
