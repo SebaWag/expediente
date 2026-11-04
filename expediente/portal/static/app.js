@@ -966,6 +966,11 @@
       }
       say("agente", "Recorro el grafo paso a paso; el registro queda a la vista.");
       followRun(data.run_id);
+      // La misma columna: el registro reemplaza al camino, no se apila encima. El botón de
+      // registro ya lo hacía; este camino lo olvidaba, y el panel del camino de la pregunta
+      // anterior se quedaba tapando el waterfall que se acaba de empezar.
+      if ($("camino")) { $("camino").hidden = true; }
+      if ($("tarjeta")) { $("tarjeta").hidden = true; }
       openLog(data.run_id);
     }).catch(function (error) {
       thinking.remove();
