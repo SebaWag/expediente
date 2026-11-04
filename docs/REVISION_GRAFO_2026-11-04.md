@@ -1,5 +1,10 @@
 # Revisión del grafo de Expediente — 4-nov-2026
 
+> **Nota de lectura:** las cifras de este documento son la **fotografía previa** al segundo import
+> del 4-nov (04:00). El estado final está en el `README.md` y se lee en vivo de
+> <https://expediente.wagnersolutionsai.com/health>. Se conservan sin editar porque son el registro
+> de la decisión, no el estado actual.
+
 Documento de decisión. **No se toca código hasta que la opción esté elegida.** Todo lo que sigue
 está verificado en disco y en producción, no de memoria.
 

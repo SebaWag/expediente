@@ -46,7 +46,7 @@ interface is not allowed to claim more than the run does.
 
 ## The Meta agent: what lets a neighbour audit the State
 
-The graph is not the product. **67,307,606 triples** are, today, unusable by the people the data
+The graph is not the product. **86,012,436 triples** are, today, unusable by the people the data
 belongs to. Not because the records are closed — they are public — but because the interface is
 SPARQL. A council member, a journalist or a Contraloría analyst does not write SPARQL, and does
 not have three weeks to learn.
@@ -96,7 +96,7 @@ This is deliberate, and it is the opposite of the obvious design.
 
 | | Model writes queries | Model picks from 13 typed tools |
 |---|---|---|
-| Unbounded scan over 67 M triples | one bad query takes the service down | impossible: every tool compiles to a bounded traversal |
+| Unbounded scan over 86 M triples | one bad query takes the service down | impossible: every tool compiles to a bounded traversal |
 | Reproducibility | the same question can produce a different number | the number comes from code, and can be re-run |
 | Steps needed | many, each one a chance to be wrong | 8 steps, because the vocabulary is small |
 | Auditability | you audit a query you did not write | you audit a rule you can read |
@@ -118,7 +118,7 @@ this table — which is the point of building a harness instead of a prompt.
 |---|---|
 | To ask *"why did this municipality buy the same thing six times this month?"*: extract three archives, join by hand, and still not be able to prove the join | one sentence in Spanish, **48 seconds**, and a dossier where each order carries a document and a sha256 |
 | The person who can answer is the one who can query | the person who can answer is the one who can read |
-| Each new question needs a new dataset, a new analyst, a new week | the same thirteen verbs work on **2.065 buyers and 113.183 suppliers** — no per-entity engineering |
+| Each new question needs a new dataset, a new analyst, a new week | the same thirteen verbs work on **2.065 buyers and 145.600 suppliers** — no per-entity engineering |
 
 That is the scale claim, and it is not about the model doing more. It is that **the same interface
 covers the whole country**, because the vocabulary is small enough for a model to use correctly and
@@ -526,7 +526,7 @@ identifiable. Both are handled by the commit history rather than by a slide:
 | pypdf | BSD | reading a PDF to find the page a quote came from (`pip install .[pdf]`), optional |
 | reportlab | BSD | writing the signed dossier PDF (`pip install .[pdf]`), optional |
 | Mercado Público open API / open data | public data | source records |
-| MillenniumDB | GPL-3.0 | property graph store (in production, 64.8 M triples) |
+| MillenniumDB | GPL-3.0 | property graph store (in production, 86.0 M triples) |
 | Meta Model API — Muse Spark (`muse-spark-1.3`) | — | layer 2b (the agent) and layer 3 (the dossier prose) |
 | Meta open weights — Muse Spark Open (`accounts/fireworks/models/muse-spark-open`) | — | layer 2a (document extraction), serverless |
 
