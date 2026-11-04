@@ -272,8 +272,15 @@ def _buscar_en_grafo(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
         nodes.append(node)
     if isinstance(result, dict) and "results" in result:
         nodes = result["results"]
+    salida = {"nodos": nodes, "label": args["label"], "texto": args["texto"]}
+    nota = result.get("nota") if isinstance(result, dict) else None
+    if nota:
+        #: La nota viaja al modelo y a la observación: sin ella el agente concluye "no existe",
+        #: y eso es falso sobre el organismo y sobre el alcance del corpus.
+        salida["nota"] = nota
+        ctx.observations.append(nota)
     ctx.observations.append(f"busqué «{args['texto']}» en {args['label']}: {len(nodes)} resultado(s)")
-    return {"nodos": nodes, "label": args["label"], "texto": args["texto"]}
+    return salida
 
 
 def _vecinos(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:

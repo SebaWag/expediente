@@ -326,6 +326,18 @@ def find_paths(store, args: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+#: Qué contiene el grafo y qué no. Va en la respuesta cuando una búsqueda no encuentra nada,
+#: porque "no existe" y "no está en el corpus cargado" son frases distintas y solo una es verdad.
+#: Medido el 4-nov-2026: 4.950.440 órdenes en el grafo, 0 compras ágiles importadas (las 3,66 M
+#: están descargadas y analizadas por los detectores, pero viven en un jsonl, no en el motor).
+CORPUS_SCOPE = (
+    "El corpus del grafo son 4.950.440 órdenes de compra (trato directo, licitación y convenio "
+    "marco). Las compras ágiles están descargadas y analizadas por los detectores, pero no "
+    "importadas al grafo: un organismo que compra por esa vía no se puede ver acá. "
+    "No significa que el organismo no exista."
+)
+
+
 def search(store, args: dict[str, Any]) -> dict[str, Any]:
     """Find nodes of a label by name, expanding acronyms first.
 
@@ -398,13 +410,21 @@ def search(store, args: dict[str, Any]) -> dict[str, Any]:
                         "matched_via": reason,
                     }
 
-    return {
+    respuesta = {
         "label": label,
         "text": text,
         "expanded_to": [v for v, r in variants if r != "texto"] or None,
         "count": len(merged),
         "results": list(merged.values())[:limit],
     }
+    if not merged:
+        #: El agente lee esta nota y la repite. Sin ella decía "no existe", que es falso sobre
+        #: el país y culpable sobre el producto: el organismo existe, lo que no está es su vía
+        #: de compra en el motor.
+        respuesta["nota"] = (
+            f"No hay ningún {label} que coincida con «{text}» en el grafo. " + CORPUS_SCOPE
+        )
+    return respuesta
 
 
 def citation_trail(store, args: dict[str, Any]) -> dict[str, Any]:
