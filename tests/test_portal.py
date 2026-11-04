@@ -374,3 +374,36 @@ def test_a_place_is_named_by_its_street_and_not_by_its_hash():
     assert _display_name("Domicilio", "157d5c86c514b86c", props) == "VALLE DE CASABLANCA NORTE N° 8219"
     # Sin nombre ni dirección, el hash es mejor que nada: la caída sigue siendo honesta.
     assert _display_name("Domicilio", "157d5c86c514b86c", {}) == "157d5c86c514b86c"
+
+
+def test_the_signals_cache_is_keyed_by_its_parameters(tmp_path):
+    """Un límite distinto no puede recibir la respuesta cacheada de otro.
+
+    El bug medido en producción: la caché era un solo slot, así que un sondeo con `?limit=2`
+    fijaba la respuesta para todas las llamadas siguientes durante dos minutos. El tablero pedía
+    100 señales y recibía 2, y eso se leía como "faltan señales y documentos".
+    También se verificaba el filtro: el portal descartaba `detector` al llamar a la API.
+    """
+
+    class CountingApi:
+        def __init__(self):
+            self.seen = []
+
+        def signals(self, params):
+            self.seen.append(dict(params))
+            limit = int(params.get("limit") or 100)
+            return {"count": limit, "signals": [{"id": f"s{i}"} for i in range(limit)]}
+
+    api = CountingApi()
+    store = make_store()
+    runs = RunStore(tmp_path / "runs")
+    registry = RunRegistry(store, lambda: ScriptedProvider([]), runs, Settings(max_steps=2))
+    portal = Portal(store, api, runs, registry)
+
+    assert portal.signals({"limit": "2"})["count"] == 2
+    assert portal.signals({"limit": "10"})["count"] == 10, "otro límite no puede venir de la caché"
+    assert portal.signals({"limit": "2"})["count"] == 2
+    assert len(api.seen) == 2, "la tercera llamada tiene que salir de la caché"
+
+    portal.signals({"limit": "5", "detector": "fraccionamiento"})
+    assert api.seen[-1].get("detector") == "fraccionamiento", "el filtro por detector se descartaba"

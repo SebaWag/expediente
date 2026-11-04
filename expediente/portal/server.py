@@ -458,7 +458,10 @@ class Portal:
         self.api = api
         self.runs = runs
         self.registry = registry
-        self._signals_cache: tuple[float, dict[str, Any]] | None = None
+        #: La caché va por PARÁMETRO. Antes era un solo slot y devolvía el payload de la primera
+        #: llamada para cualquier `limit`: el tablero pedía 100 y recibía 2 señales, y de ahí
+        #: venía la impresión de que "faltan señales y documentos". Medido en producción.
+        self._signals_cache: dict[tuple[str, str], tuple[float, dict[str, Any]]] = {}
         self._profile_cache: dict[str, tuple[float, dict[str, Any]]] = {}
         self._overview_cache: tuple[float, dict[str, Any]] | None = None
         #: The bytes we hashed, mounted read-only. Serving them is the whole point: a
@@ -476,11 +479,30 @@ class Portal:
         }
 
     def signals(self, params: dict[str, str]) -> dict[str, Any]:
+        """La lista corta, cacheada por los parámetros que la cambian.
+
+        Dos cosas se arreglaron acá, las dos medidas contra el motor en producción:
+
+        1. La caché era un único slot: la primera llamada (`?limit=2`, un sondeo) fijaba la
+           respuesta para todas las siguientes durante dos minutos. El tablero pedía 100 y
+           recibía 2. Ahora la clave es (límite, detector).
+        2. El filtro `detector` se descartaba al llamar a la API, así que filtrar por detector
+           devolvía todo. Se pasa.
+        """
+        detector = (params.get("detector") or "").strip()
+        limit = params.get("limit") or "100"
+        key = (detector, limit)
         now = time.time()
-        if self._signals_cache and now - self._signals_cache[0] < SIGNAL_CACHE_S:
-            return self._signals_cache[1]
-        payload = self.api.signals({"limit": params.get("limit") or "100"})
-        self._signals_cache = (now, payload)
+
+        cached = self._signals_cache.get(key)
+        if cached and now - cached[0] < SIGNAL_CACHE_S:
+            return cached[1]
+
+        query = {"limit": limit}
+        if detector:
+            query["detector"] = detector
+        payload = self.api.signals(query)
+        self._signals_cache[key] = (now, payload)
         return payload
 
     def kanban(self, params: dict[str, str]) -> dict[str, Any]:
