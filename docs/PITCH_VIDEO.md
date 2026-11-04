@@ -9,6 +9,33 @@ sin música · subtítulo en castellano solo en el cierre.
 
 ---
 
+## 0. Los números: se re-miden el día de grabar
+
+El grafo estaba creciendo **mientras se escribía este guion**. Medición de las 03:10:
+
+| | 27-oct (lo que circula en notas viejas) | 4-nov 02:18 | 4-nov 03:10 |
+|---|---:|---:|---:|
+| Órdenes en el grafo | 4.950.440 | 5.135.274 | **5.237.014** |
+| Proveedores | 103.220 | 113.183 | **117.458** |
+| Organismos | 1.400 | 2.065 | **2.065** |
+| Señales | 85 | 565 | **565** |
+| Tripletas | 64,79 M | 67,3 M | (**subiendo**) |
+
+Hay un segundo import corriendo desde las 02:25 (`--targets /tmp/targets.txt`, 282 reg/s), así
+que **cualquier cifra del grafo que se diga en el video tiene que re-medirse a las 09:00**, justo
+antes de grabar:
+
+```bash
+curl -s https://investiga.wagnersolutionsai.com/api/summary | python3 -m json.tool | head -20
+```
+
+**Lo que no cambia y por eso se puede decir sin fecha:** el corpus (10.302.746 órdenes, 240
+archivos, 5 años) y los 2.065 organismos (100 % de cobertura). Lo que cambia —órdenes cargadas,
+proveedores, tripletas— se dice con la fecha puesta o no se dice.
+
+Si el import termina antes de las 09:00, el video puede decir la cifra completa. Si no, se dice el
+corpus y se muestra el total del grafo en pantalla, que se lee del grafo.
+
 ## 1. La voz: lo que se midió, y la decisión que queda
 
 **Medido con la key, 4-nov:** la API de Meta expone **9 modelos** —
@@ -42,12 +69,35 @@ crédito falso en un video sobre trazabilidad sería la peor firma posible.
 Presupuesto: ~430 palabras de voz para 180 s (≈145 palabras/min, el ritmo de un TTS bien dirigido).
 **Primero se graba la voz; el video se corta después al ritmo de la voz.** Nunca al revés.
 
-### Escena 1 · 0:00–0:16 · Wagner en cámara
+### Escena 1 · 0:00–0:16 · Wagner en cámara · **tres aperturas, elige una**
 
-**Plano:** cámara, plano medio, fondo neutro. Sin logo, sin slide.
+La versión de Wagner, pulida (la idea es suya; abajo está tal como la mandó):
 
-> "I'm a single father of four. At home I have to account for every peso. In Chile, public
-> purchases are public — and nobody can read them. So I built the thing I needed."
+> "At Wagner Solutions we believe that with models like Muse Spark, anyone with a vision, an idea,
+> or a purpose can build solutions that make a real impact in their communities. That is how
+> Expediente was born."
+
+**A · Literal.** Empieza por la creencia. Ordenado, y es exactamente lo que él quiere decir.
+
+**B · La creencia, ganada por un hecho (recomendada).** Cuatro segundos de dato y después la
+creencia. La frase de Wagner queda casi intacta:
+
+> "Ten million public purchase orders. Five years. Nobody can read them. At Wagner Solutions we
+> believe that with models like Muse Spark, anyone with a vision, an idea, or a purpose can build
+> the tool that changes that. Expediente is what we built."
+
+**C · Corta, para 12 segundos.**
+
+> "A person with a purpose and a model like Muse Spark can change their community. That is what we
+> believe at Wagner Solutions. This is what we built with it."
+
+**Por qué recomiendo B:** en los primeros cinco segundos, "we believe" pide confianza antes de dar
+una razón. Un dato cuesta cuatro segundos y compra el derecho a decir "we believe" en el sexto. Y
+no debilita la frase: la hace merecida.
+
+**Tres correcciones de idioma sobre el texto original** (no son de estilo, son de gramática):
+`everyone, with the vision` → `anyone with a vision`; `comunitys` → `communities`;
+`That's the way Expediente born` → `That is how Expediente was born`.
 
 ### Escena 2 · 0:16–0:34 · TTS · el problema, con el número
 
@@ -93,10 +143,21 @@ Cadena completa · 2 de 8 órdenes (las del proveedor) · 81,5 % del gasto · 2 
 **Pantalla:** cámara 3D alejándose: 565 signals, organisms, suppliers. Luego, en texto grande:
 **"one purchase code at a time"**.
 
-> "Two thousand and sixty-five buyers. One hundred and thirteen thousand suppliers. The same
-> interface for all of them, with no per-entity engineering. A dossier a human can sign, because
-> the gate deletes whatever it cannot cite. This is what agents powered by Muse Spark are for:
-> not to describe the world, but to change it — one auditable purchase code at a time."
+> "Two thousand and sixty-five buyers. The same interface for all of them, with no per-entity
+> engineering. A dossier a human can sign, because the gate deletes whatever it cannot cite. This
+> is what agents powered by Muse Spark are for: not to describe the world, but to change it — one
+> auditable purchase code at a time."
+
+**Y la frase de cierre, en pantalla grande, antes del corte a negro:**
+
+```
+Six detectors. 565 cases. 4,455 documents. Not one claim without a document.
+```
+
+Esa es la versión verificable de *"no encontramos 22.177 casos, quedamos con 85 que se pueden
+abrir"*: el 22.177 y el 85 eran del grafo del 27-oct, y hoy el shortlist son 565 señales. La forma
+retórica se mantiene —muchos candidatos, pocos defendibles— con los números que se pueden mostrar
+en pantalla el jueves.
 
 ### Escena 7 · 2:38–3:00 · Wagner, su voz · el cierre
 
