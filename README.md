@@ -383,8 +383,8 @@ that says the in-memory adapter and the engine agree — is executed, not skippe
 | Domain models + normalisers (RUT, legal name, CLP, periods, addresses) | ✅ working, tested |
 | Graph schema (16 node labels, 23 edges, evidence invariant) | ✅ defined, and the docs are generated from it |
 | Graph store — in memory | ✅ reference adapter, used by the tests |
-| Graph store — **MillenniumDB** | ✅ **in production**: **67.307.606** triples on v1.0.0, per-edge provenance, native property paths |
-| Ingestion — ChileCompra bulk, 5 years | ✅ **10.302.746 records aggregated** from 240 archives (74.777.686 item rows); **5.135.274 orders** are in the graph today (49,8 %), and the difference is declared in *What is not in the graph*. 48 orders carry two different amounts; that is kept as a data-quality finding, not smoothed away |
+| Graph store — **MillenniumDB** | ✅ **in production**: **86.012.436** triples on v1.0.0, per-edge provenance, native property paths |
+| Ingestion — ChileCompra bulk, 5 years | ✅ **10.302.746 records aggregated** from 240 archives (74.777.686 item rows); **6.567.657 orders** are in the graph (63,7 %), and the difference is declared in *What is not in the graph*. 48 orders carry two different amounts; that is kept as a data-quality finding, not smoothed away |
 | Ingestion — Compra Ágil (live API) | ✅ working, including the list of who quoted each purchase |
 | Ingestion — OCDS supplier registry | ✅ 99.9 % of suppliers expose an address the bulk does not have; 87.5 % joined to the graph once the RUT format bug was fixed |
 | Document layer — PDF → page | ✅ reads a PDF and returns the page a quote came from, so a page number is measured, never typed |
@@ -477,20 +477,25 @@ relation between them would be wrong. Full write-up in
 The same rule the gate applies to claims applies to this README: **what is not there is declared,
 not omitted.**
 
-| | In the graph (measured 4-nov-2026) | In the corpus | Coverage |
+| | In the graph (measured 4-nov, 04:05) | In the corpus | Coverage |
 |---|---:|---:|---:|
 | Buyers (`:Organismo`) | **2.065** | 2.065 | **100 %** |
-| Purchase orders (`:OrdenCompra`) | **5.135.274** | 10.302.746 | 49,8 % |
-| Suppliers (`:Proveedor`) | **113.183** | 191.354 | 59,1 % |
+| Purchase orders (`:OrdenCompra`) | **6.567.657** | 10.302.746 | 63,7 % |
+| Suppliers (`:Proveedor`) | **145.600** | 191.354 | 76,1 % |
 | Documents (`:Documento`) | **4.455** | — | — |
 | Signals (shortlist) | **565** | 2.443 material patterns | 23 % |
 
-**Why the orders are at half.** The first load read **129 of the 240 archives** in the bulk
+**Why the orders are at 64 %.** The first load read **129 of the 240 archives** in the bulk
 dataset. The full one was built and measured: *"2,9 GB of RSS and `available: 0`"* — the process
-was killed before the kernel chose a victim. Production kept the load that fits the box. The
-remaining 5,17 M orders belong to buyers that were already in the graph, in archives the first
-pass never opened. It is a second pass waiting for a machine with more memory, not a defect hidden
-in the code.
+was killed before the kernel chose a victim. Production kept the load that fits the box.
+
+On 4-nov two more passes ran with the box quiet, and they closed the part that was a decision
+rather than a limit: **1.617.189 records of the 665 buyers that were missing** (JUNAEB, CONAF,
+Universidad de Chile, SAG, JUNJI, the armed forces), which took buyers from 1.400 to **2.065 —
+100 % of the corpus** — and suppliers from 103.220 to 145.600. The remaining **3,73 M orders**
+belong to buyers that were already in the graph, in archives the first pass never opened: the
+same script, without the "missing buyer" filter, closes that too. It is a second pass waiting for
+a window, not a defect hidden in the code.
 
 **Three data-quality findings we found by measuring, and did not smooth away:**
 

@@ -32,17 +32,17 @@ y el criterio queda incumplido.
 
 El grafo estaba creciendo **mientras se escribía este guion**. Medición de las 03:10:
 
-| | 27-oct (lo que circula en notas viejas) | 4-nov 02:18 | 4-nov 03:10 |
+| | 27-oct (notas viejas) | 4-nov 02:18 | **4-nov 04:05 (final)** |
 |---|---:|---:|---:|
-| Órdenes en el grafo | 4.950.440 | 5.135.274 | **5.237.014** |
-| Proveedores | 103.220 | 113.183 | **117.458** |
-| Organismos | 1.400 | 2.065 | **2.065** |
+| Órdenes en el grafo | 4.950.440 | 5.135.274 | **6.567.657** (63,7 %) |
+| Proveedores | 103.220 | 113.183 | **145.600** (76,1 %) |
+| Organismos | 1.400 | 2.065 | **2.065** (**100 %**) |
 | Señales | 85 | 565 | **565** |
-| Tripletas | 64,79 M | 67,3 M | (**subiendo**) |
+| Tripletas | 64,79 M | 67,3 M | **86.012.436** |
 
-Hay un segundo import corriendo desde las 02:25 (`--targets /tmp/targets.txt`, 282 reg/s), así
-que **cualquier cifra del grafo que se diga en el video tiene que re-medirse a las 09:00**, justo
-antes de grabar:
+El import cerró a las **04:00** con 1.617.189 registros, 665 organismos y 72.629 proveedores nuevos.
+Las cifras de arriba son las finales de esa pasada — pero el segundo import puede retomarse, así
+que **se re-miden a las 09:00**, justo antes de grabar:
 
 ```bash
 curl -s https://investiga.wagnersolutionsai.com/api/summary | python3 -m json.tool | head -20
