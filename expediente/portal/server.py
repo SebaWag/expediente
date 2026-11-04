@@ -374,6 +374,24 @@ class RunRegistry:
 SIGNAL_STATES = ("sin_revisar", "en_analisis", "con_evidencia", "descartada")
 
 
+def overview_note(n_nodes: int, n_edges: int, n_signals: int, triples: int) -> str:
+    """La letra chica de la portada.
+
+    El tamaño del grafo entra como argumento y no como literal: la versión anterior decía
+    «64,8 millones de tripletas» cuando el motor ya respondía 86.012.436, en la primera
+    pantalla de un portal que afirma que ninguno de sus números puede envejecer. Si el
+    conteo no se pudo leer (`triples` en 0), la frase se omite en vez de mentir.
+    """
+    note = (
+        f"{n_nodes} nodos y {n_edges} relaciones dibujadas: las {n_signals} señales, una "
+        "muestra de las órdenes que observan, los documentos que las acreditan y las partes "
+        "de esas órdenes —quién compra y quién vende—."
+    )
+    if triples:
+        note += f" El grafo real tiene {triples:,} tripletas.".replace(",", ".")
+    return note
+
+
 def kanban(api: Api, runs: RunStore, active: dict[str, dict[str, Any]], *, limit: int = 100) -> dict[str, Any]:
     """Signals grouped by what has actually been done to them.
 
@@ -595,7 +613,7 @@ class Portal:
         Three properties, each because the alternative lies:
 
         * **Bounded.** Hops, frontier size and visited nodes are capped in code, and the answer says
-          which cap it hit. An unbounded BFS over 64.8 M triples is a denial of service with a nice
+          which cap it hit. An unbounded BFS over tens of millions of triples is a denial of service with a nice
           interface.
         * **Direction is not assumed.** A path may traverse an edge forwards or backwards, and the
           hop records which way it went, so the reader can tell "this supplier is paid by that
@@ -952,7 +970,7 @@ class Portal:
         Detectors, every signal they produced, a sample of the orders those signals
         observe, and the documents behind those orders. That is the evidence graph of
         the country's procurement in one screen — and it is a *view*, capped and
-        declared, of a graph with 64.8 million triples.
+        declared, of a graph with tens of millions of triples.
         """
         import time as _time
 
@@ -1165,18 +1183,19 @@ class Portal:
                     if entry is not None:
                         entry["name"] = str(row["o"])[:70]
 
+        # El tamaño del grafo se le pregunta al grafo, no se escribe a mano.
+        try:
+            triples = int(self.api.health({}).get("triples") or 0)
+        except Exception:
+            triples = 0
+
         payload = {
             "nodes": list(nodes.values()),
             "edges": edges,
             "seed": None,
             "layout": "radial",
             "truncated": True,
-            "note": (
-                f"{len(nodes)} nodos y {len(edges)} relaciones dibujadas: las {len(signals)} "
-                "señales, una muestra de las órdenes que observan, los documentos que las "
-                "acreditan y las partes de esas órdenes —quién compra y quién vende—. El grafo "
-                "real tiene 64,8 millones de tripletas."
-            ),
+            "note": overview_note(len(nodes), len(edges), len(signals), triples),
         }
         self._overview_cache = (now, payload)
         return payload

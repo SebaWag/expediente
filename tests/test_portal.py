@@ -13,7 +13,14 @@ import pytest
 
 from expediente.agent import ModelReply, ScriptedProvider, Settings, tool_call
 from expediente.graph.store import InMemoryGraphStore
-from expediente.portal.server import Portal, RunRegistry, build_server, kanban, subgraph
+from expediente.portal.server import (
+    Portal,
+    RunRegistry,
+    build_server,
+    kanban,
+    overview_note,
+    subgraph,
+)
 from expediente.runs import RunStore
 
 
@@ -44,6 +51,10 @@ class FakeApi:
 
     def stats(self, params):
         return {"nodes": {"OrdenCompra": 3, "Proveedor": 2}, "relations": {}}
+
+    def health(self, params):
+        # El tamaño del grafo sale de acá, no de un literal en el código.
+        return {"status": "ok", "triples": 86_012_436}
 
 
 def signals():
@@ -290,6 +301,26 @@ def test_every_label_is_encodable_and_nameable():
     assert colors, "no encontré la tabla de colores"
     assert colors == shapes, f"labels sin forma: {sorted(colors - shapes)} · formas huérfanas: {sorted(shapes - colors)}"
     assert colors == names, f"labels sin nombre en la leyenda: {sorted(colors - names)}"
+
+
+def test_the_landing_quotes_the_graph_and_not_a_literal():
+    """La portada decía «64,8 millones de tripletas» con el motor en 86.012.436.
+
+    Un portal que afirma que ninguno de sus números puede envejecer no puede llevar uno
+    escrito a mano en la letra chica de la primera pantalla.
+    """
+    note = overview_note(1_437, 2_313, 565, 86_012_436)
+
+    assert "86.012.436" in note
+    assert "64,8" not in note
+
+
+def test_the_landing_says_nothing_about_size_when_the_count_could_not_be_read():
+    """Sin conteo, la frase se omite: mejor callar que decir un número viejo."""
+    note = overview_note(1_437, 2_313, 565, 0)
+
+    assert "tripletas" not in note
+    assert "1437 nodos" in note
 
 
 # ------------------------------------------------------- the subject of a question
