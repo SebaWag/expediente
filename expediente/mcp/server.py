@@ -328,12 +328,14 @@ def find_paths(store, args: dict[str, Any]) -> dict[str, Any]:
 
 #: Qué contiene el grafo y qué no. Va en la respuesta cuando una búsqueda no encuentra nada,
 #: porque "no existe" y "no está en el corpus cargado" son frases distintas y solo una es verdad.
-#: Medido el 4-nov-2026: 4.950.440 órdenes en el grafo, 0 compras ágiles importadas (las 3,66 M
-#: están descargadas y analizadas por los detectores, pero viven en un jsonl, no en el motor).
+#:
+#: No lleva un número fijo a propósito: un contador escrito a mano envejece en la primera
+#: importación y convierte una nota honesta en un dato falso. El alcance se describe por
+#: cobertura, que es lo que no cambia: procedimientos y período.
 CORPUS_SCOPE = (
-    "El corpus del grafo son 4.950.440 órdenes de compra (trato directo, licitación y convenio "
-    "marco). Las compras ágiles están descargadas y analizadas por los detectores, pero no "
-    "importadas al grafo: un organismo que compra por esa vía no se puede ver acá. "
+    "El corpus son las órdenes de compra publicadas en Mercado Público entre 2021 y 2026, de "
+    "todos los procedimientos (trato directo, licitación, convenio marco y compra ágil). Si un "
+    "organismo no aparece, puede que no emita órdenes en ese período o que use otro registro. "
     "No significa que el organismo no exista."
 )
 

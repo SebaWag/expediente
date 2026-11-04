@@ -1,6 +1,5 @@
 {
   "_comment": "Siglas y sinónimos que la gente usa -> el texto que aparece en los datos. Curado a mano y validado contra el grafo cargado con scripts/validate_aliases.py; toda entrada que no resuelve se borra, porque una sigla que devuelve cero es una mentira en un archivo de configuración. No se generan por iniciales: 'FONDO NACIONAL DE SALUD' daría FNS, que nadie dice. Ojo: la lista es corta porque el universo de compradores son hospitales, unidades de logística de las FFAA y municipalidades; los ministerios casi no emiten órdenes en este dataset, y afirmar lo contrario sería inventar.",
-
   "CENABAST": "CENTRAL DE ABASTECIMIENTO DEL SISTEMA NACIONAL DE SERVICIO DE SALUD",
   "FONASA": "FONDO NACIONAL DE SALUD",
   "ARMADA": "ARMADA",
@@ -11,5 +10,25 @@
   "DIPRECA": "DIRECCION DE PREVISION DE CARABINEROS",
   "MUNI": "MUNICIPALIDAD",
   "SERVICIO DE SALUD": "SERVICIO DE SALUD",
-  "HOSPITAL": "HOSPITAL"
+  "HOSPITAL": "HOSPITAL",
+  "JUNAEB": "JUNTA NACIONAL DE AUXILIO ESCOLAR",
+  "JUNJI": "JUNTA NACIONAL DE JARDINES",
+  "SAG": "SERVICIO AGRICOLA Y GANADERO",
+  "CONAF": "CORP NACIONAL FORESTAL",
+  "IND": "INSTITUTO NACIONAL DE DEPORTES",
+  "DGAC": "DIRECCION GENERAL DE AERONAUTICA CIVIL",
+  "SENAME": "SERVICIO NACIONAL DE MENORES",
+  "UCHILE": "UNIVERSIDAD DE CHILE",
+  "UTALCA": "UNIVERSIDAD DE TALCA",
+  "UDEC": "UNIVERSIDAD DE CONCEPCION",
+  "UFRO": "UNIVERSIDAD DE LA FRONTERA",
+  "UTARAPACA": "UNIVERSIDAD DE TARAPACA",
+  "USM": "UNIVERSIDAD TECNICA FEDERICO SANTA MARIA",
+  "UBB": "UNIVERSIDAD DEL BIO BIO",
+  "UV": "UNIVERSIDAD DE VALPARAISO",
+  "MOP": "MINISTERIO DE OBRAS PUBLICAS",
+  "MINVU": "MINISTERIO DE VIVIENDA",
+  "MINSAL": "MINISTERIO DE SALUD",
+  "SII": "SERVICIO DE IMPUESTOS INTERNOS",
+  "REGISTRO CIVIL": "REGISTRO CIVIL"
 }
