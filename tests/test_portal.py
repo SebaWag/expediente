@@ -292,6 +292,52 @@ def test_every_label_is_encodable_and_nameable():
     assert colors == names, f"labels sin nombre en la leyenda: {sorted(colors - names)}"
 
 
+# ------------------------------------------------------- the subject of a question
+
+@pytest.mark.parametrize(
+    "question, expected",
+    [
+        ("¿Por qué la Municipalidad de Pumanque concentra el 82% de su gasto?", "Municipalidad de Pumanque"),
+        ("¿Por qué aparecen juntas las dos Cardiotec?", "Cardiotec"),
+        ("¿Cuánto gastó la Municipalidad de San Pedro de Atacama en 2024?", "Municipalidad de San Pedro de Atacama"),
+        ("¿Quién es José Luis Pavez Vargas?", "José Luis Pavez Vargas"),
+        ("Pumanque", "Pumanque"),
+        ("¿Por qué son caras las compras?", None),
+    ],
+)
+def test_the_subject_of_a_question_is_its_capitalised_phrase(tmp_path, question, expected):
+    """Length is not specificity.
+
+    "Municipalidad" is longer than "Pumanque" and names eight different buyers, which is how
+    the command bar once answered a question about Pumanque by flying to an unrelated
+    foundation. What marks the subject is the capital letter, and the phrase around it.
+    """
+    assert make_portal(tmp_path)._subject_phrase(question) == expected
+
+
+def test_a_question_about_one_buyer_lands_on_that_buyer_and_not_on_the_first_match(tmp_path):
+    """The regression that motivated the phrase: the reply said *"te llevo a"* somebody else.
+
+    The subject is "Municipalidad de Renca" and the store holds exactly one of those, next to
+    two suppliers and three orders. Before the phrase, "Municipalidad" — the longest token —
+    decided the destination.
+    """
+    answer = make_portal(tmp_path).chat("¿Por qué la Municipalidad de Renca concentra el 82% de su gasto?")
+
+    assert answer["kind"] == "focus"
+    assert answer["node"] == "Organismo/69.260.000-1"
+    assert answer["name"] == "Municipalidad de Renca"
+    assert answer["can_investigate"] is True
+
+
+def test_a_connection_question_still_returns_the_two_suppliers(tmp_path):
+    """The phrase must not swallow the pair: two names joined by "y" are still two names."""
+    answer = make_portal(tmp_path).chat("¿Por qué aparecen juntas las dos Cardiotec?")
+
+    assert answer["kind"] == "path"
+    assert {answer["desde"], answer["hasta"]} == {"Proveedor/76.264.138-0", "Proveedor/77.290.194-1"}
+
+
 # -------------------------------------------------------------------------- path
 def make_portal(tmp_path) -> Portal:
     store = make_store()

@@ -1200,6 +1200,48 @@ class Portal:
         "mismo domicilio", "mismo representante", "familia", "red",
     )
 
+    #: Words that join a name without being one ("Municipalidad **de** Pumanque").
+    _CONNECTORS = {"de", "del", "la", "las", "los", "el", "y", "e"}
+
+    def _subject_phrase(self, text: str) -> str | None:
+        """The longest capitalised run in a question — its subject.
+
+        A sentence is not a name, and **length is a bad proxy for specificity**:
+        "Municipalidad" is longer than "Pumanque" but names eight different buyers, which is
+        exactly how the command bar once answered a question about Pumanque by flying to an
+        unrelated foundation. What marks the subject is the capital letter, and the phrase
+        around it resolves the question for the price of *one* search — where trying every
+        n-gram costs twenty and makes the chat feel broken.
+        """
+        words = [w.strip("«\"»'¿?¡!.,;:()") for w in (text or "").split()]
+        words = [w for w in words if w]
+        if not words:
+            return None
+
+        best: list[str] = []
+        run: list[str] = []
+        for index, word in enumerate(words):
+            capitalised = word[:1].isupper()
+            if index == 0 and len(words) > 1:
+                # "¿Por qué…" — the first word is capitalised by grammar, not because it names.
+                capitalised = False
+            if capitalised:
+                run.append(word)
+            elif run and word.lower() in self._CONNECTORS:
+                run.append(word.lower())
+            else:
+                if len(run) > len(best):
+                    best = list(run)
+                run = []
+
+        if len(run) > len(best):
+            best = list(run)
+        while best and best[-1].lower() in self._CONNECTORS:
+            best.pop()
+
+        phrase = " ".join(best).strip()
+        return phrase if len(phrase) >= 4 else None
+
     def _terms(self, text: str) -> list[str]:
         """The tokens of a question that could name an entity, longest first.
 
@@ -1207,7 +1249,6 @@ class Portal:
         why the portal's own suggestion "¿Por qué aparecen juntas las dos Cardiotec?" used to start
         a ten-step agent run instead of answering. The subject of that sentence is one word.
         """
-        import re as _re
 
         tokens = _re.findall(r"[0-9A-Za-zÁÉÍÓÚÜÑáéíóúüñ.\-]{4,}", text or "")
         picked = [token for token in tokens if token.lower() not in self._STOPWORDS]
@@ -1251,6 +1292,16 @@ class Portal:
         # A sentence is not a name. When the whole text finds nothing, try its subject words — and
         # prefer the token that found more than one entity, because that is the pair being asked
         # about.
+        # The subject of the sentence, tried as a phrase, before falling back to single tokens.
+        # One search, and it is the one that names the thing being asked about.
+        if not matches:
+            phrase = self._subject_phrase(text)
+            if phrase:
+                try:
+                    matches = search_all(phrase)
+                except Exception:
+                    matches = []
+
         if not matches:
             for term in self._terms(text):
                 candidate = search_all(term)
