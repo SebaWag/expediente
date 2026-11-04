@@ -240,6 +240,109 @@ def signal_pack(store, signal_id: str, *, order_limit: int = 200) -> dict[str, A
             "sum_clp": int(sum(amounts)) if amounts else 0,
         },
         "complete": bool(codes) and len(covered) == len(codes),
+        # Lo anterior responde "¿las órdenes citadas tienen documento?". Esto responde la otra
+        # pregunta, la que el lector de la tarjeta cree estar leyendo: "¿la cadena cubre lo que
+        # la afirmación declara?". Son distintas, y decir solo la primera es una promesa a medias.
+        **signal_coverage(
+            props.get("detector"),
+            declared_orders=_as_int(props.get("ordenes")),
+            declared_amount=_as_float(props.get("monto_clp")),
+            cited_orders=len(codes),
+            cited_amount=float(sum(amounts)) if amounts else 0.0,
+            orders_with_document=len(covered),
+            cuota_top=_as_float(props.get("cuota_top")),
+        ),
+    }
+
+
+def _as_int(value: Any) -> int | None:
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def _as_float(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def signal_coverage(
+    detector: str | None,
+    *,
+    declared_orders: int | None,
+    declared_amount: float | None,
+    cited_orders: int,
+    cited_amount: float,
+    orders_with_document: int,
+    cuota_top: float | None = None,
+    materialisation_cap: int = 25,
+) -> dict[str, Any]:
+    """Las dos poblaciones de una señal: la que el detector declaró y la que el grafo cita.
+
+    El claim de una señal se calcula sobre la población completa (todas las órdenes del patrón,
+    o todo el mercado del organismo). Lo que el grafo puede citar es un subconjunto: el tope de
+    materialización, o las órdenes de un solo proveedor cuando el detector es de concentración.
+    Mientras las dos se llamen igual, la interfaz no puede ser honesta aunque quiera.
+
+    De ahí ``alcance_declarado``, que es lo que faltaba para saber qué se está comparando:
+
+    * ``patron``  — el claim es sobre las N órdenes del patrón. ``cobertura`` = citadas / N, y
+      ``truncada`` cuando se citan menos.
+    * ``mercado`` — el claim es sobre el gasto del organismo, y lo citado son las órdenes del
+      proveedor concentrado. Comparar citadas contra N no mide una cobertura: mide una cuota.
+      ``truncada`` cuando la cuota reconstruida con lo citado no alcanza la cuota declarada
+      (``cuota_top``), que es el caso real de una señal con el proveedor capeado a 25 órdenes.
+    """
+
+    alcance = "mercado" if detector == "concentracion" else "patron"
+    poblacion = {
+        "declarada": {
+            "ordenes": declared_orders,
+            "monto_clp": int(declared_amount) if declared_amount else None,
+            "fuente": "detector",
+        },
+        "citada": {
+            "ordenes": cited_orders,
+            "monto_clp": int(cited_amount),
+            "fuente": "grafo",
+        },
+    }
+
+    cobertura: dict[str, float | None] | None = None
+    cuota_citada: float | None = None
+
+    if alcance == "patron":
+        if declared_orders:
+            cobertura = {
+                "ordenes": round(cited_orders / declared_orders, 4),
+                "monto_clp": round(cited_amount / declared_amount, 4) if declared_amount else None,
+            }
+        truncada = bool(declared_orders) and cited_orders < declared_orders
+    else:
+        if declared_amount:
+            cuota_citada = round(cited_amount / declared_amount, 4)
+        truncada = (
+            cuota_top is not None
+            and cuota_citada is not None
+            and abs(cuota_citada - float(cuota_top)) > 0.02
+        )
+
+    causa: str | None = None
+    if truncada:
+        causa = "sin_documento" if orders_with_document < cited_orders else "tope_materializacion"
+
+    return {
+        "alcance_declarado": alcance,
+        "poblacion": poblacion,
+        "cobertura": cobertura,
+        "cuota_citada": cuota_citada,
+        "cuota_declarada": float(cuota_top) if cuota_top is not None else None,
+        "truncada": truncada,
+        "causa_truncamiento": causa,
+        "tope_materializacion": materialisation_cap,
     }
 
 

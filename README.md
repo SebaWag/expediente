@@ -40,9 +40,107 @@ Every one of those four is driven by data that exists: a route is a query, a bar
 duration, a red ring is a claim the gate deleted, and the scrubber replays a recording. The
 interface is not allowed to claim more than the run does.
 
-<sub>The live portal at <a href="https://investiga.wagnersolutionsai.com">investiga.wagnersolutionsai.com</a> — 922 nodes drawn from a graph of 64.8 M triples, with the real totals beside them.</sub>
+<sub>The live portal at <a href="https://investiga.wagnersolutionsai.com">investiga.wagnersolutionsai.com</a> — the landing draws the 565 signals and the documents that back them, and reads its totals from the graph every time. No number in this line can go stale, because no number in this line is a literal.</sub>
 
 ---
+
+## The Meta agent: what lets a neighbour audit the State
+
+The graph is not the product. **67,307,606 triples** are, today, unusable by the people the data
+belongs to. Not because the records are closed — they are public — but because the interface is
+SPARQL. A council member, a journalist or a Contraloría analyst does not write SPARQL, and does
+not have three weeks to learn.
+
+Muse Spark is the layer that closes that distance. Not by summarising documents — by **driving a
+graph**.
+
+### One real run, measured
+
+| | |
+|---|---|
+| Question (typed in Spanish, by a person) | *"¿Qué patrones hay de fraccionamiento?"* |
+| Steps | **8** |
+| Model calls | 9 |
+| Tokens | 45.414 (42.050 in · 3.364 out · 2.437 reasoning) |
+| Wall clock | **48,5 s** |
+| Stopped by | `terminar` — **the model's own decision**, not a step limit |
+| Claims accepted | 1, each with a document |
+| Dossier | `sha256:340de350dc96…` (content-derived, re-derivable) |
+
+The plan it wrote, verbatim, before touching anything:
+
+```
+buscar_en_grafo para ubicar organismos y proveedores vinculados a fraccionamiento
+senales_de para listar las señales que mencionan fraccionamiento por entidad
+senal_detalle para ver las órdenes, montos y documentos de cada señal
+perfil_de_gasto para ver cuánto y por qué vía compró cada organismo involucrado
+```
+
+Those are four real verbs from the catalogue. The catalogue is generated from the tool schemas,
+not written by hand — the first live run planned `buscar_proveedor` and `ver_vecinos_del_grafo`,
+verbs that do not exist, because the plan call had no tool list to look at. That defect is why
+`verb_catalogue()` exists.
+
+### What the model actually does
+
+1. **Plans** the investigation, naming tools that exist.
+2. **Picks one verb per turn** and reads its result — 8 steps to a claim a human can sign.
+3. **Decides when the evidence is enough**, and stops (`terminar` is a tool, not a timeout).
+4. **Explains the finding in plain Spanish**, for someone who is not a programmer.
+5. **Says what it could not sustain** before the reader finds out: if the evidence chain is
+   incomplete, that caveat is part of the answer — the gate rejects the claim instead of softening it.
+
+### The design decision that matters: it does not write SPARQL
+
+This is deliberate, and it is the opposite of the obvious design.
+
+| | Model writes queries | Model picks from 13 typed tools |
+|---|---|---|
+| Unbounded scan over 67 M triples | one bad query takes the service down | impossible: every tool compiles to a bounded traversal |
+| Reproducibility | the same question can produce a different number | the number comes from code, and can be re-run |
+| Steps needed | many, each one a chance to be wrong | 8 steps, because the vocabulary is small |
+| Auditability | you audit a query you did not write | you audit a rule you can read |
+
+The agent has exactly thirteen verbs — `buscar_en_grafo`, `vecinos`, `caminos`, `red_proveedor`,
+`citas`, `senal_detalle`, `senales_de`, `perfil_de_gasto`, `documento_de_orden`, `buscar_en_web`,
+`leer_fuente`, `afirmar`, `terminar`. The first nine compile to graph traversals with limits in
+code. The last two are the ones that make it an investigation rather than a search: **`afirmar` is
+the only way a conclusion enters the dossier**, and it refuses to write one without a node, a
+document hash, or a verbatim quote.
+
+So the division of labour is explicit: **the model decides what to look at next; the code decides
+what is true.** A different model can replace Muse Spark without changing a single guarantee in
+this table — which is the point of building a harness instead of a prompt.
+
+### What that makes accessible
+
+| Before | With the agent |
+|---|---|
+| To ask *"why did this municipality buy the same thing six times this month?"*: extract three archives, join by hand, and still not be able to prove the join | one sentence in Spanish, **48 seconds**, and a dossier where each order carries a document and a sha256 |
+| The person who can answer is the one who can query | the person who can answer is the one who can read |
+| Each new question needs a new dataset, a new analyst, a new week | the same thirteen verbs work on **2.065 buyers and 113.183 suppliers** — no per-entity engineering |
+
+That is the scale claim, and it is not about the model doing more. It is that **the same interface
+covers the whole country**, because the vocabulary is small enough for a model to use correctly and
+the evidence contract is enforced by code, not by trust. A neighbour with a phone and a question
+is, for the first time, equipped to produce the same artefact as an audit team.
+
+### Build for Your World
+
+As a citizen of the third world, I learned early that scarcity is not solved by having more. It is
+solved by managing what you have, well. I am a single father of four daughters; I live that
+arithmetic every month, with limited resources and a household that has to hold.
+
+Expediente comes from there. If I have to account for every peso at home, I could not accept that a
+municipality does not have to account for its own. And the difference is not that the State hides
+its books — it is that they are unreadable: ten million purchase orders, archives nobody joins, and
+an interface that assumes you know how to write a query.
+
+So it was built for the people who have the question and not the query: a Contraloría auditor, a
+prosecutor, a journalist, a council member, a neighbour. The same evidence, whoever asks.
+
+> A frontier model is not what makes a finding true. It is what makes the finding **possible for
+> someone who cannot write a query** — and that is the only version of this that scales.
 
 ## The problem
 
@@ -122,9 +220,9 @@ Frontier models only where they add something. Everything else is code.
 | Layer | Runs on | Share of calls | Job |
 |---|---|---|---|
 | **0 · Deterministic** | Python + graph store | — | Ingest, normalise, detectors, aggregation, paths. Free, 100% citable. |
-| **1 · Vision / OCR** | Meta SAM 3.1 + vision | small | Only pages with no text layer. |
+| **1 · Vision / OCR** | not built | — | Pages with no text layer. Declared as not started in *Status*, not claimed here. |
 | **2a · Extraction** | Meta open weights (Muse Spark Open) | volume | Document → structured rows. Throughput is the whole constraint. |
-| **2b · Agent** | Muse Spark, `reasoning_effort=low` | narrow | Chooses which graph query to run. Does not write prose. |
+| **2b · Agent** | Muse Spark, `reasoning_effort=low` | narrow | Plans the investigation and picks **one of 13 typed tools** per turn. Never writes a query. |
 | **3 · Reasoning** | Muse Spark, `reasoning_effort=high` | ~5% | Synthesis of the dossier. One call per case. |
 
 Two rules hold the design together:
@@ -268,12 +366,12 @@ detector groups by its **RUT**, and the dossier came out valid, signable and emp
 
 ## Status
 
-Honest as of **day 7** (2026-11-01). **91 commits, 405 tests** — and both runs are
+Honest as of **day 10, submission day** (2026-11-04). **107 commits, 406 tests** — and both runs are
 reproduced on every push by CI, not by a badge that only claims it:
 
 ```bash
-python3 -m pytest -q            # 388 passed, 17 skipped (the engine tests need a server)
-EXPEDIENTE_MDB_URL=http://127.0.0.1:1234 python3 -m pytest -q   # the same 405, none skipped
+python3 -m pytest -q            # 389 passed, 17 skipped (the engine tests need a server)
+EXPEDIENTE_MDB_URL=http://127.0.0.1:1234 python3 -m pytest -q   # the same 406, none skipped
 ```
 
 The `graph` job in [`.github/workflows/ci.yml`](.github/workflows/ci.yml) starts an
@@ -285,8 +383,8 @@ that says the in-memory adapter and the engine agree — is executed, not skippe
 | Domain models + normalisers (RUT, legal name, CLP, periods, addresses) | ✅ working, tested |
 | Graph schema (16 node labels, 23 edges, evidence invariant) | ✅ defined, and the docs are generated from it |
 | Graph store — in memory | ✅ reference adapter, used by the tests |
-| Graph store — **MillenniumDB** | ✅ **in production**: 64.8 M triples on v1.0.0, per-edge provenance, native property paths |
-| Ingestion — ChileCompra bulk, 5 years | ✅ **4,950,443 purchase orders** from 129 archives (13,368,668 rows). 48 orders carry two different amounts; that is kept as a data-quality finding, not smoothed away |
+| Graph store — **MillenniumDB** | ✅ **in production**: **67.307.606** triples on v1.0.0, per-edge provenance, native property paths |
+| Ingestion — ChileCompra bulk, 5 years | ✅ **10.302.746 records aggregated** from 240 archives (74.777.686 item rows); **5.135.274 orders** are in the graph today (49,8 %), and the difference is declared in *What is not in the graph*. 48 orders carry two different amounts; that is kept as a data-quality finding, not smoothed away |
 | Ingestion — Compra Ágil (live API) | ✅ working, including the list of who quoted each purchase |
 | Ingestion — OCDS supplier registry | ✅ 99.9 % of suppliers expose an address the bulk does not have; 87.5 % joined to the graph once the RUT format bug was fixed |
 | Document layer — PDF → page | ✅ reads a PDF and returns the page a quote came from, so a page number is measured, never typed |
@@ -374,6 +472,38 @@ Same corporate group, two legal entities. No similarity threshold separates them
 relation between them would be wrong. Full write-up in
 [`docs/ENTITY_BENCHMARK.md`](docs/ENTITY_BENCHMARK.md).
 
+## What is not in the graph
+
+The same rule the gate applies to claims applies to this README: **what is not there is declared,
+not omitted.**
+
+| | In the graph (measured 4-nov-2026) | In the corpus | Coverage |
+|---|---:|---:|---:|
+| Buyers (`:Organismo`) | **2.065** | 2.065 | **100 %** |
+| Purchase orders (`:OrdenCompra`) | **5.135.274** | 10.302.746 | 49,8 % |
+| Suppliers (`:Proveedor`) | **113.183** | 191.354 | 59,1 % |
+| Documents (`:Documento`) | **4.455** | — | — |
+| Signals (shortlist) | **565** | 2.443 material patterns | 23 % |
+
+**Why the orders are at half.** The first load read **129 of the 240 archives** in the bulk
+dataset. The full one was built and measured: *"2,9 GB of RSS and `available: 0`"* — the process
+was killed before the kernel chose a victim. Production kept the load that fits the box. The
+remaining 5,17 M orders belong to buyers that were already in the graph, in archives the first
+pass never opened. It is a second pass waiting for a machine with more memory, not a defect hidden
+in the code.
+
+**Three data-quality findings we found by measuring, and did not smooth away:**
+
+1. **104 buyers have a RUT ending in lowercase `k`** — a normalisation defect from the source,
+   which splits one entity into two nodes.
+2. **One municipality has three nodes**: `Organismo/69.090.800-K`, `Organismo/69.090.800-k` and
+   `Organismo/13.781.584-2`. The purchase orders hang from only one of them.
+3. **The worst name collision is 157 nodes** for a single buyer name (`COMANDO DE APOYO A LA
+   FUERZA`), because each unit carries its own RUT.
+
+None of the three changes a finding about a purchase order — they change how a *buyer* is counted.
+They are listed here because a graph that hides its own duplicates is a graph you cannot audit.
+
 ## Built during the hackathon
 
 The hackathon rules require new work built inside the event window, and require contributors to be
@@ -392,7 +522,8 @@ identifiable. Both are handled by the commit history rather than by a slide:
 | reportlab | BSD | writing the signed dossier PDF (`pip install .[pdf]`), optional |
 | Mercado Público open API / open data | public data | source records |
 | MillenniumDB | GPL-3.0 | property graph store (in production, 64.8 M triples) |
-| Meta Model API (Muse Spark, SAM 3.1) | — | layers 1, 2a, 2b, 3 |
+| Meta Model API — Muse Spark (`muse-spark-1.3`) | — | layer 2b (the agent) and layer 3 (the dossier prose) |
+| Meta open weights — Muse Spark Open (`accounts/fireworks/models/muse-spark-open`) | — | layer 2a (document extraction), serverless |
 
 ## Legal framing
 

@@ -594,16 +594,42 @@
        * es una respuesta, no un error.
        */
       if (data.case && data.case.orders) {
-        var cuentas = data.case.counts || {};
+        var pack = data.case;
+        var cuentas = pack.counts || {};
         var conDoc = cuentas.orders_with_document;
         var citadas = cuentas.orders_cited;
-        var completa = data.complete !== undefined ? data.complete : (conDoc === citadas);
-        var sello = el("div", { class: "cadena " + (completa ? "ok" : "parcial") }, [
-          el("b", { text: completa ? "Cadena completa" : "Cadena parcial" }),
-          el("span", {
-            text: " · " + (conDoc === undefined ? "—" : conDoc) + " de " + (citadas === undefined ? "—" : citadas)
-              + " órdenes con documento · " + count(cuentas.documents) + " documento(s) citables"
-          })
+        var completa = pack.complete !== undefined ? pack.complete : (conDoc === citadas);
+        var truncada = !!pack.truncada;
+        var pob = pack.poblacion || null;
+        var decl = (pob && pob.declarada) ? pob.declarada.ordenes : null;
+        var esMercado = pack.alcance_declarado === "mercado";
+        var pct = function (x) {
+          return (x === null || x === undefined) ? "—" : (x * 100).toFixed(1).replace(".", ",") + " %";
+        };
+        /* Dos preguntas, dos respuestas.
+         *
+         * `complete` dice si todas las órdenes *citadas* tienen documento. No dice si la cadena
+         * cubre lo que el claim declara: en una señal de concentración lo citado son las órdenes
+         * del proveedor, y el claim habla de todo el mercado. Por eso acá van las dos cifras —
+         * "2 de 8 órdenes (las del proveedor) · 81,5 % del gasto"— y la etiqueta solo dice
+         * "completa" cuando además no hay truncamiento de la población declarada.
+         */
+        var etiqueta = (completa && !truncada) ? "Cadena completa" : "Cadena parcial";
+        var cifras;
+        if (decl !== null && decl !== undefined) {
+          cifras = citadas + " de " + decl + " órdenes"
+            + (esMercado ? " (las del proveedor)" : " citadas")
+            + " · " + (esMercado ? pct(pack.cuota_citada) + " del gasto" : pct(pack.cobertura && pack.cobertura.monto_clp) + " del monto")
+            + (truncada && esMercado && pack.cuota_declarada !== null && pack.cuota_declarada !== undefined
+              ? " (declarado: " + pct(pack.cuota_declarada) + ")" : "")
+            + " · " + conDoc + " de " + citadas + " con documento";
+        } else {
+          cifras = (conDoc === undefined ? "—" : conDoc) + " de " + (citadas === undefined ? "—" : citadas)
+            + " órdenes con documento";
+        }
+        var sello = el("div", { class: "cadena " + ((completa && !truncada) ? "ok" : "parcial") }, [
+          el("b", { text: etiqueta }),
+          el("span", { text: " · " + cifras + " · " + count(cuentas.documents) + " documento(s) citables" })
         ]);
         box.appendChild(sello);
         (data.flags || []).forEach(function (flag) {
