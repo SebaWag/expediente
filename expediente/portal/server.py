@@ -1268,6 +1268,7 @@ class Portal:
         why the portal's own suggestion "¿Por qué aparecen juntas las dos Cardiotec?" used to start
         a ten-step agent run instead of answering. The subject of that sentence is one word.
         """
+        import re as _re
 
         tokens = _re.findall(r"[0-9A-Za-zÁÉÍÓÚÜÑáéíóúüñ.\-]{4,}", text or "")
         picked = [token for token in tokens if token.lower() not in self._STOPWORDS]

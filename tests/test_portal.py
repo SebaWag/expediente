@@ -369,6 +369,30 @@ def test_a_connection_question_still_returns_the_two_suppliers(tmp_path):
     assert {answer["desde"], answer["hasta"]} == {"Proveedor/76.264.138-0", "Proveedor/77.290.194-1"}
 
 
+def test_the_token_fallback_survives_when_the_phrase_names_nothing(tmp_path):
+    """El camino viejo sigue vivo: si la frase no existe, se prueban los términos sueltos.
+
+    Este camino se rompió una vez y **ningún test lo notó**: a `_terms` le faltaba su
+    `import re`, y producción devolvió 502 en cuanto alguien escribió algo que no fuera una
+    frase resoluble. Un fallback sin test no es un fallback, es una promesa.
+    """
+    portal = make_portal(tmp_path)
+
+    assert portal._subject_phrase("¿Qué relación hay entre Cardiotec y Valparaíso?") == "Cardiotec y Valparaíso"
+
+    answer = portal.chat("¿Qué relación hay entre Cardiotec y Valparaíso?")
+
+    assert answer["kind"] in {"focus", "path"}
+
+
+def test_the_tokens_drop_the_words_that_carry_no_name(tmp_path):
+    tokens = make_portal(tmp_path)._terms("¿Por qué aparecen juntas las dos Cardiotec?")
+
+    assert tokens[0] == "Cardiotec"
+    assert "juntas" not in tokens
+    assert "aparecen" not in tokens
+
+
 # -------------------------------------------------------------------------- path
 def make_portal(tmp_path) -> Portal:
     store = make_store()
