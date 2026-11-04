@@ -81,6 +81,13 @@ not written by hand — the first live run planned `buscar_proveedor` and `ver_v
 verbs that do not exist, because the plan call had no tool list to look at. That defect is why
 `verb_catalogue()` exists.
 
+![The step log: every model call names the model, its tokens and its duration](docs/images/portal-pasos.jpg)
+
+<sub>The waterfall, on the run in the video. A row that says *"thinking"* shows activity; a row
+that says **`muse-spark-1.3 · paso · 6,719 tokens · 1,490 ms`** is the record of which model
+thought, how much it cost and how long it took. The same log can be rewound without a model, a
+network or a database, because rewinding re-reads the recording instead of re-running it.</sub>
+
 ### What the model actually does
 
 1. **Plans** the investigation, naming tools that exist.
