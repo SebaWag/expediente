@@ -254,6 +254,31 @@ Escena 7 (0:44–1:00). Voz de Meta en 3 y 5; la tuya en 1 y 7.
 
 ---
 
+## 7. Cómo se puntúa, y qué escena cubre qué
+
+Pesos textuales del evento (`docs/EVENT_RULES_20261104.md`): **Impact 30 % · Meta tooling 25 % ·
+Demo 25 % · Técnica 20 %**. El video tiene que verse como esa tabla, no como un recorrido por la
+arquitectura.
+
+| Criterio | Peso | Escena(s) que lo cubren | Lo que el jurado tiene que poder escribir después |
+|---|---:|---|---|
+| **Impact** | 30 % | 1, 4, 7 | "esto lo puede usar un municipio mañana, y le importa a alguien" |
+| **Meta tooling** | 25 % | 3, 6 | "fueron más allá de un wrapper: vocabulario acotado, decide parar, gate que borra" |
+| **Demo** | 25 % | 3, 4, 5 | "funciona, y me mostró algo que no había visto" |
+| **Técnica** | 20 % | 4, 5, 6 | "el ingeniero sabe lo que hace: 395 tests, cobertura declarada" |
+
+**Tres frases que tienen que existir en la voz, porque son puntaje literal:**
+
+1. *(tooling · "beyond a basic integration")* — "It does not write SQL. It chooses among thirteen
+   bounded verbs, and the code compiles each one to a traversal with limits."
+2. *(tooling · "unexpected capabilities")* — "When the evidence is not enough, it stops and says
+   so. The gate deletes the claim instead of softening it."
+3. *(impact · "something people use")* — "The person who has the question — not the one who knows
+   how to write a query — should be able to audit."
+
+Si una de esas tres no está en el audio, el criterio correspondiente se queda sin evidencia
+aunque el producto la tenga.
+
 ## Anexo · La frase, textual de Wagner
 
 > Muchas veces como ciudadano del tercer mundo, hemos aprendido que la única forma de hacer frente
