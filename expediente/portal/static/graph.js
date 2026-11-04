@@ -77,19 +77,8 @@
     Licitacion: 14
   };
 
-  //: El landing llega con el corpus muestreado (hoy ~957 nodos, 565 de ellos señales). Dibujar
-  //: eso de una vez es una bola de pelo: el ojo no aterriza en ninguna parte. Se abre en foco
-  //: —la maquinaria, las entidades estructurales y las señales más conectadas— y el resto queda
-  //: a un clic, declarado en pantalla. Es la misma decisión del explorador de memoria: arrancar
-  //: en la red ego, no en el grafo completo.
-  var FOCUS_LIMIT = 130;
-
-  //: Prioridad del foco por tipo. La maquinaria primero, el volumen al final.
-  var FOCUS_RANK = {
-    Detector: 0, Organismo: 1, Proveedor: 1, Persona: 2, Domicilio: 2,
-    Senal: 3, Documento: 4, Evidencia: 4, Afirmacion: 4, Licitacion: 4,
-    CompraAgil: 4, OrdenCompra: 5
-  };
+  //: No hay recorte de foco. El corpus entero vive en el lienzo y lo que se mueve es la cámara:
+  //: esconder 800 nodos para que se lea es una decisión que el lector no tomó.
 
   var REL_ES = {
     EMITE: "emite",
@@ -166,9 +155,6 @@
     this._legend = null;
     this._tip = null;
     this._ready = false;
-    this._showAll = false;     //: el corpus completo se pide, no se impone
-    this._total = 0;
-    this._focused = 0;
     this._build();
     this._bind();
     if (this.options.legend) { this._mountLegend(); }
@@ -296,9 +282,6 @@
         { selector: "node.peek", style: { opacity: 1, "text-opacity": 1 } },
         { selector: "node.pulse", style: { "border-width": 4, "border-color": "#fde047" } },
         { selector: "node.oculto", style: { display: "none" } },
-        //: `fuera` es el recorte del foco, y es independiente del filtro por tipo: apagar una
-        //: capa no debe re-dibujar el foco, ni al revés.
-        { selector: "node.fuera", style: { display: "none" } },
         { selector: "edge.oculto", style: { display: "none" } }
       ]
     });
@@ -522,7 +505,6 @@
     }).slice(0, 8).forEach(function (node) { node.addClass("lbl"); });
 
     this._applyHidden();
-    if (!merge) { this._applyFocus(); }
     this._layout(!merge);
 
     if (data.seed) { this.selected = data.seed; }
@@ -531,7 +513,7 @@
   };
 
   GraphView.prototype._layout = function (fresh) {
-    var visible = this.cy.nodes().not(".fuera, .oculto");
+    var visible = this.cy.nodes().not(".oculto");
 
     /* `eles` NO se pasa, y esto no es un detalle.
      *
@@ -557,70 +539,81 @@
       packComponents: true
     };
 
-    //: El corpus completo no se dibuja con force-directed: a ese tamaño el resultado es una
-    //: bola. Concéntrico por grado dice "quién manda", que es la única pregunta que un mapa
-    //: de mil nodos puede contestar de un vistazo.
-    if (visible.length > 420) {
-      options = {
-        name: "concentric",
-        animate: false,
-        fit: false,
-        padding: 70,
-        concentric: function (node) { return node.data("deg"); },
-        levelWidth: function (nodes) { return Math.max(2, Math.round(nodes.length / 12)); },
-        minNodeSpacing: 26
-      };
-    }
-
     try {
       this.cy.layout(options).run();
     } catch (error) {
       this.cy.layout({ name: "cose", animate: false, fit: false, padding: 90 }).run();
     }
 
-    //: El encuadre sí es sobre lo visible: si se encuadra todo, el foco queda en una esquina.
+    /* La cámara NO encuadra todo: encuadra el núcleo.
+     *
+     * El corpus entero vive en el lienzo (957 nodos, fuerza medida en 569-806 ms), pero verlo
+     * todo de una vez devuelve la bola de pelo. Encuadrar el hub de mayor grado deja al lector
+     * en una zona legible y el resto queda a un arrastre de distancia: el lienzo es grande, la
+     * cámara es chica. "Ver todo" es una acción de cámara (§reset), no de visibilidad.
+     */
     if (fresh) {
-      this.cy.fit(visible, 90);
+      this.centerOnCore(0);
     } else {
       this.cy.animate({ fit: { eles: visible, padding: 90 } }, { duration: 420 });
     }
     this.container.style.opacity = "1";
   };
 
-  /* El foco: qué se dibuja del corpus, y cuánto se declara que se dejó afuera.
+  /* La cámara, que es lo único que decide qué se mira.
    *
-   * No se borra nada. Los nodos fuera del foco siguen en el grafo y siguen siendo alcanzables
-   * por búsqueda; solo no se dibujan hasta que alguien pide el todo. Un lienzo que dice
-   * "130 de 957" es honesto; uno que dibuja 130 y parece completo, no.
+   * No se esconde nada: los 957 nodos están en el lienzo y se llega a cualquiera arrastrando o
+   * buscando. Lo que cambia es dónde está parada la cámara. Eso importa por una razón de
+   * producto: un grafo recortado miente por omisión; una cámara movida no.
    */
-  GraphView.prototype._applyFocus = function () {
-    var nodes = this.cy.nodes();
-    nodes.removeClass("fuera");
-    this._total = nodes.length;
-    if (this._showAll || nodes.length <= FOCUS_LIMIT) {
-      this._focused = nodes.length;
-      return;
-    }
-    var ranked = nodes.slice().sort(function (a, b) {
-      var ra = FOCUS_RANK[a.data("kind")];
-      var rb = FOCUS_RANK[b.data("kind")];
-      if (ra === undefined) { ra = 4; }
-      if (rb === undefined) { rb = 4; }
-      if (ra !== rb) { return ra - rb; }
-      return b.data("deg") - a.data("deg");
+  GraphView.prototype.centerOnCore = function (duration) {
+    var core = this.cy.nodes().filter(function (node) {
+      return node.data("kind") === "Detector";
     });
-    ranked.slice(FOCUS_LIMIT).forEach(function (node) { node.addClass("fuera"); });
-    this._focused = FOCUS_LIMIT;
+    if (!core.length) { core = this.cy.nodes().sort(function (a, b) { return b.data("deg") - a.data("deg"); }).slice(0, 3); }
+    if (!core.length) { return false; }
+    var target = core.sort(function (a, b) { return b.data("deg") - a.data("deg"); }).first();
+    var zoom = 0.85;
+    if (duration === 0) {
+      this.cy.center(target);
+      this.cy.zoom(zoom);
+      return true;
+    }
+    this.cy.animate({ center: { eles: target }, zoom: zoom }, { duration: duration || 600 });
+    return true;
   };
 
-  //: "Ver todo" y "volver al foco". Es la misma decisión del explorador de memoria: el grafo
-  //: completo es el remate, no la entrada.
-  GraphView.prototype.toggleFocus = function (showAll) {
-    this._showAll = (showAll === undefined) ? !this._showAll : !!showAll;
-    this._applyFocus();
-    this._layout(false);
-    if (this.options.legend) { this._renderLegend(); }
-    return this._showAll;
+  //: "Ver todo" es un movimiento de cámara: el corpus no aparece ni desaparece, se encuadra.
+  GraphView.prototype.showAll = function (duration) {
+    //: Con duración 0, `animate` no aplica el encuadre: se hace con `fit`, que es inmediato.
+    //: (El bug se vio como "el botón no hace nada": el zoom quedaba idéntico.)
+    if (duration === 0) {
+      this.cy.fit(this.cy.elements(), 40);
+    } else {
+      this.cy.animate(
+        { fit: { eles: this.cy.elements(), padding: 40 } },
+        { duration: duration === undefined ? 700 : duration }
+      );
+    }
+    return this.cy.nodes().length;
+  };
+
+  /* Llevar la cámara a los nodos que un paso de la investigación tocó.
+   *
+   * No cambia la selección ni el panel: el registro manda sobre la cámara, no sobre el estado.
+   * Si el nodo no está en el lienzo, devuelve false y el llamador decide (pedir el vecindario).
+   */
+  GraphView.prototype.follow = function (ids, zoom) {
+    var list = ids || [];
+    for (var i = 0; i < list.length; i += 1) {
+      var node = this.cy.getElementById(String(list[i]));
+      if (node && node.length) {
+        var level = zoom || Math.max(0.75, Math.min(1.5, this.cy.zoom()));
+        this.cy.animate({ center: { eles: node }, zoom: level }, { duration: 620, easing: "ease-in-out-cubic" });
+        return true;
+      }
+    }
+    return false;
   };
 
   /* --------------------------------------------------------------- pintado */
@@ -708,7 +701,7 @@
     this.peek = [];
     this.rechazo = [];
     this.cy.elements().removeClass("oculto faded sel pin route rejected peek");
-    this.cy.animate({ fit: { eles: this.cy.elements(), padding: 90 } }, { duration: 420 });
+    this.showAll();
     if (this.options.legend) { this._renderLegend(); }
   };
 
@@ -810,7 +803,7 @@
 
   GraphView.prototype.counts = function () {
     var tally = {};
-    this.cy.nodes().not(".fuera").forEach(function (node) {
+    this.cy.nodes().forEach(function (node) {
       var kind = node.data("kind");
       tally[kind] = (tally[kind] || 0) + 1;
     });
@@ -890,19 +883,26 @@
       self._legend.appendChild(row);
     });
 
-    //: El pie declara el recorte y ofrece el todo. Es el mismo pacto del aviso del servidor:
-    //: el lienzo dice cuánto está mostrando, siempre.
-    var foot = document.createElement("button");
-    foot.type = "button";
-    foot.className = "leyenda-pie";
-    if (this._showAll || this._total <= FOCUS_LIMIT) {
-      foot.textContent = "mostrando las " + this._total + " · volver al foco";
-      foot.addEventListener("click", function () { self.toggleFocus(false); });
-    } else {
-      foot.textContent = "mostrando " + this._focused + " de " + this._total + " · ver todo";
-      foot.addEventListener("click", function () { self.toggleFocus(true); });
-    }
-    this._legend.appendChild(foot);
+    //: El pie dice cuántos hay en el lienzo y ofrece las dos cámaras. No declara un recorte
+    //: porque no hay recorte: los 957 están dibujados, lo que se elige es dónde mirar.
+    var pie = document.createElement("p");
+    pie.className = "leyenda-pie-texto";
+    pie.textContent = this.cy.nodes().length + " nodos en el lienzo";
+    this._legend.appendChild(pie);
+
+    var volver = document.createElement("button");
+    volver.type = "button";
+    volver.className = "leyenda-pie";
+    volver.textContent = "volver al núcleo";
+    volver.addEventListener("click", function () { self.centerOnCore(700); });
+    this._legend.appendChild(volver);
+
+    var todo = document.createElement("button");
+    todo.type = "button";
+    todo.className = "leyenda-pie";
+    todo.textContent = "encuadrar todo";
+    todo.addEventListener("click", function () { self.showAll(); });
+    this._legend.appendChild(todo);
   };
 
   /* Una foto de lo que hay en el lienzo, con los campos crudos del servidor incluidos.
@@ -915,7 +915,7 @@
     var self = this;
     var visible = {};
     this.cy.nodes().forEach(function (node) {
-      visible[node.id()] = !node.hasClass("fuera") && !node.hasClass("oculto");
+      visible[node.id()] = !node.hasClass("oculto");
     });
     return {
       nodes: this.nodes.filter(function (node) { return visible[node.id]; }).map(function (node) {

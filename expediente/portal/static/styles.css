@@ -695,3 +695,13 @@ body.en-3d .leyenda-grafo { display: none; }
   transition: opacity 120ms linear;
   will-change: transform;
 }
+
+/* El pie de la leyenda ahora declara el tamaño del lienzo, no un recorte. */
+.leyenda-pie-texto {
+  margin: 0.35rem 0 0.1rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--linea);
+  font-size: 0.66rem;
+  color: var(--texto-suave);
+  letter-spacing: 0.02em;
+}

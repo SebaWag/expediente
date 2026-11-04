@@ -742,6 +742,20 @@
   });
 
   // ------------------------------------------------------------------- runs
+  /* La cámara sigue la investigación.
+   *
+   * Cada paso del agente ya sabe qué nodos tocó (`nodosDelPaso`). Mover la cámara ahí es lo que
+   * convierte el registro en navegación: no se "muestra el grafo", se viaja por él a medida que
+   * la investigación avanza. Si el nodo no está en el lienzo, no se inventa un salto: se queda
+   * donde está y el registro lo dice.
+   */
+  function seguirPaso(event) {
+    if (!state.graph || !state.graph.follow) { return; }
+    var ids = nodosDelPaso(event);
+    if (!ids.length) { return; }
+    state.graph.follow(ids, 1.1);
+  }
+
   function followRun(runId) {
     state.runId = runId;
     // Una corrida nueva empieza en vivo: dejar la línea de tiempo en el medio de la anterior
@@ -766,10 +780,12 @@
         step(box, "plan", (event.payload.steps || []).join(" → "));
       } else if (event.type === "tool.call") {
         step(box, event.payload.tool, "", "");
+        seguirPaso(event);
       } else if (event.type === "tool.result") {
         step(box, "·", event.payload.summary || "", "");
       } else if (event.type === "claim.accepted") {
         step(box, "afirmó", event.payload.texto, "ok");
+        seguirPaso(event);
       } else if (event.type === "claim.rejected") {
         step(box, "descartó", event.payload.reason || "", "no");
       } else if (event.type === "budget.exceeded") {
